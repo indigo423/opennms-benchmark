@@ -1,0 +1,20 @@
+#cloud-config
+
+users:
+  - name: ${admin_user}
+    groups: sudo
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+write_files:
+  - path: /etc/hosts
+    content: |
+      127.0.0.1 localhost
+      127.0.1.1 ${vm_name}
+%{ for hostname, ip in hosts ~}
+      ${ip} ${hostname} ${hostname}.lab.local
+%{ endfor ~}
+
+package_update: false

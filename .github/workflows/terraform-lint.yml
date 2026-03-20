@@ -1,0 +1,89 @@
+name: Terraform Lint
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+
+jobs:
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.5"
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive terraform/
+
+  validate-azure:
+    name: Validate (Azure)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.5"
+
+      - name: terraform init
+        run: terraform init -backend=false
+        working-directory: terraform/azure
+
+      - name: terraform validate
+        run: terraform validate
+        working-directory: terraform/azure
+
+  validate-kvm:
+    name: Validate (KVM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.5"
+
+      - name: terraform init
+        # -upgrade forces provider download; libvirt provider is a community
+        # provider from dmacvicar/libvirt and installs without a running host
+        run: terraform init -backend=false -upgrade
+        working-directory: terraform/kvm
+
+      - name: terraform validate
+        # validate checks syntax and type correctness only — no provider API calls
+        run: terraform validate
+        working-directory: terraform/kvm
+
+  tflint:
+    name: TFLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint (Azure)
+        run: tflint --init
+        working-directory: terraform/azure
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: TFLint (Azure)
+        run: tflint --recursive
+        working-directory: terraform/azure
+
+      - name: Init TFLint (KVM)
+        run: tflint --init
+        working-directory: terraform/kvm
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: TFLint (KVM)
+        run: tflint --recursive
+        working-directory: terraform/kvm

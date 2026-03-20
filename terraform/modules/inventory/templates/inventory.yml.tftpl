@@ -1,0 +1,36 @@
+all:
+  vars:
+    ansible_user: ${admin_user}
+    ansible_ssh_private_key_file: ${ssh_key_path}
+  hosts:
+    database:
+      ansible_host: ${ip_database}
+    core:
+      ansible_host: ${ip_core}
+    kafka:
+      ansible_host: ${ip_kafka}
+    minion:
+      ansible_host: ${ip_minion}
+    snmpsim:
+      ansible_host: ${ip_snmpsim}
+    monitoring:
+      ansible_host: ${ip_monitoring}
+  children:
+    db_servers:
+      hosts:
+        database:
+    opennms:
+      hosts:
+        core:
+    kafka_servers:
+      hosts:
+        kafka:
+    minions:
+      hosts:
+        minion:
+    simulators:
+      hosts:
+        snmpsim:
+    monitoring:
+      hosts:
+        monitoring:

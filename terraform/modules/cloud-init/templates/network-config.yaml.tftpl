@@ -1,0 +1,20 @@
+version: 2
+ethernets:
+%{ for iface in interfaces ~}
+  ${iface.name}:
+    addresses:
+      - ${iface.address}/${iface.prefix}
+%{ if iface.gateway != null ~}
+    routes:
+      - to: default
+        via: ${iface.gateway}
+%{ endif ~}
+%{ if length(extra_routes) > 0 && iface.gateway == null ~}
+    routes:
+%{ for route in extra_routes ~}
+      - to: ${route.to}
+        via: ${route.via}
+%{ endfor ~}
+%{ endif ~}
+    dhcp4: false
+%{ endfor ~}
