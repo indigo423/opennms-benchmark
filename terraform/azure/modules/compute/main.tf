@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+  }
+}
+
 locals {
   # Ubuntu 24.04 LTS — Azure marketplace cloud image (cloud-init pre-installed)
   # Do not change to a non-cloud image variant
@@ -87,15 +97,15 @@ module "cloud_init_monitoring" {
 }
 
 resource "azurerm_linux_virtual_machine" "database" {
-  name                  = "database"
-  resource_group_name   = var.resource_group
-  location              = var.location
-  size                  = var.vm_size_small
-  priority              = var.priority
+  name                         = "database"
+  resource_group_name          = var.resource_group
+  location                     = var.location
+  size                         = var.vm_size_small
+  priority                     = var.priority
   proximity_placement_group_id = var.ppg_id
-  admin_username        = var.admin_user
-  network_interface_ids = [var.nic_database_mgmt, var.nic_database_db]
-  custom_data           = module.cloud_init_database.user_data_base64
+  admin_username               = var.admin_user
+  network_interface_ids        = [var.nic_database_mgmt, var.nic_database_db]
+  custom_data                  = module.cloud_init_database.user_data_base64
 
   admin_ssh_key {
     username   = var.admin_user
@@ -116,15 +126,15 @@ resource "azurerm_linux_virtual_machine" "database" {
 }
 
 resource "azurerm_linux_virtual_machine" "core" {
-  name                  = "core"
-  resource_group_name   = var.resource_group
-  location              = var.location
-  size                  = var.vm_size_medium
-  priority              = var.priority
+  name                         = "core"
+  resource_group_name          = var.resource_group
+  location                     = var.location
+  size                         = var.vm_size_medium
+  priority                     = var.priority
   proximity_placement_group_id = var.ppg_id
-  admin_username        = var.admin_user
-  network_interface_ids = [var.nic_core_mgmt, var.nic_core_db, var.nic_core_kafka]
-  custom_data           = module.cloud_init_core.user_data_base64
+  admin_username               = var.admin_user
+  network_interface_ids        = [var.nic_core_mgmt, var.nic_core_db, var.nic_core_kafka]
+  custom_data                  = module.cloud_init_core.user_data_base64
 
   admin_ssh_key {
     username   = var.admin_user
@@ -145,15 +155,15 @@ resource "azurerm_linux_virtual_machine" "core" {
 }
 
 resource "azurerm_linux_virtual_machine" "kafka" {
-  name                  = "kafka"
-  resource_group_name   = var.resource_group
-  location              = var.location
-  size                  = var.vm_size_small
-  priority              = var.priority
+  name                         = "kafka"
+  resource_group_name          = var.resource_group
+  location                     = var.location
+  size                         = var.vm_size_small
+  priority                     = var.priority
   proximity_placement_group_id = var.ppg_id
-  admin_username        = var.admin_user
-  network_interface_ids = [var.nic_kafka_mgmt, var.nic_kafka_kafka]
-  custom_data           = module.cloud_init_kafka.user_data_base64
+  admin_username               = var.admin_user
+  network_interface_ids        = [var.nic_kafka_mgmt, var.nic_kafka_kafka]
+  custom_data                  = module.cloud_init_kafka.user_data_base64
 
   admin_ssh_key {
     username   = var.admin_user
@@ -174,15 +184,15 @@ resource "azurerm_linux_virtual_machine" "kafka" {
 }
 
 resource "azurerm_linux_virtual_machine" "minion" {
-  name                  = "minion"
-  resource_group_name   = var.resource_group
-  location              = var.location
-  size                  = var.vm_size_small
-  priority              = var.priority
+  name                         = "minion"
+  resource_group_name          = var.resource_group
+  location                     = var.location
+  size                         = var.vm_size_small
+  priority                     = var.priority
   proximity_placement_group_id = var.ppg_id
-  admin_username        = var.admin_user
-  network_interface_ids = [var.nic_minion_mgmt, var.nic_minion_kafka, var.nic_minion_sim]
-  custom_data           = module.cloud_init_minion.user_data_base64
+  admin_username               = var.admin_user
+  network_interface_ids        = [var.nic_minion_mgmt, var.nic_minion_kafka, var.nic_minion_sim]
+  custom_data                  = module.cloud_init_minion.user_data_base64
 
   admin_ssh_key {
     username   = var.admin_user
@@ -203,15 +213,15 @@ resource "azurerm_linux_virtual_machine" "minion" {
 }
 
 resource "azurerm_linux_virtual_machine" "snmpsim" {
-  name                  = "snmpsim"
-  resource_group_name   = var.resource_group
-  location              = var.location
-  size                  = var.vm_size_small
-  priority              = var.priority
+  name                         = "snmpsim"
+  resource_group_name          = var.resource_group
+  location                     = var.location
+  size                         = var.vm_size_small
+  priority                     = var.priority
   proximity_placement_group_id = var.ppg_id
-  admin_username        = var.admin_user
-  network_interface_ids = [var.nic_snmpsim_mgmt, var.nic_snmpsim_sim]
-  custom_data           = module.cloud_init_snmpsim.user_data_base64
+  admin_username               = var.admin_user
+  network_interface_ids        = [var.nic_snmpsim_mgmt, var.nic_snmpsim_sim]
+  custom_data                  = module.cloud_init_snmpsim.user_data_base64
 
   admin_ssh_key {
     username   = var.admin_user
@@ -232,15 +242,15 @@ resource "azurerm_linux_virtual_machine" "snmpsim" {
 }
 
 resource "azurerm_linux_virtual_machine" "monitoring" {
-  name                  = "mon"
-  resource_group_name   = var.resource_group
-  location              = var.location
-  size                  = var.vm_size_small
-  priority              = var.priority
+  name                         = "mon"
+  resource_group_name          = var.resource_group
+  location                     = var.location
+  size                         = var.vm_size_small
+  priority                     = var.priority
   proximity_placement_group_id = var.ppg_id
-  admin_username        = var.admin_user
-  network_interface_ids = [var.nic_monitoring_mgmt]
-  custom_data           = module.cloud_init_monitoring.user_data_base64
+  admin_username               = var.admin_user
+  network_interface_ids        = [var.nic_monitoring_mgmt]
+  custom_data                  = module.cloud_init_monitoring.user_data_base64
 
   admin_ssh_key {
     username   = var.admin_user

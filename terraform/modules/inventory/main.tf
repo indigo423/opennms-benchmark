@@ -1,6 +1,6 @@
 resource "local_file" "ansible_inventory" {
   filename = "${path.root}/../../ansible-inventory.yml"
-  content  = templatefile("${path.module}/templates/inventory.yml.tftpl", {
+  content = templatefile("${path.module}/templates/inventory.yml.tftpl", {
     ip_database   = var.ip_database
     ip_core       = var.ip_core
     ip_kafka      = var.ip_kafka

@@ -75,7 +75,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: TFLint (Azure)
-        run: tflint --recursive
+        run: tflint --recursive --minimum-failure-severity=error
         working-directory: terraform/azure
 
       - name: Init TFLint (KVM)
@@ -85,5 +85,5 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: TFLint (KVM)
-        run: tflint --recursive
+        run: tflint --recursive --minimum-failure-severity=error
         working-directory: terraform/kvm

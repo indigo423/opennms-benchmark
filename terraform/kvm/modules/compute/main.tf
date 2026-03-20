@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    libvirt = {
+      source  = "dmacvicar/libvirt"
+      version = "~> 0.7"
+    }
+  }
+}
+
 # Ubuntu 24.04 LTS cloud image — must be the cloud image (qcow2), NOT the server installer ISO.
 # Download before running terraform apply:
 #   wget -O /var/lib/libvirt/images/noble-server-cloudimg-amd64.img \
@@ -181,9 +191,9 @@ resource "libvirt_cloudinit_disk" "monitoring" {
 
 # VMs (libvirt domains)
 resource "libvirt_domain" "database" {
-  name    = "database"
-  memory  = 4096
-  vcpu    = 2
+  name      = "database"
+  memory    = 4096
+  vcpu      = 2
   cloudinit = libvirt_cloudinit_disk.database.id
 
   disk { volume_id = libvirt_volume.database.id }
@@ -193,9 +203,9 @@ resource "libvirt_domain" "database" {
 }
 
 resource "libvirt_domain" "core" {
-  name    = "core"
-  memory  = 16384
-  vcpu    = 4
+  name      = "core"
+  memory    = 16384
+  vcpu      = 4
   cloudinit = libvirt_cloudinit_disk.core.id
 
   disk { volume_id = libvirt_volume.core.id }
@@ -206,9 +216,9 @@ resource "libvirt_domain" "core" {
 }
 
 resource "libvirt_domain" "kafka" {
-  name    = "kafka"
-  memory  = 4096
-  vcpu    = 2
+  name      = "kafka"
+  memory    = 4096
+  vcpu      = 2
   cloudinit = libvirt_cloudinit_disk.kafka.id
 
   disk { volume_id = libvirt_volume.kafka.id }
@@ -218,9 +228,9 @@ resource "libvirt_domain" "kafka" {
 }
 
 resource "libvirt_domain" "minion" {
-  name    = "minion"
-  memory  = 4096
-  vcpu    = 2
+  name      = "minion"
+  memory    = 4096
+  vcpu      = 2
   cloudinit = libvirt_cloudinit_disk.minion.id
 
   disk { volume_id = libvirt_volume.minion.id }
@@ -231,9 +241,9 @@ resource "libvirt_domain" "minion" {
 }
 
 resource "libvirt_domain" "snmpsim" {
-  name    = "snmpsim"
-  memory  = 4096
-  vcpu    = 2
+  name      = "snmpsim"
+  memory    = 4096
+  vcpu      = 2
   cloudinit = libvirt_cloudinit_disk.snmpsim.id
 
   disk { volume_id = libvirt_volume.snmpsim.id }
@@ -243,9 +253,9 @@ resource "libvirt_domain" "snmpsim" {
 }
 
 resource "libvirt_domain" "monitoring" {
-  name    = "mon"
-  memory  = 4096
-  vcpu    = 2
+  name      = "mon"
+  memory    = 4096
+  vcpu      = 2
   cloudinit = libvirt_cloudinit_disk.monitoring.id
 
   disk { volume_id = libvirt_volume.monitoring.id }

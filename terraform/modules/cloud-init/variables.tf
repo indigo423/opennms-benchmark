@@ -33,6 +33,6 @@ variable "extra_routes" {
 }
 
 variable "hosts" {
-  type = map(string)
+  type        = map(string)
   description = "Hostname to IP map for /etc/hosts injection"
 }
