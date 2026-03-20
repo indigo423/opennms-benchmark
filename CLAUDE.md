@@ -109,3 +109,9 @@ git submodule update --init --recursive
 ## Git Workflow
 
 Never push directly to `main`. All changes must go through a pull request, regardless of size. Create a feature branch, make your changes, then open a PR for review before merging.
+
+All commits must be signed off using `git commit --signoff` (or `-s`), which adds a `Signed-off-by` trailer certifying that you have the right to submit the contribution under the project license (Developer Certificate of Origin). Example:
+
+```bash
+git commit -s -m "feat: my change"
+```
