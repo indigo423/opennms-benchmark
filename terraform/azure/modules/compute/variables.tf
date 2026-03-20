@@ -5,7 +5,10 @@ variable "vm_size_small"       { type = string }
 variable "vm_size_medium"      { type = string }
 variable "priority"            { type = string }
 variable "admin_user"          { type = string }
-variable "ssh_public_key"      { type = string; sensitive = true }
+variable "ssh_public_key" {
+  type      = string
+  sensitive = true
+}
 variable "snmp_sim_cidr"       { type = string }
 variable "snmp_sim_gateway"    { type = string }
 variable "hosts"               { type = map(string) }

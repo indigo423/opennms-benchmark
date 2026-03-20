@@ -29,5 +29,8 @@ variable "vm_size_small"     { type = string }
 variable "vm_size_medium"    { type = string }
 variable "priority"          { type = string }
 variable "operator_cidr"     { type = string }
-variable "ssh_public_key"    { type = string; sensitive = true }
+variable "ssh_public_key" {
+  type      = string
+  sensitive = true
+}
 variable "ssh_key_path"      { type = string }
