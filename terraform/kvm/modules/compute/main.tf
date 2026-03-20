@@ -3,7 +3,7 @@ terraform {
   required_providers {
     libvirt = {
       source  = "dmacvicar/libvirt"
-      version = "~> 0.9"
+      version = "~> 0.7.0"
     }
   }
 }
@@ -14,16 +14,10 @@ terraform {
 #     https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 
 resource "libvirt_volume" "ubuntu_base" {
-  name = "ubuntu-24.04-base"
-  pool = var.storage_pool
-  target = {
-    format = { type = "qcow2" }
-  }
-  create = {
-    content = {
-      url = var.ubuntu_cloud_image
-    }
-  }
+  name   = "ubuntu-24.04-base"
+  pool   = var.storage_pool
+  source = var.ubuntu_cloud_image
+  format = "qcow2"
 
   lifecycle {
     precondition {
@@ -35,57 +29,45 @@ resource "libvirt_volume" "ubuntu_base" {
 
 # Per-VM volumes (thin-provisioned clones of base image)
 resource "libvirt_volume" "database" {
-  name = "database.qcow2"
-  pool = var.storage_pool
-  backing_store = {
-    path   = libvirt_volume.ubuntu_base.path
-    format = { type = "qcow2" }
-  }
+  name           = "database.qcow2"
+  pool           = var.storage_pool
+  base_volume_id = libvirt_volume.ubuntu_base.id
+  format         = "qcow2"
 }
 
 resource "libvirt_volume" "core" {
-  name = "core.qcow2"
-  pool = var.storage_pool
-  backing_store = {
-    path   = libvirt_volume.ubuntu_base.path
-    format = { type = "qcow2" }
-  }
+  name           = "core.qcow2"
+  pool           = var.storage_pool
+  base_volume_id = libvirt_volume.ubuntu_base.id
+  format         = "qcow2"
 }
 
 resource "libvirt_volume" "kafka" {
-  name = "kafka.qcow2"
-  pool = var.storage_pool
-  backing_store = {
-    path   = libvirt_volume.ubuntu_base.path
-    format = { type = "qcow2" }
-  }
+  name           = "kafka.qcow2"
+  pool           = var.storage_pool
+  base_volume_id = libvirt_volume.ubuntu_base.id
+  format         = "qcow2"
 }
 
 resource "libvirt_volume" "minion" {
-  name = "minion.qcow2"
-  pool = var.storage_pool
-  backing_store = {
-    path   = libvirt_volume.ubuntu_base.path
-    format = { type = "qcow2" }
-  }
+  name           = "minion.qcow2"
+  pool           = var.storage_pool
+  base_volume_id = libvirt_volume.ubuntu_base.id
+  format         = "qcow2"
 }
 
 resource "libvirt_volume" "snmpsim" {
-  name = "snmpsim.qcow2"
-  pool = var.storage_pool
-  backing_store = {
-    path   = libvirt_volume.ubuntu_base.path
-    format = { type = "qcow2" }
-  }
+  name           = "snmpsim.qcow2"
+  pool           = var.storage_pool
+  base_volume_id = libvirt_volume.ubuntu_base.id
+  format         = "qcow2"
 }
 
 resource "libvirt_volume" "monitoring" {
-  name = "monitoring.qcow2"
-  pool = var.storage_pool
-  backing_store = {
-    path   = libvirt_volume.ubuntu_base.path
-    format = { type = "qcow2" }
-  }
+  name           = "monitoring.qcow2"
+  pool           = var.storage_pool
+  base_volume_id = libvirt_volume.ubuntu_base.id
+  format         = "qcow2"
 }
 
 # Cloud-init disks
