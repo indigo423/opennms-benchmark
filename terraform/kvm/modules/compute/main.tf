@@ -58,8 +58,8 @@ resource "libvirt_volume" "ubuntu_base" {
 
   lifecycle {
     precondition {
-      condition     = fileexists(var.ubuntu_cloud_image)
-      error_message = "Ubuntu 24.04 cloud image not found at '${var.ubuntu_cloud_image}'. Download noble-server-cloudimg-amd64.img from https://cloud-images.ubuntu.com/noble/current/ first."
+      condition     = can(regex("^https?://", var.ubuntu_cloud_image)) || fileexists(var.ubuntu_cloud_image)
+      error_message = "Ubuntu 24.04 cloud image must be either an existing local qcow2 path or an http(s) URL. Got '${var.ubuntu_cloud_image}'."
     }
   }
 }
@@ -299,7 +299,7 @@ resource "libvirt_volume" "database_cloudinit" {
 
   create = {
     content = {
-      url = libvirt_cloudinit_disk.database.path
+      url = "file://${libvirt_cloudinit_disk.database.path}"
     }
   }
 }
@@ -310,7 +310,7 @@ resource "libvirt_volume" "core_cloudinit" {
 
   create = {
     content = {
-      url = libvirt_cloudinit_disk.core.path
+      url = "file://${libvirt_cloudinit_disk.core.path}"
     }
   }
 }
@@ -321,7 +321,7 @@ resource "libvirt_volume" "kafka_cloudinit" {
 
   create = {
     content = {
-      url = libvirt_cloudinit_disk.kafka.path
+      url = "file://${libvirt_cloudinit_disk.kafka.path}"
     }
   }
 }
@@ -332,7 +332,7 @@ resource "libvirt_volume" "minion_cloudinit" {
 
   create = {
     content = {
-      url = libvirt_cloudinit_disk.minion.path
+      url = "file://${libvirt_cloudinit_disk.minion.path}"
     }
   }
 }
@@ -343,7 +343,7 @@ resource "libvirt_volume" "snmpsim_cloudinit" {
 
   create = {
     content = {
-      url = libvirt_cloudinit_disk.snmpsim.path
+      url = "file://${libvirt_cloudinit_disk.snmpsim.path}"
     }
   }
 }
@@ -354,7 +354,7 @@ resource "libvirt_volume" "monitoring_cloudinit" {
 
   create = {
     content = {
-      url = libvirt_cloudinit_disk.monitoring.path
+      url = "file://${libvirt_cloudinit_disk.monitoring.path}"
     }
   }
 }
@@ -362,14 +362,16 @@ resource "libvirt_volume" "monitoring_cloudinit" {
 resource "libvirt_domain" "database" {
   name        = "database"
   type        = "kvm"
+  running     = true
   memory      = 4096
   memory_unit = "MiB"
   vcpu        = 2
 
   os = {
-    type    = "hvm"
-    arch    = "x86_64"
-    machine = "q35"
+    type         = "hvm"
+    type_arch    = "x86_64"
+    type_machine = "q35"
+    boot         = [{ dev = "hd" }]
   }
 
   features = {
@@ -446,27 +448,22 @@ resource "libvirt_domain" "database" {
         target_type = "serial"
       }
     ]
-    graphics = [
-      {
-        type        = "vnc"
-        listen_type = "address"
-        auto_port   = true
-      }
-    ]
   }
 }
 
 resource "libvirt_domain" "core" {
   name        = "core"
   type        = "kvm"
+  running     = true
   memory      = 16384
   memory_unit = "MiB"
   vcpu        = 4
 
   os = {
-    type    = "hvm"
-    arch    = "x86_64"
-    machine = "q35"
+    type         = "hvm"
+    type_arch    = "x86_64"
+    type_machine = "q35"
+    boot         = [{ dev = "hd" }]
   }
 
   features = {
@@ -554,27 +551,22 @@ resource "libvirt_domain" "core" {
         target_type = "serial"
       }
     ]
-    graphics = [
-      {
-        type        = "vnc"
-        listen_type = "address"
-        auto_port   = true
-      }
-    ]
   }
 }
 
 resource "libvirt_domain" "kafka" {
   name        = "kafka"
   type        = "kvm"
+  running     = true
   memory      = 4096
   memory_unit = "MiB"
   vcpu        = 2
 
   os = {
-    type    = "hvm"
-    arch    = "x86_64"
-    machine = "q35"
+    type         = "hvm"
+    type_arch    = "x86_64"
+    type_machine = "q35"
+    boot         = [{ dev = "hd" }]
   }
 
   features = {
@@ -651,27 +643,22 @@ resource "libvirt_domain" "kafka" {
         target_type = "serial"
       }
     ]
-    graphics = [
-      {
-        type        = "vnc"
-        listen_type = "address"
-        auto_port   = true
-      }
-    ]
   }
 }
 
 resource "libvirt_domain" "minion" {
   name        = "minion"
   type        = "kvm"
+  running     = true
   memory      = 4096
   memory_unit = "MiB"
   vcpu        = 2
 
   os = {
-    type    = "hvm"
-    arch    = "x86_64"
-    machine = "q35"
+    type         = "hvm"
+    type_arch    = "x86_64"
+    type_machine = "q35"
+    boot         = [{ dev = "hd" }]
   }
 
   features = {
@@ -759,27 +746,22 @@ resource "libvirt_domain" "minion" {
         target_type = "serial"
       }
     ]
-    graphics = [
-      {
-        type        = "vnc"
-        listen_type = "address"
-        auto_port   = true
-      }
-    ]
   }
 }
 
 resource "libvirt_domain" "snmpsim" {
   name        = "snmpsim"
   type        = "kvm"
+  running     = true
   memory      = 4096
   memory_unit = "MiB"
   vcpu        = 2
 
   os = {
-    type    = "hvm"
-    arch    = "x86_64"
-    machine = "q35"
+    type         = "hvm"
+    type_arch    = "x86_64"
+    type_machine = "q35"
+    boot         = [{ dev = "hd" }]
   }
 
   features = {
@@ -856,27 +838,22 @@ resource "libvirt_domain" "snmpsim" {
         target_type = "serial"
       }
     ]
-    graphics = [
-      {
-        type        = "vnc"
-        listen_type = "address"
-        auto_port   = true
-      }
-    ]
   }
 }
 
 resource "libvirt_domain" "monitoring" {
   name        = "monitoring"
   type        = "kvm"
+  running     = true
   memory      = 4096
   memory_unit = "MiB"
   vcpu        = 2
 
   os = {
-    type    = "hvm"
-    arch    = "x86_64"
-    machine = "q35"
+    type         = "hvm"
+    type_arch    = "x86_64"
+    type_machine = "q35"
+    boot         = [{ dev = "hd" }]
   }
 
   features = {
@@ -940,13 +917,6 @@ resource "libvirt_domain" "monitoring" {
         type        = "pty"
         target_port = 0
         target_type = "serial"
-      }
-    ]
-    graphics = [
-      {
-        type        = "vnc"
-        listen_type = "address"
-        auto_port   = true
       }
     ]
   }
