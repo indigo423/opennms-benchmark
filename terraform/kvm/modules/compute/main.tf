@@ -3,25 +3,38 @@ terraform {
   required_providers {
     libvirt = {
       source  = "dmacvicar/libvirt"
-      version = "~> 0.9.0"
+      version = "~> 0.9.6"
     }
   }
 }
 
-# q35 does not support IDE controllers; change cloud-init cdrom bus to sata.
 locals {
-  cdrom_sata_xslt = <<-XSLT
-    <?xml version="1.0"?>
-    <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-      <xsl:output omit-xml-declaration="yes" indent="yes"/>
-      <xsl:template match="node()|@*">
-        <xsl:copy><xsl:apply-templates select="node()|@*"/></xsl:copy>
-      </xsl:template>
-      <xsl:template match="disk[@device='cdrom']/target/@bus">
-        <xsl:attribute name="bus">sata</xsl:attribute>
-      </xsl:template>
-    </xsl:stylesheet>
-  XSLT
+  cloud_init_meta_data = {
+    database   = <<-EOF
+      instance-id: database
+      local-hostname: database
+    EOF
+    core       = <<-EOF
+      instance-id: core
+      local-hostname: core
+    EOF
+    kafka      = <<-EOF
+      instance-id: kafka
+      local-hostname: kafka
+    EOF
+    minion     = <<-EOF
+      instance-id: minion
+      local-hostname: minion
+    EOF
+    snmpsim    = <<-EOF
+      instance-id: snmpsim
+      local-hostname: snmpsim
+    EOF
+    monitoring = <<-EOF
+      instance-id: monitoring
+      local-hostname: monitoring
+    EOF
+  }
 }
 
 # Ubuntu 24.04 LTS cloud image — must be the cloud image (qcow2), NOT the server installer ISO.
@@ -30,64 +43,129 @@ locals {
 #     https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 
 resource "libvirt_volume" "ubuntu_base" {
-  name   = "ubuntu-24.04-base"
-  pool   = var.storage_pool
-  source = var.ubuntu_cloud_image
-  format = "qcow2"
+  name = "ubuntu-24.04-base"
+  pool = var.storage_pool
 
+  target = {
+    format = { type = "qcow2" }
+  }
 
+  create = {
+    content = {
+      url = var.ubuntu_cloud_image
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = fileexists(var.ubuntu_cloud_image)
+      error_message = "Ubuntu 24.04 cloud image not found at '${var.ubuntu_cloud_image}'. Download noble-server-cloudimg-amd64.img from https://cloud-images.ubuntu.com/noble/current/ first."
+    }
+  }
 }
 
-# Per-VM volumes (thin-provisioned clones of base image)
 resource "libvirt_volume" "database" {
-  name           = "database.qcow2"
-  pool           = var.storage_pool
-  base_volume_id = libvirt_volume.ubuntu_base.id
-  format         = "qcow2"
-  size           = var.disk_sizes_gb["database"] * 1024 * 1024 * 1024
+  name = "database.qcow2"
+  pool = var.storage_pool
+
+  target = {
+    format = { type = "qcow2" }
+  }
+
+  backing_store = {
+    path   = libvirt_volume.ubuntu_base.path
+    format = { type = "qcow2" }
+  }
+
+  capacity      = var.disk_sizes_gb["database"]
+  capacity_unit = "GiB"
 }
 
 resource "libvirt_volume" "core" {
-  name           = "core.qcow2"
-  pool           = var.storage_pool
-  base_volume_id = libvirt_volume.ubuntu_base.id
-  format         = "qcow2"
-  size           = var.disk_sizes_gb["core"] * 1024 * 1024 * 1024
+  name = "core.qcow2"
+  pool = var.storage_pool
+
+  target = {
+    format = { type = "qcow2" }
+  }
+
+  backing_store = {
+    path   = libvirt_volume.ubuntu_base.path
+    format = { type = "qcow2" }
+  }
+
+  capacity      = var.disk_sizes_gb["core"]
+  capacity_unit = "GiB"
 }
 
 resource "libvirt_volume" "kafka" {
-  name           = "kafka.qcow2"
-  pool           = var.storage_pool
-  base_volume_id = libvirt_volume.ubuntu_base.id
-  format         = "qcow2"
-  size           = var.disk_sizes_gb["kafka"] * 1024 * 1024 * 1024
+  name = "kafka.qcow2"
+  pool = var.storage_pool
+
+  target = {
+    format = { type = "qcow2" }
+  }
+
+  backing_store = {
+    path   = libvirt_volume.ubuntu_base.path
+    format = { type = "qcow2" }
+  }
+
+  capacity      = var.disk_sizes_gb["kafka"]
+  capacity_unit = "GiB"
 }
 
 resource "libvirt_volume" "minion" {
-  name           = "minion.qcow2"
-  pool           = var.storage_pool
-  base_volume_id = libvirt_volume.ubuntu_base.id
-  format         = "qcow2"
-  size           = var.disk_sizes_gb["minion"] * 1024 * 1024 * 1024
+  name = "minion.qcow2"
+  pool = var.storage_pool
+
+  target = {
+    format = { type = "qcow2" }
+  }
+
+  backing_store = {
+    path   = libvirt_volume.ubuntu_base.path
+    format = { type = "qcow2" }
+  }
+
+  capacity      = var.disk_sizes_gb["minion"]
+  capacity_unit = "GiB"
 }
 
 resource "libvirt_volume" "snmpsim" {
-  name           = "snmpsim.qcow2"
-  pool           = var.storage_pool
-  base_volume_id = libvirt_volume.ubuntu_base.id
-  format         = "qcow2"
-  size           = var.disk_sizes_gb["snmpsim"] * 1024 * 1024 * 1024
+  name = "snmpsim.qcow2"
+  pool = var.storage_pool
+
+  target = {
+    format = { type = "qcow2" }
+  }
+
+  backing_store = {
+    path   = libvirt_volume.ubuntu_base.path
+    format = { type = "qcow2" }
+  }
+
+  capacity      = var.disk_sizes_gb["snmpsim"]
+  capacity_unit = "GiB"
 }
 
 resource "libvirt_volume" "monitoring" {
-  name           = "monitoring.qcow2"
-  pool           = var.storage_pool
-  base_volume_id = libvirt_volume.ubuntu_base.id
-  format         = "qcow2"
-  size           = var.disk_sizes_gb["monitoring"] * 1024 * 1024 * 1024
+  name = "monitoring.qcow2"
+  pool = var.storage_pool
+
+  target = {
+    format = { type = "qcow2" }
+  }
+
+  backing_store = {
+    path   = libvirt_volume.ubuntu_base.path
+    format = { type = "qcow2" }
+  }
+
+  capacity      = var.disk_sizes_gb["monitoring"]
+  capacity_unit = "GiB"
 }
 
-# Cloud-init disks
 module "cloud_init_database" {
   source         = "../../../modules/cloud-init"
   vm_name        = "database"
@@ -174,207 +252,702 @@ module "cloud_init_monitoring" {
 }
 
 resource "libvirt_cloudinit_disk" "database" {
-  name           = "database-cloudinit.iso"
-  pool           = var.storage_pool
+  name           = "database-cloudinit"
   user_data      = module.cloud_init_database.user_data
+  meta_data      = local.cloud_init_meta_data.database
   network_config = module.cloud_init_database.network_config
 }
 
 resource "libvirt_cloudinit_disk" "core" {
-  name           = "core-cloudinit.iso"
-  pool           = var.storage_pool
+  name           = "core-cloudinit"
   user_data      = module.cloud_init_core.user_data
+  meta_data      = local.cloud_init_meta_data.core
   network_config = module.cloud_init_core.network_config
 }
 
 resource "libvirt_cloudinit_disk" "kafka" {
-  name           = "kafka-cloudinit.iso"
-  pool           = var.storage_pool
+  name           = "kafka-cloudinit"
   user_data      = module.cloud_init_kafka.user_data
+  meta_data      = local.cloud_init_meta_data.kafka
   network_config = module.cloud_init_kafka.network_config
 }
 
 resource "libvirt_cloudinit_disk" "minion" {
-  name           = "minion-cloudinit.iso"
-  pool           = var.storage_pool
+  name           = "minion-cloudinit"
   user_data      = module.cloud_init_minion.user_data
+  meta_data      = local.cloud_init_meta_data.minion
   network_config = module.cloud_init_minion.network_config
 }
 
 resource "libvirt_cloudinit_disk" "snmpsim" {
-  name           = "snmpsim-cloudinit.iso"
-  pool           = var.storage_pool
+  name           = "snmpsim-cloudinit"
   user_data      = module.cloud_init_snmpsim.user_data
+  meta_data      = local.cloud_init_meta_data.snmpsim
   network_config = module.cloud_init_snmpsim.network_config
 }
 
 resource "libvirt_cloudinit_disk" "monitoring" {
-  name           = "monitoring-cloudinit.iso"
-  pool           = var.storage_pool
+  name           = "monitoring-cloudinit"
   user_data      = module.cloud_init_monitoring.user_data
+  meta_data      = local.cloud_init_meta_data.monitoring
   network_config = module.cloud_init_monitoring.network_config
 }
 
-# VMs (libvirt domains)
+resource "libvirt_volume" "database_cloudinit" {
+  name = "database-cloudinit.iso"
+  pool = var.storage_pool
+
+  create = {
+    content = {
+      url = libvirt_cloudinit_disk.database.path
+    }
+  }
+}
+
+resource "libvirt_volume" "core_cloudinit" {
+  name = "core-cloudinit.iso"
+  pool = var.storage_pool
+
+  create = {
+    content = {
+      url = libvirt_cloudinit_disk.core.path
+    }
+  }
+}
+
+resource "libvirt_volume" "kafka_cloudinit" {
+  name = "kafka-cloudinit.iso"
+  pool = var.storage_pool
+
+  create = {
+    content = {
+      url = libvirt_cloudinit_disk.kafka.path
+    }
+  }
+}
+
+resource "libvirt_volume" "minion_cloudinit" {
+  name = "minion-cloudinit.iso"
+  pool = var.storage_pool
+
+  create = {
+    content = {
+      url = libvirt_cloudinit_disk.minion.path
+    }
+  }
+}
+
+resource "libvirt_volume" "snmpsim_cloudinit" {
+  name = "snmpsim-cloudinit.iso"
+  pool = var.storage_pool
+
+  create = {
+    content = {
+      url = libvirt_cloudinit_disk.snmpsim.path
+    }
+  }
+}
+
+resource "libvirt_volume" "monitoring_cloudinit" {
+  name = "monitoring-cloudinit.iso"
+  pool = var.storage_pool
+
+  create = {
+    content = {
+      url = libvirt_cloudinit_disk.monitoring.path
+    }
+  }
+}
+
 resource "libvirt_domain" "database" {
-  name      = "database"
-  machine   = "q35"
-  memory    = 4096
-  vcpu      = 2
-  cloudinit = libvirt_cloudinit_disk.database.id
+  name        = "database"
+  type        = "kvm"
+  memory      = 4096
+  memory_unit = "MiB"
+  vcpu        = 2
 
-  disk { volume_id = libvirt_volume.database.id }
-
-  network_interface { network_id = var.network_mgmt_id }
-  network_interface { network_id = var.network_db_id }
-  network_interface { network_id = var.network_external_id }
-
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
+  os = {
+    type    = "hvm"
+    arch    = "x86_64"
+    machine = "q35"
   }
 
-  graphics {
-    type        = "vnc"
-    listen_type = "address"
-    autoport    = true
+  features = {
+    acpi = true
   }
-  xml { xslt = local.cdrom_sata_xslt }
+
+  devices = {
+    disks = [
+      {
+        source = {
+          volume = {
+            pool   = libvirt_volume.database.pool
+            volume = libvirt_volume.database.name
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      },
+      {
+        device = "cdrom"
+        source = {
+          volume = {
+            pool   = libvirt_volume.database_cloudinit.pool
+            volume = libvirt_volume.database_cloudinit.name
+          }
+        }
+        target = {
+          dev = "sdb"
+          bus = "sata"
+        }
+      }
+    ]
+    interfaces = [
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_mgmt_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_db_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_external_id
+          }
+        }
+      }
+    ]
+    consoles = [
+      {
+        type        = "pty"
+        target_port = 0
+        target_type = "serial"
+      }
+    ]
+    graphics = [
+      {
+        type        = "vnc"
+        listen_type = "address"
+        auto_port   = true
+      }
+    ]
+  }
 }
 
 resource "libvirt_domain" "core" {
-  name      = "core"
-  machine   = "q35"
-  memory    = 16384
-  vcpu      = 4
-  cloudinit = libvirt_cloudinit_disk.core.id
+  name        = "core"
+  type        = "kvm"
+  memory      = 16384
+  memory_unit = "MiB"
+  vcpu        = 4
 
-  disk { volume_id = libvirt_volume.core.id }
-
-  network_interface { network_id = var.network_mgmt_id }
-  network_interface { network_id = var.network_db_id }
-  network_interface { network_id = var.network_kafka_id }
-  network_interface { network_id = var.network_external_id }
-
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
+  os = {
+    type    = "hvm"
+    arch    = "x86_64"
+    machine = "q35"
   }
 
-  graphics {
-    type        = "vnc"
-    listen_type = "address"
-    autoport    = true
+  features = {
+    acpi = true
   }
-  xml { xslt = local.cdrom_sata_xslt }
+
+  devices = {
+    disks = [
+      {
+        source = {
+          volume = {
+            pool   = libvirt_volume.core.pool
+            volume = libvirt_volume.core.name
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      },
+      {
+        device = "cdrom"
+        source = {
+          volume = {
+            pool   = libvirt_volume.core_cloudinit.pool
+            volume = libvirt_volume.core_cloudinit.name
+          }
+        }
+        target = {
+          dev = "sdb"
+          bus = "sata"
+        }
+      }
+    ]
+    interfaces = [
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_mgmt_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_db_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_kafka_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_external_id
+          }
+        }
+      }
+    ]
+    consoles = [
+      {
+        type        = "pty"
+        target_port = 0
+        target_type = "serial"
+      }
+    ]
+    graphics = [
+      {
+        type        = "vnc"
+        listen_type = "address"
+        auto_port   = true
+      }
+    ]
+  }
 }
 
 resource "libvirt_domain" "kafka" {
-  name      = "kafka"
-  machine   = "q35"
-  memory    = 4096
-  vcpu      = 2
-  cloudinit = libvirt_cloudinit_disk.kafka.id
+  name        = "kafka"
+  type        = "kvm"
+  memory      = 4096
+  memory_unit = "MiB"
+  vcpu        = 2
 
-  disk { volume_id = libvirt_volume.kafka.id }
-
-  network_interface { network_id = var.network_mgmt_id }
-  network_interface { network_id = var.network_kafka_id }
-  network_interface { network_id = var.network_external_id }
-
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
+  os = {
+    type    = "hvm"
+    arch    = "x86_64"
+    machine = "q35"
   }
 
-  graphics {
-    type        = "vnc"
-    listen_type = "address"
-    autoport    = true
+  features = {
+    acpi = true
   }
-  xml { xslt = local.cdrom_sata_xslt }
+
+  devices = {
+    disks = [
+      {
+        source = {
+          volume = {
+            pool   = libvirt_volume.kafka.pool
+            volume = libvirt_volume.kafka.name
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      },
+      {
+        device = "cdrom"
+        source = {
+          volume = {
+            pool   = libvirt_volume.kafka_cloudinit.pool
+            volume = libvirt_volume.kafka_cloudinit.name
+          }
+        }
+        target = {
+          dev = "sdb"
+          bus = "sata"
+        }
+      }
+    ]
+    interfaces = [
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_mgmt_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_kafka_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_external_id
+          }
+        }
+      }
+    ]
+    consoles = [
+      {
+        type        = "pty"
+        target_port = 0
+        target_type = "serial"
+      }
+    ]
+    graphics = [
+      {
+        type        = "vnc"
+        listen_type = "address"
+        auto_port   = true
+      }
+    ]
+  }
 }
 
 resource "libvirt_domain" "minion" {
-  name      = "minion"
-  machine   = "q35"
-  memory    = 4096
-  vcpu      = 2
-  cloudinit = libvirt_cloudinit_disk.minion.id
+  name        = "minion"
+  type        = "kvm"
+  memory      = 4096
+  memory_unit = "MiB"
+  vcpu        = 2
 
-  disk { volume_id = libvirt_volume.minion.id }
-
-  network_interface { network_id = var.network_mgmt_id }
-  network_interface { network_id = var.network_kafka_id }
-  network_interface { network_id = var.network_sim_id }
-  network_interface { network_id = var.network_external_id }
-
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
+  os = {
+    type    = "hvm"
+    arch    = "x86_64"
+    machine = "q35"
   }
 
-  graphics {
-    type        = "vnc"
-    listen_type = "address"
-    autoport    = true
+  features = {
+    acpi = true
   }
-  xml { xslt = local.cdrom_sata_xslt }
+
+  devices = {
+    disks = [
+      {
+        source = {
+          volume = {
+            pool   = libvirt_volume.minion.pool
+            volume = libvirt_volume.minion.name
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      },
+      {
+        device = "cdrom"
+        source = {
+          volume = {
+            pool   = libvirt_volume.minion_cloudinit.pool
+            volume = libvirt_volume.minion_cloudinit.name
+          }
+        }
+        target = {
+          dev = "sdb"
+          bus = "sata"
+        }
+      }
+    ]
+    interfaces = [
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_mgmt_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_kafka_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_sim_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_external_id
+          }
+        }
+      }
+    ]
+    consoles = [
+      {
+        type        = "pty"
+        target_port = 0
+        target_type = "serial"
+      }
+    ]
+    graphics = [
+      {
+        type        = "vnc"
+        listen_type = "address"
+        auto_port   = true
+      }
+    ]
+  }
 }
 
 resource "libvirt_domain" "snmpsim" {
-  name      = "snmpsim"
-  machine   = "q35"
-  memory    = 4096
-  vcpu      = 2
-  cloudinit = libvirt_cloudinit_disk.snmpsim.id
+  name        = "snmpsim"
+  type        = "kvm"
+  memory      = 4096
+  memory_unit = "MiB"
+  vcpu        = 2
 
-  disk { volume_id = libvirt_volume.snmpsim.id }
-
-  network_interface { network_id = var.network_mgmt_id }
-  network_interface { network_id = var.network_sim_id }
-  network_interface { network_id = var.network_external_id }
-
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
+  os = {
+    type    = "hvm"
+    arch    = "x86_64"
+    machine = "q35"
   }
 
-  graphics {
-    type        = "vnc"
-    listen_type = "address"
-    autoport    = true
+  features = {
+    acpi = true
   }
-  xml { xslt = local.cdrom_sata_xslt }
+
+  devices = {
+    disks = [
+      {
+        source = {
+          volume = {
+            pool   = libvirt_volume.snmpsim.pool
+            volume = libvirt_volume.snmpsim.name
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      },
+      {
+        device = "cdrom"
+        source = {
+          volume = {
+            pool   = libvirt_volume.snmpsim_cloudinit.pool
+            volume = libvirt_volume.snmpsim_cloudinit.name
+          }
+        }
+        target = {
+          dev = "sdb"
+          bus = "sata"
+        }
+      }
+    ]
+    interfaces = [
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_mgmt_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_sim_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_external_id
+          }
+        }
+      }
+    ]
+    consoles = [
+      {
+        type        = "pty"
+        target_port = 0
+        target_type = "serial"
+      }
+    ]
+    graphics = [
+      {
+        type        = "vnc"
+        listen_type = "address"
+        auto_port   = true
+      }
+    ]
+  }
 }
 
 resource "libvirt_domain" "monitoring" {
-  name      = "monitoring"
-  machine   = "q35"
-  memory    = 4096
-  vcpu      = 2
-  cloudinit = libvirt_cloudinit_disk.monitoring.id
+  name        = "monitoring"
+  type        = "kvm"
+  memory      = 4096
+  memory_unit = "MiB"
+  vcpu        = 2
 
-  disk { volume_id = libvirt_volume.monitoring.id }
-
-  network_interface { network_id = var.network_mgmt_id }
-  network_interface { network_id = var.network_external_id }
-
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
+  os = {
+    type    = "hvm"
+    arch    = "x86_64"
+    machine = "q35"
   }
 
-  graphics {
-    type        = "vnc"
-    listen_type = "address"
-    autoport    = true
+  features = {
+    acpi = true
   }
-  xml { xslt = local.cdrom_sata_xslt }
+
+  devices = {
+    disks = [
+      {
+        source = {
+          volume = {
+            pool   = libvirt_volume.monitoring.pool
+            volume = libvirt_volume.monitoring.name
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      },
+      {
+        device = "cdrom"
+        source = {
+          volume = {
+            pool   = libvirt_volume.monitoring_cloudinit.pool
+            volume = libvirt_volume.monitoring_cloudinit.name
+          }
+        }
+        target = {
+          dev = "sdb"
+          bus = "sata"
+        }
+      }
+    ]
+    interfaces = [
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_mgmt_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_external_id
+          }
+        }
+      }
+    ]
+    consoles = [
+      {
+        type        = "pty"
+        target_port = 0
+        target_type = "serial"
+      }
+    ]
+    graphics = [
+      {
+        type        = "vnc"
+        listen_type = "address"
+        auto_port   = true
+      }
+    ]
+  }
 }

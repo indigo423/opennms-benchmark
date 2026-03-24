@@ -42,6 +42,7 @@ TF_DIR="$REPO_ROOT/terraform/$PROVIDER"
 if $DESTROY; then
   echo "==> Destroying infrastructure ($PROVIDER)..."
   cd "$TF_DIR"
+  terraform init -upgrade -input=false
   # shellcheck disable=SC2086
   terraform destroy \
     -var-file="../lab.tfvars" \
@@ -56,7 +57,7 @@ fi
 
 echo "==> [1/3] Provisioning infrastructure ($PROVIDER)..."
 cd "$TF_DIR"
-terraform init -input=false
+terraform init -upgrade -input=false
 # shellcheck disable=SC2086
 terraform apply \
   -var-file="../lab.tfvars" \

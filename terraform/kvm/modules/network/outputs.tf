@@ -1,5 +1,5 @@
-output "network_db_id" { value = libvirt_network.db.id }
-output "network_kafka_id" { value = libvirt_network.kafka.id }
-output "network_sim_id" { value = libvirt_network.sim.id }
-output "network_mgmt_id" { value = libvirt_network.mgmt.id }
-output "network_external_id" { value = libvirt_network.external.id }
+output "network_db_id" { value = libvirt_network.db.name }
+output "network_kafka_id" { value = libvirt_network.kafka.name }
+output "network_sim_id" { value = libvirt_network.sim.name }
+output "network_mgmt_id" { value = libvirt_network.mgmt.name }
+output "network_external_id" { value = libvirt_network.external.name }

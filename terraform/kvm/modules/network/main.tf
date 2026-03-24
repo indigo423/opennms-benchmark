@@ -3,45 +3,74 @@ terraform {
   required_providers {
     libvirt = {
       source  = "dmacvicar/libvirt"
-      version = "~> 0.9.0"
+      version = "~> 0.9.6"
     }
   }
 }
 
-# KVM uses 4 isolated bridge networks — one per subnet segment.
-# This is equivalent to Azure's single VNet with 4 subnets.
+# KVM uses 4 isolated bridge networks and one external bridge-backed network.
 
 resource "libvirt_network" "db" {
   name      = "lab-db"
-  mode      = "none" # isolated — no NAT, no DHCP
-  addresses = [var.subnet_db]
   autostart = true
+
+  ips = [
+    {
+      address = cidrhost(var.subnet_db, 1)
+      netmask = cidrnetmask(var.subnet_db)
+    }
+  ]
 }
 
 resource "libvirt_network" "kafka" {
   name      = "lab-kafka"
-  mode      = "none"
-  addresses = [var.subnet_kafka]
   autostart = true
+
+  ips = [
+    {
+      address = cidrhost(var.subnet_kafka, 1)
+      netmask = cidrnetmask(var.subnet_kafka)
+    }
+  ]
 }
 
 resource "libvirt_network" "sim" {
   name      = "lab-sim"
-  mode      = "none"
-  addresses = [var.subnet_sim]
   autostart = true
+
+  ips = [
+    {
+      address = cidrhost(var.subnet_sim, 1)
+      netmask = cidrnetmask(var.subnet_sim)
+    }
+  ]
 }
 
 resource "libvirt_network" "mgmt" {
   name      = "lab-mgmt"
-  mode      = "nat" # NAT on mgmt — operator SSH access from host
-  addresses = [var.subnet_mgmt]
   autostart = true
+
+  forward = {
+    mode = "nat"
+  }
+
+  ips = [
+    {
+      address = cidrhost(var.subnet_mgmt, 1)
+      netmask = cidrnetmask(var.subnet_mgmt)
+    }
+  ]
 }
 
 resource "libvirt_network" "external" {
   name      = "lab-external"
-  mode      = "bridge"
-  bridge    = var.bridge_name
   autostart = true
+
+  forward = {
+    mode = "bridge"
+  }
+
+  bridge = {
+    name = var.bridge_name
+  }
 }
