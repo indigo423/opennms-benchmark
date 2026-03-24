@@ -387,6 +387,10 @@ resource "libvirt_domain" "database" {
             volume = libvirt_volume.database.name
           }
         }
+        driver = {
+          name = "qemu"
+          type = "qcow2"
+        }
         target = {
           dev = "vda"
           bus = "virtio"
@@ -478,6 +482,10 @@ resource "libvirt_domain" "core" {
             pool   = libvirt_volume.core.pool
             volume = libvirt_volume.core.name
           }
+        }
+        driver = {
+          name = "qemu"
+          type = "qcow2"
         }
         target = {
           dev = "vda"
@@ -582,6 +590,10 @@ resource "libvirt_domain" "kafka" {
             volume = libvirt_volume.kafka.name
           }
         }
+        driver = {
+          name = "qemu"
+          type = "qcow2"
+        }
         target = {
           dev = "vda"
           bus = "virtio"
@@ -673,6 +685,10 @@ resource "libvirt_domain" "minion" {
             pool   = libvirt_volume.minion.pool
             volume = libvirt_volume.minion.name
           }
+        }
+        driver = {
+          name = "qemu"
+          type = "qcow2"
         }
         target = {
           dev = "vda"
@@ -777,6 +793,10 @@ resource "libvirt_domain" "snmpsim" {
             volume = libvirt_volume.snmpsim.name
           }
         }
+        driver = {
+          name = "qemu"
+          type = "qcow2"
+        }
         target = {
           dev = "vda"
           bus = "virtio"
@@ -868,6 +888,10 @@ resource "libvirt_domain" "monitoring" {
             pool   = libvirt_volume.monitoring.pool
             volume = libvirt_volume.monitoring.name
           }
+        }
+        driver = {
+          name = "qemu"
+          type = "qcow2"
         }
         target = {
           dev = "vda"
