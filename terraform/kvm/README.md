@@ -142,20 +142,20 @@ To run the lab on different KVM hosts (e.g. switching between test machines), us
 ### 1. Create a tfvars file per host
 
 ```
-kvm-mad-monkey.tfvars
-kvm-other-host.tfvars
+kvm-host-a.tfvars
+kvm-host-b.tfvars
 ```
 
 Each file overrides only the host-specific values:
 
 ```hcl
-# kvm-mad-monkey.tfvars
-libvirt_uri = "qemu+ssh://root@mad-monkey.labmonkeys.tech/system?no_verify=1"
+# kvm-host-a.tfvars
+libvirt_uri = "qemu+ssh://root@your-kvm.host/system?no_verify=1"
 bridge_name = "br0"
 ```
 
 ```hcl
-# kvm-other-host.tfvars
+# kvm-host-b.tfvars
 libvirt_uri = "qemu+ssh://root@other-host.example.com/system?no_verify=1"
 bridge_name = "br0"
 ```
@@ -165,8 +165,8 @@ All other values (`lab.tfvars`, `kvm.tfvars`) are shared across hosts.
 ### 2. Create a workspace per host
 
 ```bash
-terraform workspace new mad-monkey
-terraform workspace new other-host
+terraform workspace new host-a
+terraform workspace new host-b
 ```
 
 List workspaces:
@@ -180,18 +180,18 @@ terraform workspace list
 Select the workspace, then apply with the matching tfvars:
 
 ```bash
-terraform workspace select mad-monkey
-terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-mad-monkey.tfvars
+terraform workspace select host-a
+terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-host-a.tfvars
 
-terraform workspace select other-host
-terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-other-host.tfvars
+terraform workspace select host-b
+terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-host-b.tfvars
 ```
 
 ### 4. Destroy a specific host's lab
 
 ```bash
-terraform workspace select mad-monkey
-terraform destroy -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-mad-monkey.tfvars
+terraform workspace select host-a
+terraform destroy -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-host-a.tfvars
 ```
 
 > Each workspace maintains completely independent state — destroying one host's lab has no effect on others.
