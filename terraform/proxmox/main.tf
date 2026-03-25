@@ -35,6 +35,7 @@ module "compute" {
   ip_minion_sim      = var.ip_minion_sim
   ip_snmpsim_sim     = var.ip_snmpsim_sim
   bridge_mgmt        = var.bridge_mgmt
+  gateway_mgmt       = cidrhost(var.subnet_mgmt, 1)
   bridge_db          = var.bridge_db
   bridge_kafka       = var.bridge_kafka
   bridge_sim         = var.bridge_sim

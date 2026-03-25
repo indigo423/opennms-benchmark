@@ -46,6 +46,7 @@ module "compute" {
   network_sim_id      = module.network.network_sim_id
   network_mgmt_id     = module.network.network_mgmt_id
   network_external_id = module.network.network_external_id
+  gateway_mgmt        = cidrhost(var.subnet_mgmt, 1)
 }
 
 module "inventory" {

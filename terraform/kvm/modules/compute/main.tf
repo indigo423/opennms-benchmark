@@ -174,7 +174,7 @@ module "cloud_init_database" {
   hosts          = var.hosts
   extra_packages = var.extra_packages
   interfaces = [
-    { name = "enp1s0", address = var.ip_database, prefix = 26, gateway = null },
+    { name = "enp1s0", address = var.ip_database, prefix = 26, gateway = var.gateway_mgmt },
     { name = "enp2s0", address = var.ip_database_db, prefix = 26, gateway = null },
   ]
 }
@@ -187,7 +187,7 @@ module "cloud_init_core" {
   hosts          = var.hosts
   extra_packages = var.extra_packages
   interfaces = [
-    { name = "enp1s0", address = var.ip_core, prefix = 26, gateway = null },
+    { name = "enp1s0", address = var.ip_core, prefix = 26, gateway = var.gateway_mgmt },
     { name = "enp2s0", address = var.ip_core_db, prefix = 26, gateway = null },
     { name = "enp3s0", address = var.ip_core_kafka, prefix = 26, gateway = null },
   ]
@@ -201,7 +201,7 @@ module "cloud_init_kafka" {
   hosts          = var.hosts
   extra_packages = var.extra_packages
   interfaces = [
-    { name = "enp1s0", address = var.ip_kafka, prefix = 26, gateway = null },
+    { name = "enp1s0", address = var.ip_kafka, prefix = 26, gateway = var.gateway_mgmt },
     { name = "enp2s0", address = var.ip_kafka_kafka, prefix = 26, gateway = null },
   ]
 }
@@ -214,7 +214,7 @@ module "cloud_init_minion" {
   hosts          = var.hosts
   extra_packages = var.extra_packages
   interfaces = [
-    { name = "enp1s0", address = var.ip_minion, prefix = 26, gateway = null },
+    { name = "enp1s0", address = var.ip_minion, prefix = 26, gateway = var.gateway_mgmt },
     { name = "enp2s0", address = var.ip_minion_kafka, prefix = 26, gateway = null },
     { name = "enp3s0", address = var.ip_minion_sim, prefix = 26, gateway = null, routes = [{ to = var.snmp_sim_cidr, via = var.snmp_sim_gateway }] },
   ]
@@ -228,7 +228,7 @@ module "cloud_init_snmpsim" {
   hosts          = var.hosts
   extra_packages = var.extra_packages
   interfaces = [
-    { name = "enp1s0", address = var.ip_snmpsim, prefix = 26, gateway = null },
+    { name = "enp1s0", address = var.ip_snmpsim, prefix = 26, gateway = var.gateway_mgmt },
     { name = "enp2s0", address = var.ip_snmpsim, prefix = 26, gateway = null },
   ]
 }

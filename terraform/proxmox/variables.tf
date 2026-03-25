@@ -102,7 +102,7 @@ variable "bridge_sim" {
 variable "bridge_ext" {
   type        = string
   default     = "vmbr4"
-  description = "Proxmox bridge with external DHCP access — all VMs get a DHCP NIC on this bridge; monitoring VM uses its address as the jump host"
+  description = "Proxmox bridge with external DHCP access — monitoring VM only; its DHCP address serves as the lab jump host"
 }
 
 variable "vm_ids" {

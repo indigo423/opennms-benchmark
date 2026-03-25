@@ -24,6 +24,7 @@ variable "ip_minion_kafka" { type = string }
 variable "ip_minion_sim" { type = string }
 variable "ip_snmpsim_sim" { type = string }
 variable "bridge_mgmt" { type = string }
+variable "gateway_mgmt" { type = string }
 variable "bridge_db" { type = string }
 variable "bridge_kafka" { type = string }
 variable "bridge_sim" { type = string }
