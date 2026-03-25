@@ -452,6 +452,36 @@ resource "libvirt_domain" "database" {
         target_type = "serial"
       }
     ]
+    channels = [
+      {
+        target = {
+          virt_io = {
+            name = "org.qemu.guest_agent.0"
+          }
+        }
+        source = {
+          unix = {}
+        }
+      }
+    ]
+    graphics = [
+      {
+        vnc = {
+          auto_port = true
+          listen    = "0.0.0.0"
+        }
+      }
+    ]
+    videos = [
+      {
+        model = {
+          type    = "vga"
+          primary = "yes"
+          heads   = 1
+          vram    = 16384
+        }
+      }
+    ]
   }
 }
 
@@ -559,6 +589,36 @@ resource "libvirt_domain" "core" {
         target_type = "serial"
       }
     ]
+    channels = [
+      {
+        target = {
+          virt_io = {
+            name = "org.qemu.guest_agent.0"
+          }
+        }
+        source = {
+          unix = {}
+        }
+      }
+    ]
+    graphics = [
+      {
+        vnc = {
+          auto_port = true
+          listen    = "0.0.0.0"
+        }
+      }
+    ]
+    videos = [
+      {
+        model = {
+          type    = "vga"
+          primary = "yes"
+          heads   = 1
+          vram    = 16384
+        }
+      }
+    ]
   }
 }
 
@@ -653,6 +713,36 @@ resource "libvirt_domain" "kafka" {
         type        = "pty"
         target_port = 0
         target_type = "serial"
+      }
+    ]
+    channels = [
+      {
+        target = {
+          virt_io = {
+            name = "org.qemu.guest_agent.0"
+          }
+        }
+        source = {
+          unix = {}
+        }
+      }
+    ]
+    graphics = [
+      {
+        vnc = {
+          auto_port = true
+          listen    = "0.0.0.0"
+        }
+      }
+    ]
+    videos = [
+      {
+        model = {
+          type    = "vga"
+          primary = "yes"
+          heads   = 1
+          vram    = 16384
+        }
       }
     ]
   }
@@ -762,6 +852,36 @@ resource "libvirt_domain" "minion" {
         target_type = "serial"
       }
     ]
+    channels = [
+      {
+        target = {
+          virt_io = {
+            name = "org.qemu.guest_agent.0"
+          }
+        }
+        source = {
+          unix = {}
+        }
+      }
+    ]
+    graphics = [
+      {
+        vnc = {
+          auto_port = true
+          listen    = "0.0.0.0"
+        }
+      }
+    ]
+    videos = [
+      {
+        model = {
+          type    = "vga"
+          primary = "yes"
+          heads   = 1
+          vram    = 16384
+        }
+      }
+    ]
   }
 }
 
@@ -858,6 +978,36 @@ resource "libvirt_domain" "snmpsim" {
         target_type = "serial"
       }
     ]
+    channels = [
+      {
+        target = {
+          virt_io = {
+            name = "org.qemu.guest_agent.0"
+          }
+        }
+        source = {
+          unix = {}
+        }
+      }
+    ]
+    graphics = [
+      {
+        vnc = {
+          auto_port = true
+          listen    = "0.0.0.0"
+        }
+      }
+    ]
+    videos = [
+      {
+        model = {
+          type    = "vga"
+          primary = "yes"
+          heads   = 1
+          vram    = 16384
+        }
+      }
+    ]
   }
 }
 
@@ -941,6 +1091,36 @@ resource "libvirt_domain" "monitoring" {
         type        = "pty"
         target_port = 0
         target_type = "serial"
+      }
+    ]
+    channels = [
+      {
+        target = {
+          virt_io = {
+            name = "org.qemu.guest_agent.0"
+          }
+        }
+        source = {
+          unix = {}
+        }
+      }
+    ]
+    graphics = [
+      {
+        vnc = {
+          auto_port = true
+          listen    = "0.0.0.0"
+        }
+      }
+    ]
+    videos = [
+      {
+        model = {
+          type    = "vga"
+          primary = "yes"
+          heads   = 1
+          vram    = 16384
+        }
       }
     ]
   }
