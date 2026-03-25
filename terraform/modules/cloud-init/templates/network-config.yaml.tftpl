@@ -16,6 +16,10 @@ ethernets:
         via: ${route.via}
 %{ endfor ~}
 %{ endif ~}
+%{ if iface.gateway != null ~}
+    nameservers:
+      addresses: [${iface.gateway}]
+%{ endif ~}
     dhcp4: false
 %{ else ~}
     dhcp4: true
