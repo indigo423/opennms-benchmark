@@ -176,7 +176,6 @@ module "cloud_init_database" {
   interfaces = [
     { name = "enp1s0", address = var.ip_database, prefix = 26, gateway = null },
     { name = "enp2s0", address = var.ip_database_db, prefix = 26, gateway = null },
-    { name = "enp3s0", address = null, prefix = null, gateway = null },
   ]
 }
 
@@ -191,7 +190,6 @@ module "cloud_init_core" {
     { name = "enp1s0", address = var.ip_core, prefix = 26, gateway = null },
     { name = "enp2s0", address = var.ip_core_db, prefix = 26, gateway = null },
     { name = "enp3s0", address = var.ip_core_kafka, prefix = 26, gateway = null },
-    { name = "enp4s0", address = null, prefix = null, gateway = null },
   ]
 }
 
@@ -205,7 +203,6 @@ module "cloud_init_kafka" {
   interfaces = [
     { name = "enp1s0", address = var.ip_kafka, prefix = 26, gateway = null },
     { name = "enp2s0", address = var.ip_kafka_kafka, prefix = 26, gateway = null },
-    { name = "enp3s0", address = null, prefix = null, gateway = null },
   ]
 }
 
@@ -220,7 +217,6 @@ module "cloud_init_minion" {
     { name = "enp1s0", address = var.ip_minion, prefix = 26, gateway = null },
     { name = "enp2s0", address = var.ip_minion_kafka, prefix = 26, gateway = null },
     { name = "enp3s0", address = var.ip_minion_sim, prefix = 26, gateway = null, routes = [{ to = var.snmp_sim_cidr, via = var.snmp_sim_gateway }] },
-    { name = "enp4s0", address = null, prefix = null, gateway = null },
   ]
 }
 
@@ -234,7 +230,6 @@ module "cloud_init_snmpsim" {
   interfaces = [
     { name = "enp1s0", address = var.ip_snmpsim, prefix = 26, gateway = null },
     { name = "enp2s0", address = var.ip_snmpsim, prefix = 26, gateway = null },
-    { name = "enp3s0", address = null, prefix = null, gateway = null },
   ]
 }
 
@@ -432,17 +427,6 @@ resource "libvirt_domain" "database" {
             network = var.network_db_id
           }
         }
-      },
-      {
-        type = "network"
-        model = {
-          type = "virtio"
-        }
-        source = {
-          network = {
-            network = var.network_external_id
-          }
-        }
       }
     ]
     consoles = [
@@ -569,17 +553,6 @@ resource "libvirt_domain" "core" {
             network = var.network_kafka_id
           }
         }
-      },
-      {
-        type = "network"
-        model = {
-          type = "virtio"
-        }
-        source = {
-          network = {
-            network = var.network_external_id
-          }
-        }
       }
     ]
     consoles = [
@@ -693,17 +666,6 @@ resource "libvirt_domain" "kafka" {
         source = {
           network = {
             network = var.network_kafka_id
-          }
-        }
-      },
-      {
-        type = "network"
-        model = {
-          type = "virtio"
-        }
-        source = {
-          network = {
-            network = var.network_external_id
           }
         }
       }
@@ -832,17 +794,6 @@ resource "libvirt_domain" "minion" {
             network = var.network_sim_id
           }
         }
-      },
-      {
-        type = "network"
-        model = {
-          type = "virtio"
-        }
-        source = {
-          network = {
-            network = var.network_external_id
-          }
-        }
       }
     ]
     consoles = [
@@ -956,17 +907,6 @@ resource "libvirt_domain" "snmpsim" {
         source = {
           network = {
             network = var.network_sim_id
-          }
-        }
-      },
-      {
-        type = "network"
-        model = {
-          type = "virtio"
-        }
-        source = {
-          network = {
-            network = var.network_external_id
           }
         }
       }
