@@ -14,24 +14,27 @@
   ansible.builtin.copy:
     src: traefik/compose.yml
     dest: /etc/docker/traefik/compose.yml
+    mode: "0644"
   notify:
-    - restart traefik
+    - Restart traefik
   tags: ["traefik"]
 
 - name: Copy Traefik static config
   ansible.builtin.copy:
     src: traefik/traefik.yml
     dest: /etc/docker/traefik/traefik.yml
+    mode: "0644"
   notify:
-    - restart traefik
+    - Restart traefik
   tags: ["traefik"]
 
 - name: Copy Traefik dynamic routes
   ansible.builtin.copy:
     src: traefik/dynamic/routes.yml
     dest: /etc/docker/traefik/dynamic/routes.yml
+    mode: "0644"
   notify:
-    - restart traefik
+    - Restart traefik
   tags: ["traefik"]
 
 - name: Generate self-signed TLS certificate

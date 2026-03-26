@@ -1,20 +1,20 @@
 ---
-- name: restart prometheus
+- name: Restart prometheus
   ansible.builtin.service:
     name: docker-compose@prometheus.service
     state: restarted
 
-- name: restart grafana
+- name: Restart grafana
   ansible.builtin.service:
     name: docker-compose@grafana.service
     state: restarted
 
-- name: restart jaeger
+- name: Restart jaeger
   ansible.builtin.service:
     name: docker-compose@jaeger.service
     state: restarted
 
-- name: restart kafka-ui
+- name: Restart kafka-ui
   ansible.builtin.service:
     name: docker-compose@kafka-ui.service
     state: restarted

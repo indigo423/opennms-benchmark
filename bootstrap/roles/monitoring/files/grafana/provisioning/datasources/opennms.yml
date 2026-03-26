@@ -2,34 +2,34 @@
 apiVersion: 1
 
 datasources:
-- name: OpenNMS Performance
-  type: opennms-performance-datasource
-  access: proxy
-  database: ""
-  orgId: 1
-  url: http://192.0.2.197:8980/opennms/
-  isDefault: true
-  basicAuth: true
-  basicAuthUser: admin
-  secureJsonData:
-    basicAuthPassword: admin
-- name: OpenNMS Entity
-  type: opennms-entity-datasource
-  access: proxy
-  database: ""
-  orgId: 1
-  url: http://192.0.2.197:8980/opennms/
-  basicAuth: true
-  basicAuthUser: admin
-  secureJsonData:
-    basicAuthPassword: admin
-- name: OpenNMS Flow
-  type: opennms-flow-datasource
-  access: proxy
-  database: ""
-  orgId: 1
-  url: http://192.0.2.197:8980/opennms/
-  basicAuth: true
-  basicAuthUser: admin
-  secureJsonData:
-    basicAuthPassword: admin
+  - name: OpenNMS Performance
+    type: opennms-performance-datasource
+    access: proxy
+    database: ""
+    orgId: 1
+    url: http://192.0.2.197:8980/opennms/
+    isDefault: true
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin
+  - name: OpenNMS Entity
+    type: opennms-entity-datasource
+    access: proxy
+    database: ""
+    orgId: 1
+    url: http://192.0.2.197:8980/opennms/
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin
+  - name: OpenNMS Flow
+    type: opennms-flow-datasource
+    access: proxy
+    database: ""
+    orgId: 1
+    url: http://192.0.2.197:8980/opennms/
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin

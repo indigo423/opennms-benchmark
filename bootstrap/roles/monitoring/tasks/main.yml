@@ -3,111 +3,119 @@
   ansible.builtin.file:
     path: /etc/docker/prometheus
     state: directory
-  tags: [ "monitoring", "prometheus" ]
+    mode: "0755"
+  tags: ["monitoring", "prometheus"]
 
 - name: Prometheus configuration
   ansible.builtin.copy:
     src: prometheus/prometheus.yml
     dest: /etc/docker/prometheus/prometheus.yml
+    mode: "0644"
   notify:
-    - restart prometheus
-  tags: [ "monitoring", "prometheus" ]
+    - Restart prometheus
+  tags: ["monitoring", "prometheus"]
 
 - name: Create Prometheus compose
   ansible.builtin.copy:
     src: prometheus/compose.yml
     dest: /etc/docker/prometheus/compose.yml
+    mode: "0644"
   notify:
-    - restart prometheus
-  tags: [ "monitoring", "prometheus" ]
+    - Restart prometheus
+  tags: ["monitoring", "prometheus"]
 
 - name: Enable Prometheus as a service
   ansible.builtin.service:
     name: docker-compose@prometheus.service
     state: started
     enabled: true
-  tags: [ "monitoring", "prometheus" ]
+  tags: ["monitoring", "prometheus"]
 
 - name: Create Grafana directory
   ansible.builtin.file:
     path: /etc/docker/grafana
     state: directory
-  tags: [ "monitoring", "grafana" ]
+    mode: "0755"
+  tags: ["monitoring", "grafana"]
 
 - name: Grafana provisioning
   ansible.builtin.copy:
     src: grafana/provisioning
     dest: /etc/docker/grafana
+    mode: "0644"
   notify:
-    - restart grafana
-  tags: [ "monitoring", "grafana" ]
+    - Restart grafana
+  tags: ["monitoring", "grafana"]
 
 - name: Create Grafana compose
   ansible.builtin.copy:
     src: grafana/compose.yml
     dest: /etc/docker/grafana/compose.yml
+    mode: "0644"
   notify:
-    - restart grafana
-  tags: [ "monitoring", "grafana" ]
+    - Restart grafana
+  tags: ["monitoring", "grafana"]
 
 - name: Enable Grafana as a service
   ansible.builtin.service:
     name: docker-compose@grafana.service
     state: started
     enabled: true
-  tags: [ "monitoring", "grafana" ]
+  tags: ["monitoring", "grafana"]
 
 - name: Create Jaeger directory
   ansible.builtin.file:
     path: /etc/docker/jaeger
     state: directory
-  tags: [ "monitoring", "jaeger" ]
+    mode: "0755"
+  tags: ["monitoring", "jaeger"]
 
 - name: Create Jaeger compose
   ansible.builtin.copy:
     src: jaeger/compose.yml
     dest: /etc/docker/jaeger/compose.yml
+    mode: "0644"
   notify:
-    - restart grafana
-  tags: [ "monitoring", "jaeger" ]
+    - Restart grafana
+  tags: ["monitoring", "jaeger"]
 
 - name: Enable Jaeger as a service
   ansible.builtin.service:
     name: docker-compose@jaeger.service
     state: started
     enabled: true
-  tags: [ "monitoring", "jaeger" ]
+  tags: ["monitoring", "jaeger"]
 
 - name: Enable IPv4 forwarding temporarily
-  ansible.builtin.sysctl:
+  ansible.posix.sysctl:
     name: net.ipv4.ip_forward
     value: 1
     state: present
-    reload: yes
-  tags: [ "ipv4-forwarding" ]
+    reload: true
+  tags: ["ipv4-forwarding"]
 
 - name: Enable IPv6 forwarding temporarily
-  ansible.builtin.sysctl:
+  ansible.posix.sysctl:
     name: net.ipv6.conf.all.forwarding
     value: 1
     state: present
-    reload: yes
-  tags: [ "ipv6-forwarding" ]
+    reload: true
+  tags: ["ipv6-forwarding"]
 
 - name: Persistent IPv4 forwarding
   ansible.posix.sysctl:
     name: net.ipv4.ip_forward
-    value: '1'
+    value: "1"
     state: present
-    reload: yes
+    reload: true
     sysctl_file: /etc/sysctl.d/99-ipv4-forward.conf
-  tags: [ "ipv4-forwarding" ]
+  tags: ["ipv4-forwarding"]
 
 - name: Persistent IPv6 forwarding
   ansible.posix.sysctl:
     name: net.ipv6.conf.all.forwarding
-    value: '1'
+    value: "1"
     state: present
-    reload: yes
+    reload: true
     sysctl_file: /etc/sysctl.d/99-ipv6-forward.conf
-  tags: [ "ipv6-forwarding" ]
+  tags: ["ipv6-forwarding"]

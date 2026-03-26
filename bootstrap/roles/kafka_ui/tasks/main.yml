@@ -3,19 +3,21 @@
   ansible.builtin.file:
     path: /etc/docker/kafka-ui
     state: directory
-  tags: [ "monitoring", "kafka-ui" ]
+    mode: "0755"
+  tags: ["monitoring", "kafka-ui"]
 
 - name: Create Kafka UI compose
   ansible.builtin.copy:
     src: kafka-ui/compose.yml
     dest: /etc/docker/kafka-ui/compose.yml
+    mode: "0644"
   notify:
-    - restart kafka-ui
-  tags: [ "monitoring", "kafka-ui" ]
+    - Restart kafka-ui
+  tags: ["monitoring", "kafka-ui"]
 
 - name: Enable Kafka UI as a service
   ansible.builtin.service:
     name: docker-compose@kafka-ui.service
     state: started
     enabled: true
-  tags: [ "monitoring", "kafka-ui" ]
+  tags: ["monitoring", "kafka-ui"]

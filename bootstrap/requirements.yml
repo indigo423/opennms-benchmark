@@ -1,5 +1,8 @@
 ---
 collections:
+  - name: ansible.posix
+  - name: community.docker
+  - name: community.general
   - name: prometheus.prometheus
   # NOTE: versions prior to 0.21.0 use `when: (_common_dependencies)` with a string value,
   # which is rejected by Ansible 2.20+. Upgrade with:

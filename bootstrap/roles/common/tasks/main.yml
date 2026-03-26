@@ -1,55 +1,83 @@
 ---
-- name: "Set Time Zone to {{ timezone }}"
-  timezone:
-    name: "{{ timezone }}"
+- name: "Set Time Zone to {{ common_timezone }}"
+  community.general.timezone:
+    name: "{{ common_timezone }}"
 
 - name: Update APT cache
   ansible.builtin.apt:
-    update_cache: yes
+    update_cache: true
     cache_valid_time: 3600
 
 - name: Copy user settings to /home/labuser
-  copy: src=files/home/{{ item }} dest=/home/labuser/ owner=labuser group=labuser mode=0644
+  ansible.builtin.copy:
+    src: files/home/{{ item }}
+    dest: /home/labuser/
+    owner: labuser
+    group: labuser
+    mode: "0644"
   with_items:
-   - ".bash_aliases"
-   - ".bashrc"
-   - ".htoprc"
-   - ".screenrc"
+    - ".bash_aliases"
+    - ".bashrc"
+    - ".htoprc"
+    - ".screenrc"
 
 - name: Copy user settings to /root
-  copy: src=files/home/{{ item }} dest=/root/ owner=root group=root mode=0644
+  ansible.builtin.copy:
+    src: files/home/{{ item }}
+    dest: /root/
+    owner: root
+    group: root
+    mode: "0644"
   with_items:
-   - ".bash_aliases"
-   - ".bashrc"
-   - ".htoprc"
-   - ".screenrc"
+    - ".bash_aliases"
+    - ".bashrc"
+    - ".htoprc"
+    - ".screenrc"
 
 - name: Copy issues.net /etc
-  copy: src=files/etc/{{ item }} dest=/etc/ owner=root group=root mode=0644
+  ansible.builtin.copy:
+    src: files/etc/{{ item }}
+    dest: /etc/
+    owner: root
+    group: root
+    mode: "0644"
   with_items:
-   - "issue.net"
+    - "issue.net"
 
 - name: Ensures sshd_config.d exists
-  file: path=/etc/ssh/sshd_config.d mode=755 state=directory
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d
+    mode: "0755"
+    state: directory
   notify:
-    - reload sshd
-  tags: [ "ssh" ]
+    - Reload sshd
+  tags: ["ssh"]
 
 - name: Copy custom sshd_config /etc/ssh
-  copy: src=files/etc/ssh/sshd_config.d/custom.conf dest=/etc/ssh/sshd_config.d owner=root group=root mode=0600
+  ansible.builtin.copy:
+    src: files/etc/ssh/sshd_config.d/custom.conf
+    dest: /etc/ssh/sshd_config.d
+    owner: root
+    group: root
+    mode: "0600"
   notify:
-    - reload sshd
-  tags: [ "ssh" ]
+    - Reload sshd
+  tags: ["ssh"]
 
 - name: Configure journald
-  copy: src=files/etc/systemd/journald.conf dest=/etc/systemd/ owner=root group=root mode=0644
+  ansible.builtin.copy:
+    src: files/etc/systemd/journald.conf
+    dest: /etc/systemd/
+    owner: root
+    group: root
+    mode: "0644"
   notify:
-    - reload journald
-  tags: [ "journald" ]
+    - Reload journald
+  tags: ["journald"]
 
 - name: "Install dependencies"
-  tags: [ "system", "tools" ]
-  apt:
+  tags: ["system", "tools"]
+  ansible.builtin.apt:
     pkg:
       - ansible
       - apt-listchanges

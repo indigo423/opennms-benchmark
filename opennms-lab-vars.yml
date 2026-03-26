@@ -11,7 +11,7 @@ opennms_datasource_db_password: p4a55word!
 
 postgres_user: postgres
 postgres_password: oth3rP455w0rd!
-postgres_listen_addresses: '*'
+postgres_listen_addresses: "*"
 postgres_hba_permissions_v4: "192.0.2.0/24"
 
 kafka_bootstrap_servers: "192.0.2.68:9092"
@@ -62,4 +62,3 @@ opennms_jvm_conf:
   JAVA_HEAP_SIZE: 8192
   JAVA_INITIAL_HEAP_SIZE: 8192
   ADDITIONAL_MANAGER_OPTIONS: '"-XX:+UseG1GC -javaagent:/opt/prom-jmx-exporter/jmx_prometheus_javaagent.jar=9299:/opt/prom-jmx-exporter/config.yaml"'
-

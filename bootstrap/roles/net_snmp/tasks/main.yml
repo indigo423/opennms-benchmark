@@ -1,26 +1,28 @@
 ---
 - name: Add the OS specific variables
-  include_vars: '{{ ansible_os_family }}.yml'
-  tags: [ "net-snmp" ]
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+  tags: ["net-snmp"]
 
 - name: Install the required packages
   ansible.builtin.apt:
     name: "{{ snmpd_service_name }}"
     state: "{{ snmpd_pkg_state }}"
   when: ansible_os_family == 'Debian'
-  tags: [ "net-snmp" ]
+  tags: ["net-snmp"]
 
-- name: Ensures {{ snmpd_include_dir }} dir exists
+- name: Ensures snmpd include dir exists
   ansible.builtin.file:
     path: "{{ snmpd_include_dir }}"
     state: directory
-  tags: [ "net-snmp" ]
+    mode: "0755"
+  tags: ["net-snmp"]
 
-- name: Ensures {{ snmpd_extend_dir }} dir exists
+- name: Ensures snmpd extend dir exists
   ansible.builtin.file:
     path: "{{ snmpd_extend_dir }}"
     state: directory
-  tags: [ "net-snmp" ]
+    mode: "0755"
+  tags: ["net-snmp"]
 
 - name: Set snmpd default settings
   ansible.builtin.copy:
@@ -30,66 +32,72 @@
     group: root
     mode: "0640"
   notify:
-    - restart {{ snmpd_service_name }}
-  tags: [ "net-snmp" ]
+    - Restart snmpd
+  tags: ["net-snmp"]
 
 - name: Copy the snmpd.conf template file
   ansible.builtin.template:
     src: snmpd.conf.j2
     dest: /etc/snmp/snmpd.conf
+    mode: "0640"
   notify:
-  - restart {{ snmpd_service_name }}
-  tags: [ "net-snmp" ]
+    - Restart snmpd
+  tags: ["net-snmp"]
 
 - name: Copy the active monitoring template file
   ansible.builtin.template:
     src: active.conf.j2
     dest: "{{ snmpd_include_dir }}/active.conf"
+    mode: "0640"
   notify:
-  - restart {{ snmpd_service_name }}
-  tags: [ "net-snmp" ]
-  
+    - Restart snmpd
+  tags: ["net-snmp"]
+
 - name: Enable disk monitoring
   ansible.builtin.template:
     src: disk.conf.j2
     dest: "{{ snmpd_include_dir }}/disk.conf"
+    mode: "0640"
   notify:
-  - restart {{ snmpd_service_name }}
-  tags: [ "net-snmp" ]
+    - Restart snmpd
+  tags: ["net-snmp"]
 
 - name: Enable process monitoring
   ansible.builtin.template:
     src: proc.conf.j2
     dest: "{{ snmpd_include_dir }}/proc.conf"
+    mode: "0640"
   notify:
-  - restart {{ snmpd_service_name }}
-  tags: [ "net-snmp" ]
+    - Restart snmpd
+  tags: ["net-snmp"]
 
 - name: Copy the Trap Inform template file
   ansible.builtin.template:
     src: inform.conf.j2
     dest: "{{ snmpd_include_dir }}/inform.conf"
+    mode: "0640"
   notify:
-  - restart {{ snmpd_service_name }}
-  tags: [ "net-snmp" ]
+    - Restart snmpd
+  tags: ["net-snmp"]
 
 - name: Copy the sysinfo inform template file
   ansible.builtin.template:
     src: sysinfo.conf.j2
     dest: "{{ snmpd_include_dir }}/sysinfo.conf"
+    mode: "0640"
   notify:
-  - restart {{ snmpd_service_name }}
-  tags: [ "net-snmp" ]
+    - Restart snmpd
+  tags: ["net-snmp"]
 
 - name: Ensure snmpd is running and enabled
   ansible.builtin.service:
     name: "{{ snmpd_service_name }}"
     state: "{{ snmpd_service_state }}"
     enabled: "{{ snmpd_service_enabled }}"
-  tags: [ "net-snmp" ]
+  tags: ["net-snmp"]
 
 - name: Add a 10.42/16 local route on loopback
-  ansible.builtin.shell:
+  ansible.builtin.command:
     cmd: ip route add local 10.42.0.0/16 dev lo
   register: route_result
   changed_when: route_result.rc == 0

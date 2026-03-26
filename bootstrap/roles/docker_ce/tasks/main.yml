@@ -8,7 +8,7 @@
       - gnupg-agent
       - software-properties-common
     state: present
-  tags: [ "docker" ]
+  tags: ["docker"]
 
 - name: "Uninstall old Docker versions"
   ansible.builtin.apt:
@@ -19,14 +19,14 @@
       - containerd
       - runc
     state: absent
-  tags: [ "docker" ]
+  tags: ["docker"]
 
 - name: Download repository GPG key
   ansible.builtin.get_url:
     url: "{{ repo_uri_pubkey }}"
     dest: "{{ repo_signed_by }}"
     mode: "0644"
-  tags: [ "docker" ]
+  tags: ["docker"]
 
 - name: Add repository with signed-by option
   ansible.builtin.template:
@@ -35,7 +35,7 @@
     owner: root
     group: root
     mode: "0644"
-  tags: [ "docker" ]
+  tags: ["docker"]
 
 - name: Install Docker-CE packages
   ansible.builtin.apt:
@@ -43,35 +43,35 @@
       - docker-ce
       - docker-ce-cli
       - containerd.io
-    update_cache: yes
+    update_cache: true
     state: present
-  tags: [ "docker" ]
+  tags: ["docker"]
 
 - name: Add docker compose systemd unit
-  copy:
+  ansible.builtin.copy:
     src: "docker-compose@.service"
     dest: "/etc/systemd/system/docker-compose@.service"
     owner: root
     group: root
     mode: "0644"
   notify:
-  - reload systemd
-  tags: [ "docker-compose" ]
+    - Reload systemd
+  tags: ["docker-compose"]
 
 - name: Set Docker Daemon settings
-  copy:
+  ansible.builtin.copy:
     src: daemon.json
     dest: /etc/docker/daemon.json
     owner: root
     group: root
     mode: "0644"
   notify:
-  - restart docker
-  tags: [ "systemd" ]
+    - Restart docker
+  tags: ["systemd"]
 
 - name: Add labuser to the docker group
-  user:
+  ansible.builtin.user:
     name: labuser
     groups: docker
-    append: yes
-  tags: [ "docker" ]
+    append: true
+  tags: ["docker"]

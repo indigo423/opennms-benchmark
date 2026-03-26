@@ -1,0 +1,9 @@
+---
+exclude_paths:
+  - ansible-opennms/
+
+skip_list:
+  # var-naming[no-role-prefix]: snmpd_* is the established naming convention for
+  # Net-SNMP daemon vars across community roles. Renaming to net_snmp_snmpd_* adds
+  # no value in a self-contained lab repo.
+  - var-naming[no-role-prefix]

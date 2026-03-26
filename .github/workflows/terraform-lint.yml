@@ -1,9 +1,10 @@
+---
 name: Terraform Lint
 
 on:
   pull_request:
     paths:
-      - 'terraform/**'
+      - "terraform/**"
 
 jobs:
   fmt:

@@ -1,16 +1,17 @@
-## file: opennms-playbook.yml
+---
+# # file: opennms-playbook.yml
 
 - name: Wait for system readiness
   hosts: all
   gather_facts: false
   tasks:
     - name: Wait for SSH
-      wait_for_connection:
+      ansible.builtin.wait_for_connection:
         timeout: 300
 
     - name: Wait for cloud-init to complete
       become: true
-      command: cloud-init status --wait
+      ansible.builtin.command: cloud-init status --wait
       changed_when: false
       timeout: 120
 
@@ -18,7 +19,7 @@
   hosts: all
   become: true
   roles:
-    - apt-update
+    - apt_update
     - common
     - prometheus.prometheus.node_exporter
 
@@ -26,7 +27,7 @@
   hosts: docker_engine
   become: true
   roles:
-    - docker-ce
+    - docker_ce
 
 - name: Monitoring services
   hosts: mon_servers
@@ -39,11 +40,11 @@
   hosts: net_sim
   become: true
   roles:
-    - net-snmp
+    - net_snmp
     - l8opensim
 
 - name: Kafka-UI
   hosts: kafka_ui
   become: true
   roles:
-    - kafka-ui
+    - kafka_ui

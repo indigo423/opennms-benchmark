@@ -1,0 +1,9 @@
+---
+- name: Restart snmpd
+  ansible.builtin.service:
+    name: "{{ snmpd_service_name }}"
+    state: restarted
+- name: Restart rsyslogd
+  ansible.builtin.service:
+    name: "{{ rsyslog_service_name }}"
+    state: restarted

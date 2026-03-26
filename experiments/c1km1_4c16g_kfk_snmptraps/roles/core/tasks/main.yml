@@ -1,11 +1,11 @@
 ---
 - name: Configure OpenNMS Core Services
-  copy:
+  ansible.builtin.copy:
     src: "{{ item }}"
     dest: "/etc/opennms/{{ item }}"
     owner: opennms
     group: opennms
-    mode: 0644
+    mode: "0644"
   with_items:
     - "featuresBoot.d/jaeger.boot"
     - "featuresBoot.d/kafka-producer.boot"

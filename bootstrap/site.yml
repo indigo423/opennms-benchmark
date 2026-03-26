@@ -1,3 +1,4 @@
+---
 # file: site.yml
 
 - name: Local testing playbook

@@ -1,11 +1,11 @@
 ---
 - name: Configure OpenNMS Minion Services
-  copy:
+  ansible.builtin.copy:
     src: "{{ item }}"
     dest: "/etc/minion/{{ item }}"
     owner: minion
     group: minion
-    mode: 0644
+    mode: "0644"
   with_items:
     - "custom.system.properties"
     - "featuresBoot.d/jaeger.boot"

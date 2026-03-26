@@ -1,10 +1,10 @@
 ---
 - name: Run the equivalent of apt-get update as a separate step
-  apt:
-    update_cache: yes
+  ansible.builtin.apt:
+    update_cache: true
 
 - name: Update all packages to the latest version
-  apt:
+  ansible.builtin.apt:
     upgrade: dist
-    autoclean: yes
-    autoremove: yes
+    autoclean: true
+    autoremove: true

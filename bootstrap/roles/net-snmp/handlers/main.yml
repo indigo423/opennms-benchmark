@@ -1,6 +1,0 @@
----
-- name: restart snmpd
-  service: name={{ snmpd_service_name }} state=restarted
-
-- name: restart rsyslogd
-  service: name={{ rsyslog_service_name }} state=restarted
