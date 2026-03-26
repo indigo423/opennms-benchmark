@@ -8,7 +8,7 @@ variable "ip_database" { type = string }
 variable "ip_core" { type = string }
 variable "ip_kafka" { type = string }
 variable "ip_minion" { type = string }
-variable "ip_snmpsim" { type = string }
+variable "ip_netsim" { type = string }
 variable "ip_monitoring" { type = string }
 variable "ip_database_db" { type = string }
 variable "ip_core_db" { type = string }
@@ -16,7 +16,7 @@ variable "ip_core_kafka" { type = string }
 variable "ip_kafka_kafka" { type = string }
 variable "ip_minion_kafka" { type = string }
 variable "ip_minion_sim" { type = string }
-variable "ip_snmpsim_sim" { type = string }
+variable "ip_netsim_sim" { type = string }
 variable "snmp_sim_cidr" { type = string }
 variable "snmp_sim_gateway" { type = string }
 variable "admin_user" { type = string }
@@ -114,7 +114,7 @@ variable "vm_ids" {
     kafka      = 198
     minion     = 199
     monitoring = 200
-    snmpsim    = 201
+    netsim     = 201
   }
 }
 
@@ -126,7 +126,7 @@ variable "disk_sizes_gb" {
     core       = 30
     kafka      = 20
     minion     = 20
-    snmpsim    = 20
+    netsim     = 20
     monitoring = 30
   }
 }

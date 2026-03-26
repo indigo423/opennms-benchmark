@@ -12,7 +12,7 @@ variable "ip_database" { type = string }
 variable "ip_core" { type = string }
 variable "ip_kafka" { type = string }
 variable "ip_minion" { type = string }
-variable "ip_snmpsim" { type = string }
+variable "ip_netsim" { type = string }
 variable "ip_monitoring" { type = string }
 variable "ip_database_db" { type = string }
 variable "ip_core_db" { type = string }
@@ -38,7 +38,7 @@ variable "disk_sizes_gb" {
     core       = 30
     kafka      = 20
     minion     = 20
-    snmpsim    = 20
+    netsim     = 20
     monitoring = 30
   }
 }

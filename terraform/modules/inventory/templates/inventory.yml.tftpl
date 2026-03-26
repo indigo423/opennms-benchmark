@@ -7,17 +7,17 @@ all:
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ${admin_user}@${jump_host}"'
 %{ endif ~}
   hosts:
-    database:
+    db-benchmark-01:
       ansible_host: ${ip_database}
-    core:
+    core-benchmark-01:
       ansible_host: ${ip_core}
-    kafka:
+    kafka-benchmark-01:
       ansible_host: ${ip_kafka}
-    minion:
+    minion-benchmark-01:
       ansible_host: ${ip_minion}
-    snmpsim:
-      ansible_host: ${ip_snmpsim}
-    monitoring:
+    netsim-benchmark-01:
+      ansible_host: ${ip_netsim}
+    mon-benchmark-01:
 %{ if jump_host != "" ~}
       ansible_host: ${jump_host}
       ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
@@ -27,30 +27,30 @@ all:
   children:
     db_servers:
       hosts:
-        database:
+        db-benchmark-01:
     opennms:
       hosts:
-        core:
+        core-benchmark-01:
     kafka_servers:
       hosts:
-        kafka:
+        kafka-benchmark-01:
     minions:
       hosts:
-        minion:
+        minion-benchmark-01:
     simulators:
       hosts:
-        snmpsim:
+        netsim-benchmark-01:
     mon_servers:
       hosts:
-        monitoring:
+        mon-benchmark-01:
     docker_engine:
       hosts:
-        monitoring:
-        kafka:
-        snmpsim:
+        mon-benchmark-01:
+        kafka-benchmark-01:
+        netsim-benchmark-01:
     snmp_sim:
       hosts:
-        snmpsim:
+        netsim-benchmark-01:
     kafka_ui:
       hosts:
-        kafka:
+        kafka-benchmark-01:

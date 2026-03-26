@@ -15,7 +15,7 @@ terraform {
 
 module "cloud_init_database" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "database"
+  vm_name        = "db-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -28,7 +28,7 @@ module "cloud_init_database" {
 
 module "cloud_init_core" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "core"
+  vm_name        = "core-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -42,7 +42,7 @@ module "cloud_init_core" {
 
 module "cloud_init_kafka" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "kafka"
+  vm_name        = "kafka-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -55,7 +55,7 @@ module "cloud_init_kafka" {
 
 module "cloud_init_minion" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "minion"
+  vm_name        = "minion-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -67,22 +67,22 @@ module "cloud_init_minion" {
   ]
 }
 
-module "cloud_init_snmpsim" {
+module "cloud_init_netsim" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "snmpsim"
+  vm_name        = "netsim-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
   extra_packages = ["qemu-guest-agent"]
   interfaces = [
-    { name = "ens18", address = var.ip_snmpsim, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "ens19", address = var.ip_snmpsim_sim, prefix = 26, gateway = null },
+    { name = "ens18", address = var.ip_netsim, prefix = 26, gateway = var.gateway_mgmt },
+    { name = "ens19", address = var.ip_netsim_sim, prefix = 26, gateway = null },
   ]
 }
 
 module "cloud_init_monitoring" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "monitoring"
+  vm_name        = "mon-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -102,7 +102,7 @@ resource "proxmox_virtual_environment_file" "user_data_database" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "database-user-data.yaml"
+    file_name = "db-benchmark-01-user-data.yaml"
     data      = module.cloud_init_database.user_data
   }
 }
@@ -113,7 +113,7 @@ resource "proxmox_virtual_environment_file" "network_data_database" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "database-network-data.yaml"
+    file_name = "db-benchmark-01-network-data.yaml"
     data      = module.cloud_init_database.network_config
   }
 }
@@ -124,7 +124,7 @@ resource "proxmox_virtual_environment_file" "user_data_core" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "core-user-data.yaml"
+    file_name = "core-benchmark-01-user-data.yaml"
     data      = module.cloud_init_core.user_data
   }
 }
@@ -135,7 +135,7 @@ resource "proxmox_virtual_environment_file" "network_data_core" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "core-network-data.yaml"
+    file_name = "core-benchmark-01-network-data.yaml"
     data      = module.cloud_init_core.network_config
   }
 }
@@ -146,7 +146,7 @@ resource "proxmox_virtual_environment_file" "user_data_kafka" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "kafka-user-data.yaml"
+    file_name = "kafka-benchmark-01-user-data.yaml"
     data      = module.cloud_init_kafka.user_data
   }
 }
@@ -157,7 +157,7 @@ resource "proxmox_virtual_environment_file" "network_data_kafka" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "kafka-network-data.yaml"
+    file_name = "kafka-benchmark-01-network-data.yaml"
     data      = module.cloud_init_kafka.network_config
   }
 }
@@ -168,7 +168,7 @@ resource "proxmox_virtual_environment_file" "user_data_minion" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "minion-user-data.yaml"
+    file_name = "minion-benchmark-01-user-data.yaml"
     data      = module.cloud_init_minion.user_data
   }
 }
@@ -179,30 +179,30 @@ resource "proxmox_virtual_environment_file" "network_data_minion" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "minion-network-data.yaml"
+    file_name = "minion-benchmark-01-network-data.yaml"
     data      = module.cloud_init_minion.network_config
   }
 }
 
-resource "proxmox_virtual_environment_file" "user_data_snmpsim" {
+resource "proxmox_virtual_environment_file" "user_data_netsim" {
   content_type = "snippets"
   datastore_id = var.snippets_datastore
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "snmpsim-user-data.yaml"
-    data      = module.cloud_init_snmpsim.user_data
+    file_name = "netsim-benchmark-01-user-data.yaml"
+    data      = module.cloud_init_netsim.user_data
   }
 }
 
-resource "proxmox_virtual_environment_file" "network_data_snmpsim" {
+resource "proxmox_virtual_environment_file" "network_data_netsim" {
   content_type = "snippets"
   datastore_id = var.snippets_datastore
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "snmpsim-network-data.yaml"
-    data      = module.cloud_init_snmpsim.network_config
+    file_name = "netsim-benchmark-01-network-data.yaml"
+    data      = module.cloud_init_netsim.network_config
   }
 }
 
@@ -212,7 +212,7 @@ resource "proxmox_virtual_environment_file" "user_data_monitoring" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "monitoring-user-data.yaml"
+    file_name = "mon-benchmark-01-user-data.yaml"
     data      = module.cloud_init_monitoring.user_data
   }
 }
@@ -223,7 +223,7 @@ resource "proxmox_virtual_environment_file" "network_data_monitoring" {
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "monitoring-network-data.yaml"
+    file_name = "mon-benchmark-01-network-data.yaml"
     data      = module.cloud_init_monitoring.network_config
   }
 }
@@ -231,10 +231,10 @@ resource "proxmox_virtual_environment_file" "network_data_monitoring" {
 # VMs — full clones of the Ubuntu 24.04 cloud-init template.
 # Serialized with depends_on to prevent Proxmox storage lock contention
 # during concurrent clone operations.
-# Creation order: database → core → kafka → minion → snmpsim → monitoring
+# Creation order: database → core → kafka → minion → netsim → monitoring
 
 resource "proxmox_virtual_environment_vm" "database" {
-  name      = "database"
+  name      = "db-benchmark-01"
   node_name = var.proxmox_node
   vm_id     = var.vm_ids["database"]
   tags      = ["opennms-benchmark"]
@@ -287,7 +287,7 @@ resource "proxmox_virtual_environment_vm" "database" {
 }
 
 resource "proxmox_virtual_environment_vm" "core" {
-  name      = "core"
+  name      = "core-benchmark-01"
   node_name = var.proxmox_node
   vm_id     = var.vm_ids["core"]
   tags      = ["opennms-benchmark"]
@@ -347,7 +347,7 @@ resource "proxmox_virtual_environment_vm" "core" {
 }
 
 resource "proxmox_virtual_environment_vm" "kafka" {
-  name      = "kafka"
+  name      = "kafka-benchmark-01"
   node_name = var.proxmox_node
   vm_id     = var.vm_ids["kafka"]
   tags      = ["opennms-benchmark"]
@@ -402,7 +402,7 @@ resource "proxmox_virtual_environment_vm" "kafka" {
 }
 
 resource "proxmox_virtual_environment_vm" "minion" {
-  name      = "minion"
+  name      = "minion-benchmark-01"
   node_name = var.proxmox_node
   vm_id     = var.vm_ids["minion"]
   tags      = ["opennms-benchmark"]
@@ -461,10 +461,10 @@ resource "proxmox_virtual_environment_vm" "minion" {
   depends_on = [proxmox_virtual_environment_vm.kafka]
 }
 
-resource "proxmox_virtual_environment_vm" "snmpsim" {
-  name      = "snmpsim"
+resource "proxmox_virtual_environment_vm" "netsim" {
+  name      = "netsim-benchmark-01"
   node_name = var.proxmox_node
-  vm_id     = var.vm_ids["snmpsim"]
+  vm_id     = var.vm_ids["netsim"]
   tags      = ["opennms-benchmark"]
 
   clone {
@@ -484,7 +484,7 @@ resource "proxmox_virtual_environment_vm" "snmpsim" {
   disk {
     datastore_id = var.storage_pool
     interface    = "scsi0"
-    size         = var.disk_sizes_gb["snmpsim"]
+    size         = var.disk_sizes_gb["netsim"]
     iothread     = true
   }
 
@@ -509,15 +509,15 @@ resource "proxmox_virtual_environment_vm" "snmpsim" {
   }
 
   initialization {
-    user_data_file_id    = proxmox_virtual_environment_file.user_data_snmpsim.id
-    network_data_file_id = proxmox_virtual_environment_file.network_data_snmpsim.id
+    user_data_file_id    = proxmox_virtual_environment_file.user_data_netsim.id
+    network_data_file_id = proxmox_virtual_environment_file.network_data_netsim.id
   }
 
   depends_on = [proxmox_virtual_environment_vm.minion]
 }
 
 resource "proxmox_virtual_environment_vm" "monitoring" {
-  name      = "monitoring"
+  name      = "mon-benchmark-01"
   node_name = var.proxmox_node
   vm_id     = var.vm_ids["monitoring"]
   tags      = ["opennms-benchmark"]
@@ -568,5 +568,5 @@ resource "proxmox_virtual_environment_vm" "monitoring" {
     network_data_file_id = proxmox_virtual_environment_file.network_data_monitoring.id
   }
 
-  depends_on = [proxmox_virtual_environment_vm.snmpsim]
+  depends_on = [proxmox_virtual_environment_vm.netsim]
 }

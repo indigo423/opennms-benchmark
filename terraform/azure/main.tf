@@ -4,12 +4,12 @@ locals {
   vnet_name      = "vnet-${var.location}-${var.environment}-lab"
 
   hosts = {
-    database   = var.ip_database
-    core       = var.ip_core
-    kafka      = var.ip_kafka
-    minion     = var.ip_minion
-    snmpsim    = var.ip_snmpsim
-    monitoring = var.ip_monitoring
+    "db-benchmark-01"     = var.ip_database
+    "core-benchmark-01"   = var.ip_core
+    "kafka-benchmark-01"  = var.ip_kafka
+    "minion-benchmark-01" = var.ip_minion
+    "netsim-benchmark-01" = var.ip_netsim
+    "mon-benchmark-01"    = var.ip_monitoring
   }
 }
 
@@ -46,7 +46,7 @@ module "network" {
   ip_minion_kafka = var.ip_minion_kafka
   ip_minion_sim   = var.ip_minion_sim
   ip_minion       = var.ip_minion
-  ip_snmpsim      = var.ip_snmpsim
+  ip_netsim       = var.ip_netsim
   ip_monitoring   = var.ip_monitoring
   operator_cidr   = var.operator_cidr
 }
@@ -69,7 +69,7 @@ module "compute" {
   ip_core             = var.ip_core
   ip_kafka            = var.ip_kafka
   ip_minion           = var.ip_minion
-  ip_snmpsim          = var.ip_snmpsim
+  ip_netsim           = var.ip_netsim
   ip_monitoring       = var.ip_monitoring
   ip_database_db      = var.ip_database_db
   ip_core_db          = var.ip_core_db
@@ -87,8 +87,8 @@ module "compute" {
   nic_minion_mgmt     = module.network.nic_minion_mgmt
   nic_minion_kafka    = module.network.nic_minion_kafka
   nic_minion_sim      = module.network.nic_minion_sim
-  nic_snmpsim_mgmt    = module.network.nic_snmpsim_mgmt
-  nic_snmpsim_sim     = module.network.nic_snmpsim_sim
+  nic_netsim_mgmt     = module.network.nic_netsim_mgmt
+  nic_netsim_sim      = module.network.nic_netsim_sim
   nic_monitoring_mgmt = module.network.nic_monitoring_mgmt
 }
 
@@ -99,7 +99,7 @@ module "inventory" {
   ip_core       = var.ip_core
   ip_kafka      = var.ip_kafka
   ip_minion     = var.ip_minion
-  ip_snmpsim    = var.ip_snmpsim
+  ip_netsim     = var.ip_netsim
   ip_monitoring = var.ip_monitoring
   admin_user    = var.admin_user
   ssh_key_path  = var.ssh_key_path

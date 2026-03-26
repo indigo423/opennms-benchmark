@@ -21,7 +21,7 @@ locals {
 
 module "cloud_init_database" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "database"
+  vm_name        = "db-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -33,7 +33,7 @@ module "cloud_init_database" {
 
 module "cloud_init_core" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "core"
+  vm_name        = "core-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -46,7 +46,7 @@ module "cloud_init_core" {
 
 module "cloud_init_kafka" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "kafka"
+  vm_name        = "kafka-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -58,7 +58,7 @@ module "cloud_init_kafka" {
 
 module "cloud_init_minion" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "minion"
+  vm_name        = "minion-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -69,21 +69,21 @@ module "cloud_init_minion" {
   ]
 }
 
-module "cloud_init_snmpsim" {
+module "cloud_init_netsim" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "snmpsim"
+  vm_name        = "netsim-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
   interfaces = [
-    { name = "eth0", address = var.ip_snmpsim, prefix = 26, gateway = null },
-    { name = "eth1", address = var.ip_snmpsim, prefix = 26, gateway = null },
+    { name = "eth0", address = var.ip_netsim, prefix = 26, gateway = null },
+    { name = "eth1", address = var.ip_netsim, prefix = 26, gateway = null },
   ]
 }
 
 module "cloud_init_monitoring" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "monitoring"
+  vm_name        = "mon-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -93,7 +93,7 @@ module "cloud_init_monitoring" {
 }
 
 resource "azurerm_linux_virtual_machine" "database" {
-  name                         = "database"
+  name                         = "db-benchmark-01"
   resource_group_name          = var.resource_group
   location                     = var.location
   size                         = var.vm_size_small
@@ -122,7 +122,7 @@ resource "azurerm_linux_virtual_machine" "database" {
 }
 
 resource "azurerm_linux_virtual_machine" "core" {
-  name                         = "core"
+  name                         = "core-benchmark-01"
   resource_group_name          = var.resource_group
   location                     = var.location
   size                         = var.vm_size_medium
@@ -151,7 +151,7 @@ resource "azurerm_linux_virtual_machine" "core" {
 }
 
 resource "azurerm_linux_virtual_machine" "kafka" {
-  name                         = "kafka"
+  name                         = "kafka-benchmark-01"
   resource_group_name          = var.resource_group
   location                     = var.location
   size                         = var.vm_size_small
@@ -180,7 +180,7 @@ resource "azurerm_linux_virtual_machine" "kafka" {
 }
 
 resource "azurerm_linux_virtual_machine" "minion" {
-  name                         = "minion"
+  name                         = "minion-benchmark-01"
   resource_group_name          = var.resource_group
   location                     = var.location
   size                         = var.vm_size_small
@@ -208,16 +208,16 @@ resource "azurerm_linux_virtual_machine" "minion" {
   }
 }
 
-resource "azurerm_linux_virtual_machine" "snmpsim" {
-  name                         = "snmpsim"
+resource "azurerm_linux_virtual_machine" "netsim" {
+  name                         = "netsim-benchmark-01"
   resource_group_name          = var.resource_group
   location                     = var.location
   size                         = var.vm_size_small
   priority                     = var.priority
   proximity_placement_group_id = var.ppg_id
   admin_username               = var.admin_user
-  network_interface_ids        = [var.nic_snmpsim_mgmt, var.nic_snmpsim_sim]
-  custom_data                  = module.cloud_init_snmpsim.user_data_base64
+  network_interface_ids        = [var.nic_netsim_mgmt, var.nic_netsim_sim]
+  custom_data                  = module.cloud_init_netsim.user_data_base64
 
   admin_ssh_key {
     username   = var.admin_user
@@ -238,7 +238,7 @@ resource "azurerm_linux_virtual_machine" "snmpsim" {
 }
 
 resource "azurerm_linux_virtual_machine" "monitoring" {
-  name                         = "monitoring"
+  name                         = "mon-benchmark-01"
   resource_group_name          = var.resource_group
   location                     = var.location
   size                         = var.vm_size_small

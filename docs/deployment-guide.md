@@ -271,8 +271,8 @@ After rebooting any VM, check and re-apply these ephemeral settings:
 
 | VM | Action |
 |---|---|
-| snmpsim | `sudo ip route add local 10.42.0.0/16 dev lo` |
+| netsim | `sudo ip route add local 10.42.0.0/16 dev lo` |
 | minion | `sudo ip route add 10.42.0.0/16 via 192.0.2.134` |
 | monitoring | Re-enable IP forwarding if using Tailscale routing |
 
-The Terraform cloud-init module applies the minion route on first boot only. Subsequent reboots require the manual command above (or re-running the `net-snmp` Ansible role for snmpsim).
+The Terraform cloud-init module applies the minion route on first boot only. Subsequent reboots require the manual command above (or re-running the `net-snmp` Ansible role for netsim).

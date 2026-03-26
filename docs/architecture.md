@@ -33,7 +33,7 @@ Six VMs, each dedicated to one component:
 | core | 192.0.2.197 | OpenNMS Horizon Core |
 | kafka | 192.0.2.198 | Apache Kafka (KRaft mode) + Kafka UI |
 | minion | 192.0.2.199 | OpenNMS Minion (distributed collector) |
-| snmpsim | 192.0.2.134 | Net-SNMP simulator (10.42.0.0/16 loopback) |
+| netsim | 192.0.2.134 | Net-SNMP simulator (10.42.0.0/16 loopback) |
 | monitoring | 192.0.2.200 | Prometheus · Grafana · Jaeger (jump host) |
 
 All VMs run Ubuntu 24.04 LTS. The monitoring VM is the only VM with a public IP address.
@@ -55,7 +55,7 @@ flowchart LR
     end
     subgraph subnet-sim["subnet-sim (192.0.2.128/26)"]
         MINION_SIM[minion\n192.0.2.133]
-        SNMPSIM[snmpsim\n192.0.2.134]
+        SNMPSIM[netsim\n192.0.2.134]
     end
     subgraph subnet-mgmt["subnet-mgmt (192.0.2.192/26)"]
         MON[monitoring\n192.0.2.200\n🌐 public IP]
@@ -69,19 +69,19 @@ flowchart LR
 
 ### SNMP Simulation Network
 
-The snmpsim VM responds to SNMP requests for 10.42.0.0/16 (up to 65,534 addresses) by binding that range to the loopback interface:
+The netsim VM responds to SNMP requests for 10.42.0.0/16 (up to 65,534 addresses) by binding that range to the loopback interface:
 
 ```bash
 ip route add local 10.42.0.0/16 dev lo
 ```
 
-The minion VM reaches simulation targets via a static route through snmpsim:
+The minion VM reaches simulation targets via a static route through netsim:
 
 ```bash
 ip route add 10.42.0.0/16 via 192.0.2.134
 ```
 
-**Note:** These routes are not persistent across reboots. The Terraform cloud-init module adds this route for the minion VM automatically on first boot, but the snmpsim loopback route is set by the `net-snmp` Ansible role and must be re-applied after a reboot if the VM is bounced without re-running bootstrap.
+**Note:** These routes are not persistent across reboots. The Terraform cloud-init module adds this route for the minion VM automatically on first boot, but the netsim loopback route is set by the `net-snmp` Ansible role and must be re-applied after a reboot if the VM is bounced without re-running bootstrap.
 
 ## Technology Stack
 

@@ -11,28 +11,28 @@ terraform {
 locals {
   cloud_init_meta_data = {
     database   = <<-EOF
-      instance-id: database
-      local-hostname: database
+      instance-id: db-benchmark-01
+      local-hostname: db-benchmark-01
     EOF
     core       = <<-EOF
-      instance-id: core
-      local-hostname: core
+      instance-id: core-benchmark-01
+      local-hostname: core-benchmark-01
     EOF
     kafka      = <<-EOF
-      instance-id: kafka
-      local-hostname: kafka
+      instance-id: kafka-benchmark-01
+      local-hostname: kafka-benchmark-01
     EOF
     minion     = <<-EOF
-      instance-id: minion
-      local-hostname: minion
+      instance-id: minion-benchmark-01
+      local-hostname: minion-benchmark-01
     EOF
-    snmpsim    = <<-EOF
-      instance-id: snmpsim
-      local-hostname: snmpsim
+    netsim     = <<-EOF
+      instance-id: netsim-benchmark-01
+      local-hostname: netsim-benchmark-01
     EOF
     monitoring = <<-EOF
-      instance-id: monitoring
-      local-hostname: monitoring
+      instance-id: mon-benchmark-01
+      local-hostname: mon-benchmark-01
     EOF
   }
 }
@@ -65,7 +65,7 @@ resource "libvirt_volume" "ubuntu_base" {
 }
 
 resource "libvirt_volume" "database" {
-  name = "database.qcow2"
+  name = "db-benchmark-01.qcow2"
   pool = var.storage_pool
 
   target = {
@@ -82,7 +82,7 @@ resource "libvirt_volume" "database" {
 }
 
 resource "libvirt_volume" "core" {
-  name = "core.qcow2"
+  name = "core-benchmark-01.qcow2"
   pool = var.storage_pool
 
   target = {
@@ -99,7 +99,7 @@ resource "libvirt_volume" "core" {
 }
 
 resource "libvirt_volume" "kafka" {
-  name = "kafka.qcow2"
+  name = "kafka-benchmark-01.qcow2"
   pool = var.storage_pool
 
   target = {
@@ -116,7 +116,7 @@ resource "libvirt_volume" "kafka" {
 }
 
 resource "libvirt_volume" "minion" {
-  name = "minion.qcow2"
+  name = "minion-benchmark-01.qcow2"
   pool = var.storage_pool
 
   target = {
@@ -132,8 +132,8 @@ resource "libvirt_volume" "minion" {
   capacity_unit = "GiB"
 }
 
-resource "libvirt_volume" "snmpsim" {
-  name = "snmpsim.qcow2"
+resource "libvirt_volume" "netsim" {
+  name = "netsim-benchmark-01.qcow2"
   pool = var.storage_pool
 
   target = {
@@ -145,12 +145,12 @@ resource "libvirt_volume" "snmpsim" {
     format = { type = "qcow2" }
   }
 
-  capacity      = var.disk_sizes_gb["snmpsim"]
+  capacity      = var.disk_sizes_gb["netsim"]
   capacity_unit = "GiB"
 }
 
 resource "libvirt_volume" "monitoring" {
-  name = "monitoring.qcow2"
+  name = "mon-benchmark-01.qcow2"
   pool = var.storage_pool
 
   target = {
@@ -168,7 +168,7 @@ resource "libvirt_volume" "monitoring" {
 
 module "cloud_init_database" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "database"
+  vm_name        = "db-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -181,7 +181,7 @@ module "cloud_init_database" {
 
 module "cloud_init_core" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "core"
+  vm_name        = "core-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -195,7 +195,7 @@ module "cloud_init_core" {
 
 module "cloud_init_kafka" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "kafka"
+  vm_name        = "kafka-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -208,7 +208,7 @@ module "cloud_init_kafka" {
 
 module "cloud_init_minion" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "minion"
+  vm_name        = "minion-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -220,22 +220,22 @@ module "cloud_init_minion" {
   ]
 }
 
-module "cloud_init_snmpsim" {
+module "cloud_init_netsim" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "snmpsim"
+  vm_name        = "netsim-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
   extra_packages = var.extra_packages
   interfaces = [
-    { name = "enp1s0", address = var.ip_snmpsim, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "enp2s0", address = var.ip_snmpsim, prefix = 26, gateway = null },
+    { name = "enp1s0", address = var.ip_netsim, prefix = 26, gateway = var.gateway_mgmt },
+    { name = "enp2s0", address = var.ip_netsim, prefix = 26, gateway = null },
   ]
 }
 
 module "cloud_init_monitoring" {
   source         = "../../../modules/cloud-init"
-  vm_name        = "monitoring"
+  vm_name        = "mon-benchmark-01"
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
@@ -247,49 +247,49 @@ module "cloud_init_monitoring" {
 }
 
 resource "libvirt_cloudinit_disk" "database" {
-  name           = "database-cloudinit"
+  name           = "db-benchmark-01-cloudinit"
   user_data      = module.cloud_init_database.user_data
   meta_data      = local.cloud_init_meta_data.database
   network_config = module.cloud_init_database.network_config
 }
 
 resource "libvirt_cloudinit_disk" "core" {
-  name           = "core-cloudinit"
+  name           = "core-benchmark-01-cloudinit"
   user_data      = module.cloud_init_core.user_data
   meta_data      = local.cloud_init_meta_data.core
   network_config = module.cloud_init_core.network_config
 }
 
 resource "libvirt_cloudinit_disk" "kafka" {
-  name           = "kafka-cloudinit"
+  name           = "kafka-benchmark-01-cloudinit"
   user_data      = module.cloud_init_kafka.user_data
   meta_data      = local.cloud_init_meta_data.kafka
   network_config = module.cloud_init_kafka.network_config
 }
 
 resource "libvirt_cloudinit_disk" "minion" {
-  name           = "minion-cloudinit"
+  name           = "minion-benchmark-01-cloudinit"
   user_data      = module.cloud_init_minion.user_data
   meta_data      = local.cloud_init_meta_data.minion
   network_config = module.cloud_init_minion.network_config
 }
 
-resource "libvirt_cloudinit_disk" "snmpsim" {
-  name           = "snmpsim-cloudinit"
-  user_data      = module.cloud_init_snmpsim.user_data
-  meta_data      = local.cloud_init_meta_data.snmpsim
-  network_config = module.cloud_init_snmpsim.network_config
+resource "libvirt_cloudinit_disk" "netsim" {
+  name           = "netsim-benchmark-01-cloudinit"
+  user_data      = module.cloud_init_netsim.user_data
+  meta_data      = local.cloud_init_meta_data.netsim
+  network_config = module.cloud_init_netsim.network_config
 }
 
 resource "libvirt_cloudinit_disk" "monitoring" {
-  name           = "monitoring-cloudinit"
+  name           = "mon-benchmark-01-cloudinit"
   user_data      = module.cloud_init_monitoring.user_data
   meta_data      = local.cloud_init_meta_data.monitoring
   network_config = module.cloud_init_monitoring.network_config
 }
 
 resource "libvirt_volume" "database_cloudinit" {
-  name = "database-cloudinit.iso"
+  name = "db-benchmark-01-cloudinit.iso"
   pool = var.storage_pool
 
   create = {
@@ -300,7 +300,7 @@ resource "libvirt_volume" "database_cloudinit" {
 }
 
 resource "libvirt_volume" "core_cloudinit" {
-  name = "core-cloudinit.iso"
+  name = "core-benchmark-01-cloudinit.iso"
   pool = var.storage_pool
 
   create = {
@@ -311,7 +311,7 @@ resource "libvirt_volume" "core_cloudinit" {
 }
 
 resource "libvirt_volume" "kafka_cloudinit" {
-  name = "kafka-cloudinit.iso"
+  name = "kafka-benchmark-01-cloudinit.iso"
   pool = var.storage_pool
 
   create = {
@@ -322,7 +322,7 @@ resource "libvirt_volume" "kafka_cloudinit" {
 }
 
 resource "libvirt_volume" "minion_cloudinit" {
-  name = "minion-cloudinit.iso"
+  name = "minion-benchmark-01-cloudinit.iso"
   pool = var.storage_pool
 
   create = {
@@ -332,19 +332,19 @@ resource "libvirt_volume" "minion_cloudinit" {
   }
 }
 
-resource "libvirt_volume" "snmpsim_cloudinit" {
-  name = "snmpsim-cloudinit.iso"
+resource "libvirt_volume" "netsim_cloudinit" {
+  name = "netsim-benchmark-01-cloudinit.iso"
   pool = var.storage_pool
 
   create = {
     content = {
-      url = "file://${libvirt_cloudinit_disk.snmpsim.path}"
+      url = "file://${libvirt_cloudinit_disk.netsim.path}"
     }
   }
 }
 
 resource "libvirt_volume" "monitoring_cloudinit" {
-  name = "monitoring-cloudinit.iso"
+  name = "mon-benchmark-01-cloudinit.iso"
   pool = var.storage_pool
 
   create = {
@@ -355,7 +355,7 @@ resource "libvirt_volume" "monitoring_cloudinit" {
 }
 
 resource "libvirt_domain" "database" {
-  name        = "database"
+  name        = "db-benchmark-01"
   type        = "kvm"
   running     = true
   memory      = 4096
@@ -470,7 +470,7 @@ resource "libvirt_domain" "database" {
 }
 
 resource "libvirt_domain" "core" {
-  name        = "core"
+  name        = "core-benchmark-01"
   type        = "kvm"
   running     = true
   memory      = 16384
@@ -596,7 +596,7 @@ resource "libvirt_domain" "core" {
 }
 
 resource "libvirt_domain" "kafka" {
-  name        = "kafka"
+  name        = "kafka-benchmark-01"
   type        = "kvm"
   running     = true
   memory      = 4096
@@ -711,7 +711,7 @@ resource "libvirt_domain" "kafka" {
 }
 
 resource "libvirt_domain" "minion" {
-  name        = "minion"
+  name        = "minion-benchmark-01"
   type        = "kvm"
   running     = true
   memory      = 4096
@@ -836,8 +836,8 @@ resource "libvirt_domain" "minion" {
   }
 }
 
-resource "libvirt_domain" "snmpsim" {
-  name        = "snmpsim"
+resource "libvirt_domain" "netsim" {
+  name        = "netsim-benchmark-01"
   type        = "kvm"
   running     = true
   memory      = 4096
@@ -860,8 +860,8 @@ resource "libvirt_domain" "snmpsim" {
       {
         source = {
           volume = {
-            pool   = libvirt_volume.snmpsim.pool
-            volume = libvirt_volume.snmpsim.name
+            pool   = libvirt_volume.netsim.pool
+            volume = libvirt_volume.netsim.name
           }
         }
         driver = {
@@ -877,8 +877,8 @@ resource "libvirt_domain" "snmpsim" {
         device = "cdrom"
         source = {
           volume = {
-            pool   = libvirt_volume.snmpsim_cloudinit.pool
-            volume = libvirt_volume.snmpsim_cloudinit.name
+            pool   = libvirt_volume.netsim_cloudinit.pool
+            volume = libvirt_volume.netsim_cloudinit.name
           }
         }
         target = {
@@ -952,7 +952,7 @@ resource "libvirt_domain" "snmpsim" {
 }
 
 resource "libvirt_domain" "monitoring" {
-  name        = "monitoring"
+  name        = "mon-benchmark-01"
   type        = "kvm"
   running     = true
   memory      = 4096

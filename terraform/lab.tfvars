@@ -15,7 +15,7 @@ ip_core       = "192.0.2.197"
 ip_kafka      = "192.0.2.198"
 ip_minion     = "192.0.2.199"
 ip_monitoring = "192.0.2.200"
-ip_snmpsim    = "192.0.2.201"
+ip_netsim     = "192.0.2.201"
 
 # Internal IPs per subnet
 ip_database_db  = "192.0.2.4"
@@ -24,9 +24,9 @@ ip_kafka_kafka  = "192.0.2.68"
 ip_core_kafka   = "192.0.2.69"
 ip_minion_kafka = "192.0.2.70"
 ip_minion_sim   = "192.0.2.133"
-ip_snmpsim_sim  = "192.0.2.134"
+ip_netsim_sim   = "192.0.2.134"
 
-# SNMP simulation network — routed via snmpsim VM
+# SNMP simulation network — routed via netsim VM
 snmp_sim_cidr    = "10.42.0.0/16"
 snmp_sim_gateway = "192.0.2.134"
 
@@ -36,7 +36,7 @@ vm_names = {
   core       = "core"
   kafka      = "kafka"
   minion     = "minion"
-  snmpsim    = "snmpsim"
+  netsim     = "netsim"
   monitoring = "monitoring"
 }
 

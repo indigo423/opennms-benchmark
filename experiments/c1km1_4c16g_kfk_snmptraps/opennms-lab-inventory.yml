@@ -1,20 +1,21 @@
+---
 all:
   children:
     opennms-stack:
       children:
         database:
           hosts:
-            db-vm:
+            db-benchmark-01:
               ansible_host: 192.0.2.196
         core:
           hosts:
-            core-vm:
+            core-benchmark-01:
               ansible_host: 192.0.2.197
         message_broker:
           hosts:
-            kafka-vm:
+            kafka-benchmark-01:
               ansible_host: 192.0.2.198
         minion:
           hosts:
-            minion-vm:
+            minion-benchmark-01:
               ansible_host: 192.0.2.199

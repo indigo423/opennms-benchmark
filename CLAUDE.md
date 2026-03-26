@@ -87,6 +87,24 @@ ansible-playbook -i ../ansible-inventory.yml reboot-playbook.yml
 git submodule update --init --recursive
 ```
 
+## VM Naming Convention
+
+VM names follow the pattern `[function]-[env]-[seq]`:
+
+- **function** — role of the VM:
+  - `mon` — Monitoring (Prometheus, Grafana, Jaeger)
+  - `core` — OpenNMS Core
+  - `minion` — OpenNMS Minion
+  - `db` — Database (PostgreSQL)
+  - `netsim` — Net-SNMP Simulator
+  - `kafka` — Message broker (Kafka)
+  - `es` — Elasticsearch
+  - `sen` — OpenNMS Sentinel
+- **env** — environment name, matching the Azure deployment project name (e.g. `benchmark`)
+- **seq** — two-digit zero-padded sequence number (e.g. `01`, `02`)
+
+Examples: `db-benchmark-01`, `core-benchmark-01`, `minion-benchmark-01`, `mon-benchmark-01`
+
 ## Experiment Naming Convention
 
 `c<cores>km<minions>_<cpu>c<ram>g_<broker>_<load-type>`

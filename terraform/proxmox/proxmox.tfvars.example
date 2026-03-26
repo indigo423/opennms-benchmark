@@ -50,8 +50,11 @@ bridge_ext   = "vmbr4" # External DHCP bridge — monitoring VM gets a routable 
 #   kafka      = 198
 #   minion     = 199
 #   monitoring = 200
-#   snmpsim    = 201
+#   netsim    = 201
 # }
+# VM names in Proxmox UI follow [function]-[env]-[seq] convention:
+#   db-benchmark-01, core-benchmark-01, kafka-benchmark-01,
+#   minion-benchmark-01, netsim-benchmark-01, mon-benchmark-01
 
 # Disk sizes — IMPORTANT: if overriding, provide ALL six keys. Terraform replaces the entire
 # map; a partial override (e.g. only "core") drops the remaining keys and causes a plan error.
@@ -60,7 +63,7 @@ bridge_ext   = "vmbr4" # External DHCP bridge — monitoring VM gets a routable 
 #   core       = 30
 #   kafka      = 20
 #   minion     = 20
-#   snmpsim    = 20
+#   netsim    = 20
 #   monitoring = 30
 # }
 

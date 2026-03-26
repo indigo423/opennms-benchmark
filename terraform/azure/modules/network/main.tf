@@ -201,28 +201,28 @@ resource "azurerm_network_interface" "minion_mgmt" {
   }
 }
 
-# NICs — snmpsim
-resource "azurerm_network_interface" "snmpsim_sim" {
-  name                = "nic-${local.loc}-${local.env}-snmpsim-vnet-sim"
+# NICs — netsim
+resource "azurerm_network_interface" "netsim_sim" {
+  name                = "nic-${local.loc}-${local.env}-netsim-vnet-sim"
   resource_group_name = var.resource_group
   location            = var.location
   ip_configuration {
     name                          = "ipconfig1"
     subnet_id                     = azurerm_subnet.sim.id
     private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_snmpsim
+    private_ip_address            = var.ip_netsim
   }
 }
 
-resource "azurerm_network_interface" "snmpsim_mgmt" {
-  name                = "nic-${local.loc}-${local.env}-snmpsim-vnet-mgmt"
+resource "azurerm_network_interface" "netsim_mgmt" {
+  name                = "nic-${local.loc}-${local.env}-netsim-vnet-mgmt"
   resource_group_name = var.resource_group
   location            = var.location
   ip_configuration {
     name                          = "ipconfig1"
     subnet_id                     = azurerm_subnet.mgmt.id
     private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_snmpsim
+    private_ip_address            = var.ip_netsim
   }
 }
 

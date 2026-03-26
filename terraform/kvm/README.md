@@ -44,7 +44,7 @@ Once `qemu-guest-agent` is running inside the VMs, query all assigned IPs with:
 
 ```bash
 LIBVIRT_URI="qemu+ssh://user@your-kvm-host/system"
-for vm in database core kafka minion snmpsim mon; do
+for vm in database core kafka minion netsim mon; do
   echo -n "$vm: "
   virsh -c $LIBVIRT_URI domifaddr $vm --source agent 2>/dev/null || echo "no lease yet"
 done
