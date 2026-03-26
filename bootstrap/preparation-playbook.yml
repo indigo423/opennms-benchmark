@@ -35,8 +35,8 @@
     - monitoring
     - traefik
 
-- name: SNMP-Simulator
-  hosts: snmp_sim
+- name: Net-Simulator
+  hosts: net_sim
   become: true
   roles:
     - net-snmp

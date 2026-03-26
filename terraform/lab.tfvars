@@ -27,8 +27,8 @@ ip_minion_sim   = "192.0.2.133"
 ip_netsim_sim   = "192.0.2.134"
 
 # SNMP simulation network — routed via netsim VM
-snmp_sim_cidr    = "10.42.0.0/16"
-snmp_sim_gateway = "192.0.2.134"
+net_sim_cidr    = "10.42.0.0/16"
+net_sim_gateway = "192.0.2.134"
 
 # VM names
 vm_names = {

@@ -5,8 +5,8 @@ variable "ssh_public_key" {
   type      = string
   sensitive = true
 }
-variable "snmp_sim_cidr" { type = string }
-variable "snmp_sim_gateway" { type = string }
+variable "net_sim_cidr" { type = string }
+variable "net_sim_gateway" { type = string }
 variable "hosts" { type = map(string) }
 variable "ip_database" { type = string }
 variable "ip_core" { type = string }

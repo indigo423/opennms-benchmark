@@ -216,7 +216,7 @@ module "cloud_init_minion" {
   interfaces = [
     { name = "enp1s0", address = var.ip_minion, prefix = 26, gateway = var.gateway_mgmt },
     { name = "enp2s0", address = var.ip_minion_kafka, prefix = 26, gateway = null },
-    { name = "enp3s0", address = var.ip_minion_sim, prefix = 26, gateway = null, routes = [{ to = var.snmp_sim_cidr, via = var.snmp_sim_gateway }] },
+    { name = "enp3s0", address = var.ip_minion_sim, prefix = 26, gateway = null, routes = [{ to = var.net_sim_cidr, via = var.net_sim_gateway }] },
   ]
 }
 

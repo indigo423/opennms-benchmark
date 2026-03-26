@@ -18,8 +18,8 @@ module "compute" {
   snippets_datastore = var.snippets_datastore
   admin_user         = var.admin_user
   ssh_public_key     = trimspace(file(pathexpand("${var.ssh_key_path}.pub")))
-  snmp_sim_cidr      = var.snmp_sim_cidr
-  snmp_sim_gateway   = var.snmp_sim_gateway
+  net_sim_cidr       = var.net_sim_cidr
+  net_sim_gateway    = var.net_sim_gateway
   hosts              = local.hosts
   ip_database        = var.ip_database
   ip_core            = var.ip_core

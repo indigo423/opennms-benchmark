@@ -17,8 +17,8 @@ variable "ip_kafka_kafka" { type = string }
 variable "ip_minion_kafka" { type = string }
 variable "ip_minion_sim" { type = string }
 variable "ip_netsim_sim" { type = string }
-variable "snmp_sim_cidr" { type = string }
-variable "snmp_sim_gateway" { type = string }
+variable "net_sim_cidr" { type = string }
+variable "net_sim_gateway" { type = string }
 variable "admin_user" { type = string }
 variable "vm_names" {
   type = map(string)
