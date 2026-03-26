@@ -46,6 +46,9 @@ crash.log
 # *.tfvars
 # *.tfvars.json
 
+# KVM tfvars contains a host-specific URI — gitignored, use kvm.tfvars.example as template
+terraform/kvm/kvm.tfvars
+
 # Proxmox tfvars contains an API token — gitignored, use proxmox.tfvars.example as template
 terraform/proxmox/proxmox.tfvars
 

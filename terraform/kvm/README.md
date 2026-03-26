@@ -28,6 +28,29 @@ virsh pool-start default   # if inactive
 
 The public key is read automatically from `ssh_key_path` in `kvm.tfvars` (defaults to `~/.ssh/id_rsa.pub`). No environment variable needed.
 
+## Configuration
+
+Copy the example vars file and set the `libvirt_uri` for your KVM host:
+
+```bash
+cp terraform/kvm/kvm.tfvars.example terraform/kvm/kvm.tfvars
+```
+
+Edit `kvm.tfvars` and set `libvirt_uri`:
+
+| Target | URI |
+|--------|-----|
+| Local KVM daemon | `qemu:///system` |
+| Remote KVM host | `qemu+ssh://user@your-kvm-host/system` |
+
+Example for a remote host:
+
+```hcl
+libvirt_uri = "qemu+ssh://root@your-kvm.host/system"
+```
+
+`kvm.tfvars` is gitignored — your local settings are never committed.
+
 ## Deploy
 
 ```bash
@@ -105,14 +128,11 @@ The `dmacvicar/libvirt` provider uses libvirt's native transport layer, so no ad
 
 ### Remote-specific `kvm.tfvars`
 
-Create a separate var file (e.g., `kvm-remote.tfvars`) to avoid editing the defaults:
+Set `libvirt_uri` in your `kvm.tfvars` to the SSH URI and update the image path to point to a location on the remote host:
 
 ```hcl
 libvirt_uri        = "qemu+ssh://user@your-kvm-host/system"
 ubuntu_cloud_image = "/var/lib/libvirt/images/noble-server-cloudimg-amd64.img"
-storage_pool       = "default"
-ssh_key_path       = "~/.ssh/id_rsa"
-admin_user         = "ubuntu"
 ```
 
 All paths in `kvm.tfvars` (storage pool, cloud image) are resolved **on the remote host**, not your local machine.
@@ -122,7 +142,7 @@ All paths in `kvm.tfvars` (storage pool, cloud image) are resolved **on the remo
 ```bash
 cd terraform/kvm
 terraform init
-terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-remote.tfvars
+terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
 ```
 
 ### Verify connectivity before applying
@@ -137,32 +157,9 @@ A successful response (even an empty VM list) confirms the connection works.
 
 ## Deploying to Multiple KVM Hosts
 
-To run the lab on different KVM hosts (e.g. switching between test machines), use one **tfvars file per host** combined with **Terraform workspaces** so each host gets its own isolated state.
+To run the lab on different KVM hosts (e.g. switching between test machines), use **Terraform workspaces** so each host gets its own isolated state. Since `kvm.tfvars` is gitignored, you can freely edit it per host.
 
-### 1. Create a tfvars file per host
-
-```
-kvm-host-a.tfvars
-kvm-host-b.tfvars
-```
-
-Each file overrides only the host-specific values:
-
-```hcl
-# kvm-host-a.tfvars
-libvirt_uri = "qemu+ssh://root@your-kvm.host/system?no_verify=1"
-bridge_name = "br0"
-```
-
-```hcl
-# kvm-host-b.tfvars
-libvirt_uri = "qemu+ssh://root@other-host.example.com/system?no_verify=1"
-bridge_name = "br0"
-```
-
-All other values (`lab.tfvars`, `kvm.tfvars`) are shared across hosts.
-
-### 2. Create a workspace per host
+### 1. Create a workspace per host
 
 ```bash
 terraform workspace new host-a
@@ -175,23 +172,25 @@ List workspaces:
 terraform workspace list
 ```
 
-### 3. Deploy to a specific host
+### 2. Deploy to a specific host
 
-Select the workspace, then apply with the matching tfvars:
+Select the workspace, update `kvm.tfvars` with the target host's URI, then apply:
 
 ```bash
 terraform workspace select host-a
-terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-host-a.tfvars
+# edit kvm.tfvars: set libvirt_uri = "qemu+ssh://root@host-a/system"
+terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
 
 terraform workspace select host-b
-terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-host-b.tfvars
+# edit kvm.tfvars: set libvirt_uri = "qemu+ssh://root@host-b/system"
+terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
 ```
 
-### 4. Destroy a specific host's lab
+### 3. Destroy a specific host's lab
 
 ```bash
 terraform workspace select host-a
-terraform destroy -var-file=../lab.tfvars -var-file=kvm.tfvars -var-file=kvm-host-a.tfvars
+terraform destroy -var-file=../lab.tfvars -var-file=kvm.tfvars
 ```
 
 > Each workspace maintains completely independent state — destroying one host's lab has no effect on others.
