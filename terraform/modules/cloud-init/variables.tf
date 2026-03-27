@@ -48,3 +48,9 @@ variable "local_routes" {
   default     = []
   description = "CIDRs to add as local routes on the loopback interface (ip route add local <cidr> dev lo). Installed as a persistent systemd service so routes survive reboots."
 }
+
+variable "network_config_supported" {
+  type        = bool
+  default     = true
+  description = "Set to false on providers that cannot deliver a separate cloud-init network-config document (e.g. Azure). When false, static interface routes are installed via a systemd service in user-data instead of relying on netplan."
+}

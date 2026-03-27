@@ -20,11 +20,12 @@ locals {
 }
 
 module "cloud_init_database" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "db-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
+  source                   = "../../../modules/cloud-init"
+  vm_name                  = "db-benchmark-01"
+  admin_user               = var.admin_user
+  ssh_public_key           = var.ssh_public_key
+  hosts                    = var.hosts
+  network_config_supported = false
   interfaces = [
     { name = "eth0", address = var.ip_database, prefix = 26, gateway = null },
     { name = "eth1", address = var.ip_database_db, prefix = 26, gateway = null },
@@ -32,11 +33,12 @@ module "cloud_init_database" {
 }
 
 module "cloud_init_core" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "core-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
+  source                   = "../../../modules/cloud-init"
+  vm_name                  = "core-benchmark-01"
+  admin_user               = var.admin_user
+  ssh_public_key           = var.ssh_public_key
+  hosts                    = var.hosts
+  network_config_supported = false
   interfaces = [
     { name = "eth0", address = var.ip_core, prefix = 26, gateway = null },
     { name = "eth1", address = var.ip_core_db, prefix = 26, gateway = null },
@@ -45,11 +47,12 @@ module "cloud_init_core" {
 }
 
 module "cloud_init_kafka" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "kafka-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
+  source                   = "../../../modules/cloud-init"
+  vm_name                  = "kafka-benchmark-01"
+  admin_user               = var.admin_user
+  ssh_public_key           = var.ssh_public_key
+  hosts                    = var.hosts
+  network_config_supported = false
   interfaces = [
     { name = "eth0", address = var.ip_kafka, prefix = 26, gateway = null },
     { name = "eth1", address = var.ip_kafka_kafka, prefix = 26, gateway = null },
@@ -57,11 +60,12 @@ module "cloud_init_kafka" {
 }
 
 module "cloud_init_minion" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "minion-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
+  source                   = "../../../modules/cloud-init"
+  vm_name                  = "minion-benchmark-01"
+  admin_user               = var.admin_user
+  ssh_public_key           = var.ssh_public_key
+  hosts                    = var.hosts
+  network_config_supported = false
   interfaces = [
     { name = "eth0", address = var.ip_minion, prefix = 26, gateway = null },
     { name = "eth1", address = var.ip_minion_kafka, prefix = 26, gateway = null },
@@ -70,12 +74,13 @@ module "cloud_init_minion" {
 }
 
 module "cloud_init_netsim" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "netsim-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
-  local_routes   = [var.net_sim_cidr]
+  source                   = "../../../modules/cloud-init"
+  vm_name                  = "netsim-benchmark-01"
+  admin_user               = var.admin_user
+  ssh_public_key           = var.ssh_public_key
+  hosts                    = var.hosts
+  network_config_supported = false
+  local_routes             = [var.net_sim_cidr]
   interfaces = [
     { name = "eth0", address = var.ip_netsim, prefix = 26, gateway = null },
     { name = "eth1", address = var.ip_netsim_sim, prefix = 26, gateway = null },
@@ -83,11 +88,12 @@ module "cloud_init_netsim" {
 }
 
 module "cloud_init_monitoring" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "mon-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
+  source                   = "../../../modules/cloud-init"
+  vm_name                  = "mon-benchmark-01"
+  admin_user               = var.admin_user
+  ssh_public_key           = var.ssh_public_key
+  hosts                    = var.hosts
+  network_config_supported = false
   interfaces = [
     { name = "eth0", address = var.ip_monitoring, prefix = 26, gateway = null },
   ]
