@@ -75,6 +75,18 @@ resource "azurerm_network_security_group" "monitoring" {
     source_address_prefix      = var.operator_cidr != "" ? var.operator_cidr : "*"
     destination_address_prefix = "*"
   }
+
+  security_rule {
+    name                       = "allow-https"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = var.operator_cidr != "" ? var.operator_cidr : "*"
+    destination_address_prefix = "*"
+  }
 }
 
 # NICs — database
