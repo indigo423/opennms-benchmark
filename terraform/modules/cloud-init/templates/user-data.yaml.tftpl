@@ -47,6 +47,24 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 %{ endif ~}
+%{ if length(static_routes) > 0 ~}
+  - path: /etc/systemd/system/lab-static-routes.service
+    content: |
+      [Unit]
+      Description=Add static routes for lab network
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+%{ for route in static_routes ~}
+      ExecStart=/bin/sh -c '/sbin/ip route add ${route.to} via ${route.via} || true'
+%{ endfor ~}
+
+      [Install]
+      WantedBy=multi-user.target
+%{ endif ~}
 
 package_update: ${length(extra_packages) > 0 ? "true" : "false"}
 %{ if length(extra_packages) > 0 ~}
@@ -56,7 +74,7 @@ packages:
 %{ endfor ~}
 %{ endif ~}
 
-%{ if length(extra_packages) > 0 || length(local_routes) > 0 ~}
+%{ if length(extra_packages) > 0 || length(local_routes) > 0 || length(static_routes) > 0 ~}
 runcmd:
 %{ for pkg in extra_packages ~}
 %{ if pkg == "qemu-guest-agent" ~}
@@ -65,5 +83,8 @@ runcmd:
 %{ endfor ~}
 %{ if length(local_routes) > 0 ~}
   - systemctl enable --now monitoring-net-ipv4.service
+%{ endif ~}
+%{ if length(static_routes) > 0 ~}
+  - systemctl enable --now lab-static-routes.service
 %{ endif ~}
 %{ endif ~}
