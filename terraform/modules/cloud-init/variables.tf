@@ -22,6 +22,14 @@ variable "interfaces" {
     routes  = optional(list(object({ to = string, via = string })), [])
   }))
   description = "Network interfaces to configure via cloud-init network-config v2. Set address=null for DHCP. Use routes for per-interface static routes."
+
+  validation {
+    condition = (
+      length(flatten([for iface in var.interfaces : [for r in iface.routes : r.to]])) ==
+      length(distinct(flatten([for iface in var.interfaces : [for r in iface.routes : r.to]])))
+    )
+    error_message = "Duplicate route destination detected across interfaces. Each 'to' CIDR must appear at most once. Check interfaces[*].routes for repeated destinations."
+  }
 }
 
 variable "hosts" {
