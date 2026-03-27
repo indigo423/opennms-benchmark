@@ -58,8 +58,12 @@ write_files:
       [Service]
       Type=oneshot
       RemainAfterExit=yes
+      Restart=on-failure
+      RestartSec=5
+      StartLimitIntervalSec=60
+      StartLimitBurst=10
 %{ for route in static_routes ~}
-      ExecStart=/bin/sh -c '/sbin/ip route add ${route.to} via ${route.via} || true'
+      ExecStart=/sbin/ip route replace ${route.to} via ${route.via}
 %{ endfor ~}
 
       [Install]
@@ -81,6 +85,9 @@ runcmd:
   - systemctl enable --now qemu-guest-agent
 %{ endif ~}
 %{ endfor ~}
+%{ if length(local_routes) > 0 || length(static_routes) > 0 ~}
+  - systemctl daemon-reload
+%{ endif ~}
 %{ if length(local_routes) > 0 ~}
   - systemctl enable --now monitoring-net-ipv4.service
 %{ endif ~}
