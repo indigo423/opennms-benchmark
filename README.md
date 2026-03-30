@@ -131,17 +131,6 @@ terraform apply -var-file=../lab.tfvars -var-file=azure.tfvars
 
 The monitoring VM receives a public IP. All other VMs are accessible only through the management network.
 
-> [!TIP]
-> To reach every VM without a bastion host, install [Tailscale](https://tailscale.com) on the monitoring VM and advertise the `192.0.2.192/26` management subnet:
->
-> ```bash
-> # On the monitoring VM
-> sudo sysctl -w net.ipv4.ip_forward=1
-> sudo tailscale up --accept-routes --advertise-routes=192.0.2.192/26
-> ```
->
-> Then approve the advertised route in the Tailscale web UI.
-
 ---
 
 ### KVM/libvirt
@@ -306,21 +295,6 @@ ansible-playbook --user labuser --become -i ../ansible-inventory.yml opennms-pla
 > [!IMPORTANT]
 > The Prometheus JMX exporter requires right now to restart Core manually, see [issue#57](https://github.com/opennms-forge/ansible-opennms/issues/57).
 
-### Setup SNMP Simulation
-
-Add a local any IP route on the SNMP simulation VM to respond to any address in the 10.42/16 network
-```bash
-ssh labuser@192.0.2.201 "sudo ip route add local 10.42.0.0/16 dev lo"
-```
-
-Add a route on the Minion to reach any address in 10.42.0.0 via the SNMP simulation VM
-```bash
-ssh labuser@192.0.2.199 "sudo ip r a 10.42.0.0/16 via 192.0.2.134"
-```
-
-> [!IMPORTANT]
-> The routing entries are not static, you have to set them again when your reboot the virtual machines
-
 ### Applications
 
 All applications are served by Traefik on the monitoring VM's public IP over HTTPS.
@@ -337,3 +311,14 @@ Replace `<monitoring-public-ip>` with the actual public IP assigned to the monit
 | Jaeger      | `https://<monitoring-public-ip>/jaeger`      | no login required  |
 | Kafka UI    | `https://<monitoring-public-ip>/kafka`       | no login required  |
 | pgAdmin     | `https://<monitoring-public-ip>/pgadmin`     | see bootstrap vars |
+
+> [!TIP]
+> To reach every VM on the management network (`192.0.2.192/26`) without a bastion host, install [Tailscale](https://tailscale.com) on the monitoring VM and advertise the subnet:
+>
+> ```bash
+> # On the monitoring VM
+> sudo sysctl -w net.ipv4.ip_forward=1
+> sudo tailscale up --accept-routes --advertise-routes=192.0.2.192/26
+> ```
+>
+> Then approve the advertised route in the Tailscale web UI. Once active, all lab VMs are reachable directly from your local machine.
