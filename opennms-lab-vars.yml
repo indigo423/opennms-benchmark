@@ -18,6 +18,9 @@ grafana_ini:
   security:
     admin_user: admin
     admin_password: admin
+  database:
+    type: sqlite3
+  auth: {}
 
 grafana_datasources:
   - name: OpenNMS Performance
