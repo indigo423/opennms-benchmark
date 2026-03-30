@@ -264,7 +264,11 @@ terraform apply -var-file=../lab.tfvars -var-file=proxmox.tfvars
 
 **5. Set the jump host and re-apply**
 
-After the first apply, the monitoring VM receives a DHCP address on `vmbr4`. Find it in the Proxmox UI or via `qm guest exec`, then set `jump_host` in `proxmox.tfvars` and re-apply to regenerate the Ansible inventory with `ProxyJump` enabled:
+After the first apply, the monitoring VM receives a DHCP address on `vmbr4`. Find it in the Proxmox UI or by querying the guest agent, then set `jump_host` in `proxmox.tfvars` and re-apply to regenerate the Ansible inventory with `ProxyJump` enabled:
+
+```bash
+qm guest cmd 200 network-get-interfaces
+```
 
 ```hcl
 jump_host = "10.0.0.42"   # external IP of the monitoring VM
