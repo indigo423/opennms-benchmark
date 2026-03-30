@@ -6,8 +6,9 @@
 
 - name: Restart grafana
   ansible.builtin.service:
-    name: docker-compose@grafana.service
+    name: grafana-server.service
     state: restarted
+  failed_when: false
 
 - name: Restart pgadmin
   ansible.builtin.service:

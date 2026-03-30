@@ -3,11 +3,71 @@ opennms_distribution: Horizon
 opennms_version: "35.0.4"
 opennms_pkg_version: "{{ opennms_version }}*"
 
-opennms_datasource_db_host: 192.0.2.4
+opennms_datasource_db_host: 192.0.2.196
 opennms_datasource_db_port: 5432
 opennms_datasource_db_name: onms_benchmark
 opennms_datasource_db_user: opennms
 opennms_datasource_db_password: p4a55word!
+
+onns_hzn_base_url: http://192.0.2.197:8980
+
+grafana_server:
+  root_url: "%(protocol)s://%(domain)s/grafana/"
+  serve_from_sub_path: true
+
+grafana_datasources:
+  - name: OpenNMS Performance
+    type: opennms-performance-datasource
+    orgId: 1
+    access: proxy
+    url: "http://192.0.2.197:8980/opennms"
+    isDefault: true
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin
+  - name: OpenNMS Entity
+    type: opennms-entity-datasource
+    orgId: 1
+    access: proxy
+    url: "http://192.0.2.197:8980/opennms"
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin
+  - name: OpenNMS Flow
+    type: opennms-flow-datasource
+    orgId: 1
+    access: proxy
+    url: "http://192.0.2.197:8980/opennms"
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin
+  - name: Prometheus
+    type: prometheus
+    orgId: 1
+    access: proxy
+    url: http://localhost:9090/prometheus
+    jsonData:
+      httpMethod: POST
+      manageAlerts: false
+      prometheusType: Prometheus
+      cacheLevel: "Low"
+  - name: PostgreSQL
+    type: postgres
+    orgId: 1
+    access: proxy
+    url: "192.0.2.196:5432"
+    database: "{{ opennms_datasource_db_name }}"
+    user: "{{ opennms_datasource_db_user }}"
+    secureJsonData:
+      password: "{{ opennms_datasource_db_password }}"
+    jsonData:
+      postgresVersion: 1500
+      sslmode: disable
+      tlsAuth: false
+      tlsSkipVerify: true
 
 postgres_user: postgres
 postgres_password: oth3rP455w0rd!

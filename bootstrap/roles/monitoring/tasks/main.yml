@@ -31,45 +31,14 @@
     enabled: true
   tags: ["monitoring", "prometheus"]
 
-- name: Create Grafana directory
-  ansible.builtin.file:
-    path: /etc/docker/grafana
-    state: directory
-    mode: "0755"
-  tags: ["monitoring", "grafana"]
-
-- name: Create Grafana compose
+- name: Deploy benchmark dashboards
   ansible.builtin.copy:
-    src: grafana/compose.yml
-    dest: /etc/docker/grafana/compose.yml
-    mode: "0644"
-  notify:
-    - Restart grafana
-  tags: ["monitoring", "grafana"]
-
-- name: Enable Grafana as a service
-  ansible.builtin.service:
-    name: docker-compose@grafana.service
-    state: started
-    enabled: true
-  tags: ["monitoring", "grafana"]
-
-- name: Grafana provisioning
-  ansible.builtin.copy:
-    src: grafana/provisioning
-    dest: /etc/docker/grafana
-    mode: "0644"
-  notify:
-    - Restart grafana
-  tags: ["monitoring", "grafana"]
-
-- name: Grafana PostgreSQL data source
-  ansible.builtin.template:
-    src: grafana/provisioning/datasources/postgresql.yml.j2
-    dest: /etc/docker/grafana/provisioning/datasources/postgresql.yml
-    mode: "0644"
-  notify:
-    - Restart grafana
+    src: grafana/provisioning/dashboards/
+    dest: /etc/grafana/provisioning/dashboards/
+    owner: grafana
+    group: grafana
+    mode: "0640"
+  notify: Restart grafana
   tags: ["monitoring", "grafana"]
 
 - name: Create pgAdmin directory
