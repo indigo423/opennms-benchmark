@@ -148,14 +148,14 @@ The monitoring VM receives a public IP. All other VMs are accessible only throug
 
 **Requirements:** KVM host with libvirtd running, Terraform ≥ 1.5, Ubuntu 24.04 LTS cloud image
 
-See [`terraform/kvm/README.md`](terraform/kvm/README.md) for full documentation including remote host deployment and multi-host Terraform workspaces.
-
 **1. Download the Ubuntu 24.04 cloud image** onto the KVM host
 
 ```bash
 sudo wget -O /var/lib/libvirt/images/noble-server-cloudimg-amd64.img \
   https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 ```
+
+The path must match `ubuntu_cloud_image` in `kvm.tfvars`. Terraform will fail with a clear error if the file is missing.
 
 **2. Ensure the default storage pool is active**
 
@@ -198,6 +198,90 @@ for vm in database core kafka minion netsim mon; do
   virsh -c $LIBVIRT_URI domifaddr $vm --source agent 2>/dev/null || echo "no lease yet"
 done
 ```
+
+Use `--source agent` (via qemu-guest-agent) to see all interfaces including the external DHCP one. If the agent isn't ready yet, retry after a minute — cloud-init installs it on first boot.
+
+#### Deploying to a remote KVM host
+
+To deploy to a **remote** KVM host, set `libvirt_uri` in `kvm.tfvars` to an SSH URI:
+
+```hcl
+libvirt_uri        = "qemu+ssh://user@your-kvm-host/system"
+ubuntu_cloud_image = "/var/lib/libvirt/images/noble-server-cloudimg-amd64.img"
+```
+
+> [!NOTE]
+> All paths in `kvm.tfvars` (storage pool, cloud image) are resolved **on the remote host**, not your local machine.
+
+Prerequisites on the remote host:
+
+1. **libvirtd running**
+
+   ```bash
+   sudo systemctl enable --now libvirtd
+   ```
+
+2. **Your user in the `libvirt` group**
+
+   ```bash
+   sudo usermod -aG libvirt $USER
+   # Log out and back in for the group change to take effect
+   ```
+
+3. **SSH access without passphrase** — load your key into the agent locally:
+
+   ```bash
+   ssh-add ~/.ssh/id_rsa
+   ```
+
+4. **Ubuntu 24.04 cloud image** at the path specified by `ubuntu_cloud_image`
+
+5. **Default storage pool active** on the remote host:
+
+   ```bash
+   virsh -c qemu+ssh://user@your-kvm-host/system pool-list --all
+   virsh -c qemu+ssh://user@your-kvm-host/system pool-start default   # if inactive
+   ```
+
+Verify connectivity before applying:
+
+```bash
+virsh -c qemu+ssh://user@your-kvm-host/system list --all
+```
+
+#### Deploying to multiple KVM hosts
+
+Use **Terraform workspaces** to maintain independent state per host:
+
+```bash
+terraform workspace new host-a
+terraform workspace new host-b
+terraform workspace list
+```
+
+Deploy to each host by selecting its workspace and editing `kvm.tfvars`:
+
+```bash
+terraform workspace select host-a
+# edit kvm.tfvars: libvirt_uri = "qemu+ssh://root@host-a/system"
+terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
+
+terraform workspace select host-b
+# edit kvm.tfvars: libvirt_uri = "qemu+ssh://root@host-b/system"
+terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
+```
+
+Destroy a specific host's lab:
+
+```bash
+terraform workspace select host-a
+terraform destroy -var-file=../lab.tfvars -var-file=kvm.tfvars
+```
+
+> Each workspace maintains completely independent state — destroying one host's lab has no effect on others.
+
+> [!NOTE]
+> All 6 VMs must be on a network with sufficient bandwidth and low latency to avoid introducing artificial skew into benchmark measurements. On a single KVM host this is inherent. On a multi-host cluster, ensure VMs are placed on the same physical host or connected via a low-latency fabric.
 
 ---
 
