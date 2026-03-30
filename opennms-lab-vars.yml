@@ -13,6 +13,7 @@ onns_hzn_base_url: http://192.0.2.197:8980
 
 grafana_ini:
   server:
+    http_port: 3000
     root_url: "%(protocol)s://%(domain)s/grafana/"
     serve_from_sub_path: true
   security:
