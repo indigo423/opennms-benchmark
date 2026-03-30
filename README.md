@@ -46,15 +46,13 @@ This benchmark lab deploys 6 virtual machines and wires them in specific way tog
 With the given network layout we give you good visibility which traffic goes to which service by isolating them.
 The network IP space is chosen from the private 192.0.2/24 range which is not public and should reduce IP address conflicts with existing 192.168/16 private networks.
 
-The public address from Azure is assigned to the management network interface of the monitoring VM.
-
 ### Network address plan for Testing
 
 | Host       | Interface | IP Address       | Default gateway | Description               |
 |:-----------|:----------|:-----------------|:----------------|:--------------------------|
 | database   | ens0      | `192.0.2.4/26`   | 192.0.2.1       | PostgreSQL database       |
 | core       | ens2      | `192.0.2.5/26`   | 192.0.2.1       | Core to PostgreSQL        |
-| kafka      | ens0      | `192.0.2.68/26`  | 192.0.2.65      | Kafka Broker              | 
+| kafka      | ens0      | `192.0.2.68/26`  | 192.0.2.65      | Kafka Broker              |
 | core       | ens0      | `192.0.2.69/26`  | 192.0.2.65      | Core to Kafka             |
 | minion     | ens2      | `192.0.2.70/26`  | 192.0.2.65      | Minion to Kafka           |
 | minion     | ens0      | `192.0.2.133/26` | 192.0.2.129     | Minion to SNMP simulator  |
@@ -72,7 +70,7 @@ The public address from Azure is assigned to the management network interface of
 | netsim     | ens1      | `192.0.2.201/26` | 192.0.2.193     | SNMP Simulator            |
 
 
-### Network for simulation 
+### Network for simulation
 
 | Network      | Gateway Address | Default gateway | Description              |
 |:-------------|:----------------|:----------------|:-------------------------|
@@ -82,69 +80,201 @@ The public address from Azure is assigned to the management network interface of
 
 ### Clone the repository with submodules
 
-```
+```bash
 git clone https://github.com/opennms-forge/opennms-benchmark.git
 cd opennms-benchmark
 git submodule init
 git submodule update
 ```
 
-### Lab deployment in Azure
+## 🚀 Lab Deployment
 
-Requirements:
-* az cli tool
-* Azure login with permissions to use a subscription
+The lab is deployed using Terraform. Three providers are supported: **Azure**, **KVM/libvirt**, and **Proxmox VE**.
 
-Login to Azure with your account:
+All providers share a common `terraform/lab.tfvars` for network layout, IP addresses, and VM names. Each provider adds its own `<provider>.tfvars` for host-specific settings.
+
+### Azure
+
+**Requirements:** `az` CLI, Azure subscription with contributor access, Terraform ≥ 1.5
+
+**1. Authenticate**
 
 ```bash
 az login
 ```
 
-Deploy the lab
+**2. Configure**
+
+Edit `terraform/azure/azure.tfvars` and set your values:
+
+```hcl
+location       = "eastus"
+environment    = "prod"
+project_name   = "benchmark"
+vm_size_small  = "Standard_B2ms"
+vm_size_medium = "Standard_B4ms"
+priority       = "Regular"       # or "Spot" for cheaper preemptible VMs
+operator_cidr  = "203.0.113.5/32" # your public IP — SSH access is restricted to this
+ssh_key_path   = "~/.ssh/id_rsa"
+```
+
+> [!NOTE]
+> `operator_cidr` controls the NSG rule that allows SSH to the monitoring VM. Set it to your public IP in CIDR notation (e.g. `"203.0.113.5/32"`). Leave it empty to allow SSH from anywhere (not recommended).
+
+**3. Deploy**
 
 ```bash
-cd azcli
-./benchmark-lab.sh
+cd terraform/azure
+terraform init
+terraform apply -var-file=../lab.tfvars -var-file=azure.tfvars
 ```
-> [!NOTE]
-> The network security policy will allow only SSH access to the monitoring VM from your public IP address.
+
+The monitoring VM receives a public IP. All other VMs are accessible only through the management network.
 
 > [!TIP]
-> To get access to every node without dealing with Bastion hosts or anything like that, the easiest way is to use something like [tailscale](https://tailscale.com) on the monitoring VM.
-> It allows you very easily to route the whole 192.0.2.0/24 through the monitoring VM and makes it transparently available to your machine.
+> To reach every VM without a bastion host, install [Tailscale](https://tailscale.com) on the monitoring VM and advertise the `192.0.2.192/26` management subnet:
+>
+> ```bash
+> # On the monitoring VM
+> sudo sysctl -w net.ipv4.ip_forward=1
+> sudo tailscale up --accept-routes --advertise-routes=192.0.2.192/26
+> ```
+>
+> Then approve the advertised route in the Tailscale web UI.
 
-Here is how you can do it:
+---
 
-Step 1: Enable IPv4 forwarding on the monitoring VM
+### KVM/libvirt
 
-```
-ssh labuser@<public-ip>
-sudo sysctl -w net.ipv4.ip_forward=1
-```
+**Requirements:** KVM host with libvirtd running, Terraform ≥ 1.5, Ubuntu 24.04 LTS cloud image
 
-Step 2: Install Tailscale from your account
+See [`terraform/kvm/README.md`](terraform/kvm/README.md) for full documentation including remote host deployment and multi-host Terraform workspaces.
 
-Step 3: Advertise the 192.0.2.0/24 network
-
-```bash
-sudo tailscale up --accept-routes --advertise-routes=192.0.2.192/26
-```
-
-Step 4: Approve the advertised route in the Tailscale web UI
-
-![tailscale-approve.png](assets/tailscale-approve.png)
-
-Step 5: Verify connectivity
+**1. Download the Ubuntu 24.04 cloud image** onto the KVM host
 
 ```bash
-ping -c 1 192.0.2.196
-ping -c 1 192.0.2.197
-ping -c 1 192.0.2.198
-ping -c 1 192.0.2.199
-ping -c 1 192.0.2.200
-ping -c 1 192.0.2.201
+sudo wget -O /var/lib/libvirt/images/noble-server-cloudimg-amd64.img \
+  https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 ```
+
+**2. Ensure the default storage pool is active**
+
+```bash
+virsh pool-list --all
+virsh pool-start default   # if inactive
+```
+
+**3. Configure**
+
+```bash
+cp terraform/kvm/kvm.tfvars.example terraform/kvm/kvm.tfvars
+```
+
+Edit `kvm.tfvars` and set `libvirt_uri`:
+
+| Target | URI |
+|--------|-----|
+| Local KVM daemon | `qemu:///system` |
+| Remote KVM host  | `qemu+ssh://user@your-kvm-host/system` |
+
+`kvm.tfvars` is gitignored — your local settings are never committed.
+
+**4. Deploy**
+
+```bash
+cd terraform/kvm
+terraform init
+terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
+```
+
+**5. Get VM IP addresses**
+
+VMs on `lab-mgmt` have static IPs from `lab.tfvars`. The monitoring VM gets a DHCP address on the external bridge — query it after boot via `qemu-guest-agent`:
+
+```bash
+LIBVIRT_URI="qemu+ssh://user@your-kvm-host/system"
+for vm in database core kafka minion netsim mon; do
+  echo -n "$vm: "
+  virsh -c $LIBVIRT_URI domifaddr $vm --source agent 2>/dev/null || echo "no lease yet"
+done
+```
+
+---
+
+### Proxmox VE
+
+**Requirements:** Proxmox VE host, API token with VM.Allocate permissions, Terraform ≥ 1.5
+
+**1. Create the Ubuntu 24.04 cloud-init template** (one-time setup on the Proxmox host)
+
+```bash
+# Download the cloud image on the Proxmox host
+wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+
+# Create the template VM
+qm create 9000 --name ubuntu-24.04-cloud --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0
+qm importdisk 9000 noble-server-cloudimg-amd64.img local-lvm
+qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
+qm set 9000 --ide2 local-lvm:cloudinit
+qm set 9000 --serial0 socket --vga serial0
+qm set 9000 --boot c --bootdisk scsi0
+qm set 9000 --ipconfig0 ip=dhcp
+qm template 9000
+```
+
+**2. Configure Proxmox bridges** in the Proxmox UI under *Node > Network*:
+
+| Bridge   | Subnet            | Description                             |
+|:---------|:------------------|:----------------------------------------|
+| `vmbr0`  | 192.0.2.192/26    | Management — operator SSH access        |
+| `vmbr1`  | 192.0.2.0/26      | Database subnet                         |
+| `vmbr2`  | 192.0.2.64/26     | Kafka subnet                            |
+| `vmbr3`  | 192.0.2.128/26    | SNMP simulation subnet                  |
+| `vmbr4`  | external (DHCP)   | Monitoring VM external routable IP      |
+
+**3. Configure**
+
+```bash
+cp terraform/proxmox/proxmox.tfvars.example terraform/proxmox/proxmox.tfvars
+```
+
+Edit `proxmox.tfvars` with your values:
+
+```hcl
+proxmox_endpoint     = "https://192.168.1.10:8006/"
+proxmox_api_token    = "user@realm!token-name=00000000-0000-0000-0000-000000000000"
+proxmox_insecure     = false   # set true for self-signed certificates
+proxmox_ssh_username = "root"
+proxmox_node         = "pve"
+template_vm_id       = 9000
+storage_pool         = "local-lvm"
+snippets_datastore   = "local"
+ssh_key_path         = "~/.ssh/id_rsa"
+```
+
+`proxmox.tfvars` is gitignored — your credentials are never committed.
+
+**4. Deploy**
+
+```bash
+cd terraform/proxmox
+terraform init
+terraform apply -var-file=../lab.tfvars -var-file=proxmox.tfvars
+```
+
+**5. Set the jump host and re-apply**
+
+After the first apply, the monitoring VM receives a DHCP address on `vmbr4`. Find it in the Proxmox UI or via `qm guest exec`, then set `jump_host` in `proxmox.tfvars` and re-apply to regenerate the Ansible inventory with `ProxyJump` enabled:
+
+```hcl
+jump_host = "10.0.0.42"   # external IP of the monitoring VM
+```
+
+```bash
+terraform apply -var-file=../lab.tfvars -var-file=proxmox.tfvars
+```
+
+---
 
 ### Tools for Measurements
 
@@ -186,7 +316,7 @@ ssh labuser@192.0.2.199 "sudo ip r a 10.42.0.0/16 via 192.0.2.134"
 
 > [!IMPORTANT]
 > The routing entries are not static, you have to set them again when your reboot the virtual machines
- 
+
 ### Applications
 
 You have now access to the following applications and you can prepare and run experiments.
