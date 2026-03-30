@@ -1,0 +1,15 @@
+---
+# Lab-specific Grafana overrides for the benchmark stack.
+# Kept in group_vars (not extra_vars) so the grafana.grafana collection's
+# set_fact can merge these with grafana_ini_default via recursive combine.
+grafana_ini:
+  server:
+    http_port: 3000
+    root_url: "%(protocol)s://%(domain)s/grafana/"
+    serve_from_sub_path: true
+  security:
+    admin_user: admin
+    admin_password: admin
+  database:
+    type: sqlite3
+  auth: {}
