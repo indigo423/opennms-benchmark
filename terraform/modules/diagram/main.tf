@@ -8,11 +8,11 @@ locals {
 }
 
 resource "local_file" "diagram_drawio" {
-  filename = "${path.root}/../../assets/ck1m.drawio"
+  filename = "${path.root}/../../assets/${var.provider_name}/ck1m.drawio"
   content  = templatefile("${path.module}/templates/ck1m.drawio.tftpl", local.tpl_vars)
 }
 
 resource "local_file" "diagram_svg" {
-  filename = "${path.root}/../../assets/ck1m.svg"
+  filename = "${path.root}/../../assets/${var.provider_name}/ck1m.svg"
   content  = templatefile("${path.module}/templates/ck1m.svg.tftpl", local.tpl_vars)
 }

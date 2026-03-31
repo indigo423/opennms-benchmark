@@ -1,3 +1,8 @@
+variable "provider_name" {
+  type        = string
+  description = "Infrastructure provider name (azure, kvm, proxmox) — used as the assets subdirectory"
+}
+
 variable "subnet_mgmt" {
   type        = string
   description = "Management subnet CIDR (e.g. 192.0.2.192/26)"
