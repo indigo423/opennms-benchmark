@@ -31,7 +31,7 @@ variable "bridge_sim" { type = string }
 variable "bridge_ext" { type = string }
 variable "vm_ids" { type = map(number) }
 variable "ip_elasticsearch" { type = string }
-variable "ip_es_core"       { type = string }
+variable "ip_es_core" { type = string }
 
 variable "disk_sizes_gb" {
   type        = map(number)

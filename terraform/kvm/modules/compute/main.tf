@@ -196,7 +196,7 @@ module "cloud_init_elasticsearch" {
   extra_packages = var.extra_packages
   interfaces = [
     { name = "enp1s0", address = var.ip_elasticsearch, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "enp2s0", address = var.ip_es_core,       prefix = 26, gateway = null },
+    { name = "enp2s0", address = var.ip_es_core, prefix = 26, gateway = null },
   ]
 }
 

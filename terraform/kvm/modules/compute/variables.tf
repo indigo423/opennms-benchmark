@@ -32,7 +32,7 @@ variable "network_mgmt_id" { type = string }
 variable "gateway_mgmt" { type = string }
 variable "network_external_id" { type = string }
 variable "ip_elasticsearch" { type = string }
-variable "ip_es_core"       { type = string }
+variable "ip_es_core" { type = string }
 
 variable "disk_sizes_gb" {
   type        = map(number)

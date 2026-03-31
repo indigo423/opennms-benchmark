@@ -108,7 +108,7 @@ module "cloud_init_elasticsearch" {
   network_config_supported = false
   interfaces = [
     { name = "eth0", address = var.ip_elasticsearch, prefix = 26, gateway = null },
-    { name = "eth1", address = var.ip_es_core,       prefix = 26, gateway = null },
+    { name = "eth1", address = var.ip_es_core, prefix = 26, gateway = null },
   ]
 }
 

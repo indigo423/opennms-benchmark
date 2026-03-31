@@ -25,7 +25,7 @@ variable "vm_names" {
   default = null # accepted from lab.tfvars; not used by this module
 }
 variable "ip_elasticsearch" { type = string }
-variable "ip_es_core"       { type = string }
+variable "ip_es_core" { type = string }
 
 # Proxmox-specific (from proxmox.tfvars)
 variable "proxmox_endpoint" {

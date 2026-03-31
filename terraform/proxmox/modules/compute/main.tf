@@ -22,7 +22,7 @@ module "cloud_init_elasticsearch" {
   extra_packages = ["qemu-guest-agent"]
   interfaces = [
     { name = "ens18", address = var.ip_elasticsearch, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "ens19", address = var.ip_es_core,       prefix = 26, gateway = null },
+    { name = "ens19", address = var.ip_es_core, prefix = 26, gateway = null },
   ]
 }
 

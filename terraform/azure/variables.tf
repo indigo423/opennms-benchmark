@@ -20,9 +20,9 @@ variable "ip_netsim_sim" { type = string }
 variable "net_sim_cidr" { type = string }
 variable "net_sim_gateway" { type = string }
 variable "admin_user" { type = string }
-variable "vm_names"         { type = map(string) }
+variable "vm_names" { type = map(string) }
 variable "ip_elasticsearch" { type = string }
-variable "ip_es_core"       { type = string }
+variable "ip_es_core" { type = string }
 
 # Azure-specific (from azure.tfvars)
 variable "location" { type = string }
