@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: false
+          submodules: true
 
       - name: Install collections
         run: ansible-galaxy collection install -r bootstrap/requirements.yml -p ~/.ansible/collections --force-with-deps
