@@ -9,46 +9,46 @@
         <!-- VMs                                                             -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
 
-        <mxCell id="vm_mon" value="Monitoring"
+        <mxCell id="vm_mon" value="${vm_name_monitoring}"
           style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=18;"
           vertex="1" parent="1">
-          <mxGeometry x="685" y="20" width="130" height="40" as="geometry" />
+          <mxGeometry x="655" y="20" width="190" height="40" as="geometry" />
         </mxCell>
 
-        <mxCell id="vm_kafka" value="Kafka"
+        <mxCell id="vm_kafka" value="${vm_name_kafka}"
           style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=18;"
           vertex="1" parent="1">
-          <mxGeometry x="685" y="230" width="130" height="40" as="geometry" />
+          <mxGeometry x="655" y="230" width="190" height="40" as="geometry" />
         </mxCell>
 
-        <mxCell id="vm_pgsql" value="PostgreSQL"
+        <mxCell id="vm_pgsql" value="${vm_name_database}"
           style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=18;"
           vertex="1" parent="1">
-          <mxGeometry x="40" y="480" width="130" height="40" as="geometry" />
+          <mxGeometry x="10" y="480" width="190" height="40" as="geometry" />
         </mxCell>
 
-        <mxCell id="vm_es" value="Elasticsearch"
+        <mxCell id="vm_es" value="${vm_name_elasticsearch}"
           style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=18;"
           vertex="1" parent="1">
-          <mxGeometry x="225" y="480" width="130" height="40" as="geometry" />
+          <mxGeometry x="195" y="480" width="190" height="40" as="geometry" />
         </mxCell>
 
-        <mxCell id="vm_core" value="Core"
+        <mxCell id="vm_core" value="${vm_name_core}"
           style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=18;"
           vertex="1" parent="1">
-          <mxGeometry x="450" y="480" width="130" height="40" as="geometry" />
+          <mxGeometry x="420" y="480" width="190" height="40" as="geometry" />
         </mxCell>
 
-        <mxCell id="vm_minion" value="Minion"
+        <mxCell id="vm_minion" value="${vm_name_minion}"
           style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=18;"
           vertex="1" parent="1">
-          <mxGeometry x="880" y="480" width="130" height="40" as="geometry" />
+          <mxGeometry x="850" y="480" width="190" height="40" as="geometry" />
         </mxCell>
 
-        <mxCell id="vm_netsim" value="SNMP Simulator"
+        <mxCell id="vm_netsim" value="${vm_name_netsim}"
           style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=18;"
           vertex="1" parent="1">
-          <mxGeometry x="1100" y="480" width="130" height="40" as="geometry" />
+          <mxGeometry x="1070" y="480" width="190" height="40" as="geometry" />
         </mxCell>
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -57,8 +57,8 @@
 
         <!-- Management: ${subnet_mgmt} (orange) — full width -->
         <mxCell id="bus_mgmt" value="${subnet_mgmt}"
-          style="endArrow=none;dashed=1;strokeColor=#F0A30A;strokeWidth=2;fillColor=none;
-                 fontColor=#F0A30A;fontStyle=1;fontSize=16;align=left;verticalAlign=bottom;"
+          style="endArrow=none;dashed=1;strokeColor=#E4540C;strokeWidth=2;fillColor=none;
+                 fontColor=#E4540C;fontStyle=1;fontSize=16;align=left;verticalAlign=bottom;"
           edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="40"   y="160" as="sourcePoint" />
@@ -104,9 +104,9 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
 
         <!-- Monitoring → management  (exits bottom, ens0) -->
-        <mxCell id="e_mon_mgmt" value="ens0"
-          style="endArrow=none;strokeColor=#F0A30A;exitX=0.5;exitY=1;exitDx=0;exitDy=0;
-                 fontSize=13;fontColor=#F0A30A;align=right;"
+        <mxCell id="e_mon_mgmt" value="ens0&#xa;${ip_monitoring}"
+          style="endArrow=none;strokeColor=#E4540C;exitX=0.5;exitY=1;exitDx=0;exitDy=0;
+                 fontSize=13;fontColor=#E4540C;align=right;"
           edge="1" source="vm_mon" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="750" y="160" as="targetPoint" />
@@ -114,9 +114,9 @@
         </mxCell>
 
         <!-- PostgreSQL → management  (ens1) -->
-        <mxCell id="e_pgsql_mgmt" value="ens1"
-          style="endArrow=none;strokeColor=#F0A30A;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
-                 fontSize=13;fontColor=#F0A30A;align=right;"
+        <mxCell id="e_pgsql_mgmt" value="ens1&#xa;${ip_database}"
+          style="endArrow=none;strokeColor=#E4540C;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
+                 fontSize=13;fontColor=#E4540C;align=right;"
           edge="1" source="vm_pgsql" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="105" y="160" as="targetPoint" />
@@ -124,9 +124,9 @@
         </mxCell>
 
         <!-- Elasticsearch → management  (ens1) -->
-        <mxCell id="e_es_mgmt" value="ens1"
-          style="endArrow=none;strokeColor=#F0A30A;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
-                 fontSize=13;fontColor=#F0A30A;align=right;"
+        <mxCell id="e_es_mgmt" value="ens1&#xa;${ip_elasticsearch}"
+          style="endArrow=none;strokeColor=#E4540C;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
+                 fontSize=13;fontColor=#E4540C;align=right;"
           edge="1" source="vm_es" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="290" y="160" as="targetPoint" />
@@ -134,9 +134,9 @@
         </mxCell>
 
         <!-- Core → management  (ens1) -->
-        <mxCell id="e_core_mgmt" value="ens1"
-          style="endArrow=none;strokeColor=#F0A30A;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
-                 fontSize=13;fontColor=#F0A30A;align=right;"
+        <mxCell id="e_core_mgmt" value="ens1&#xa;${ip_core}"
+          style="endArrow=none;strokeColor=#E4540C;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
+                 fontSize=13;fontColor=#E4540C;align=right;"
           edge="1" source="vm_core" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="515" y="160" as="targetPoint" />
@@ -144,9 +144,9 @@
         </mxCell>
 
         <!-- Kafka VM → management  (exits top, ens1) -->
-        <mxCell id="e_kafka_mgmt" value="ens1"
-          style="endArrow=none;strokeColor=#F0A30A;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
-                 fontSize=13;fontColor=#F0A30A;align=right;"
+        <mxCell id="e_kafka_mgmt" value="ens1&#xa;${ip_kafka}"
+          style="endArrow=none;strokeColor=#E4540C;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
+                 fontSize=13;fontColor=#E4540C;align=right;"
           edge="1" source="vm_kafka" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="750" y="160" as="targetPoint" />
@@ -154,9 +154,9 @@
         </mxCell>
 
         <!-- Minion → management  (ens1) -->
-        <mxCell id="e_minion_mgmt" value="ens1"
-          style="endArrow=none;strokeColor=#F0A30A;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
-                 fontSize=13;fontColor=#F0A30A;align=right;"
+        <mxCell id="e_minion_mgmt" value="ens1&#xa;${ip_minion}"
+          style="endArrow=none;strokeColor=#E4540C;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
+                 fontSize=13;fontColor=#E4540C;align=right;"
           edge="1" source="vm_minion" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="945" y="160" as="targetPoint" />
@@ -164,9 +164,9 @@
         </mxCell>
 
         <!-- SNMP Simulator → management  (ens1) -->
-        <mxCell id="e_netsim_mgmt" value="ens1"
-          style="endArrow=none;strokeColor=#F0A30A;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
-                 fontSize=13;fontColor=#F0A30A;align=right;"
+        <mxCell id="e_netsim_mgmt" value="ens1&#xa;${ip_netsim}"
+          style="endArrow=none;strokeColor=#E4540C;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
+                 fontSize=13;fontColor=#E4540C;align=right;"
           edge="1" source="vm_netsim" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="1165" y="160" as="targetPoint" />
@@ -178,7 +178,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
 
         <!-- PostgreSQL → DB subnet  (ens0) -->
-        <mxCell id="e_pgsql_db" value="ens0"
+        <mxCell id="e_pgsql_db" value="ens0&#xa;${ip_database_db}"
           style="endArrow=none;strokeColor=#0063AF;exitX=0.4;exitY=0;exitDx=0;exitDy=0;
                  fontSize=13;fontColor=#0063AF;align=right;"
           edge="1" source="vm_pgsql" parent="1">
@@ -188,7 +188,7 @@
         </mxCell>
 
         <!-- Elasticsearch → DB subnet  (ens0) -->
-        <mxCell id="e_es_db" value="ens0"
+        <mxCell id="e_es_db" value="ens0&#xa;${ip_es_core}"
           style="endArrow=none;strokeColor=#0063AF;exitX=0.4;exitY=0;exitDx=0;exitDy=0;
                  fontSize=13;fontColor=#0063AF;align=right;"
           edge="1" source="vm_es" parent="1">
@@ -198,7 +198,7 @@
         </mxCell>
 
         <!-- Core → DB subnet  (ens2, exits upper-left) -->
-        <mxCell id="e_core_db" value="ens2"
+        <mxCell id="e_core_db" value="ens2&#xa;${ip_core_db}"
           style="endArrow=none;strokeColor=#0063AF;exitX=0.2;exitY=0;exitDx=0;exitDy=0;
                  fontSize=13;fontColor=#0063AF;align=right;"
           edge="1" source="vm_core" parent="1">
@@ -212,7 +212,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
 
         <!-- Core → Kafka subnet  (ens0, exits upper-right) -->
-        <mxCell id="e_core_kafka" value="ens0"
+        <mxCell id="e_core_kafka" value="ens0&#xa;${ip_core_kafka}"
           style="endArrow=none;strokeColor=#7B00A0;exitX=0.8;exitY=0;exitDx=0;exitDy=0;
                  fontSize=13;fontColor=#7B00A0;align=left;"
           edge="1" source="vm_core" parent="1">
@@ -222,7 +222,7 @@
         </mxCell>
 
         <!-- Kafka VM → Kafka subnet  (exits bottom, ens0) -->
-        <mxCell id="e_kafka_net" value="ens0"
+        <mxCell id="e_kafka_net" value="ens0&#xa;${ip_kafka_kafka}"
           style="endArrow=none;strokeColor=#7B00A0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;
                  fontSize=13;fontColor=#7B00A0;align=right;"
           edge="1" source="vm_kafka" parent="1">
@@ -232,7 +232,7 @@
         </mxCell>
 
         <!-- Minion → Kafka subnet  (ens2, exits upper-left) -->
-        <mxCell id="e_minion_kafka" value="ens2"
+        <mxCell id="e_minion_kafka" value="ens2&#xa;${ip_minion_kafka}"
           style="endArrow=none;strokeColor=#7B00A0;exitX=0.2;exitY=0;exitDx=0;exitDy=0;
                  fontSize=13;fontColor=#7B00A0;align=right;"
           edge="1" source="vm_minion" parent="1">
@@ -246,7 +246,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
 
         <!-- Minion → Sim subnet  (ens0, exits upper-right) -->
-        <mxCell id="e_minion_sim" value="ens0"
+        <mxCell id="e_minion_sim" value="ens0&#xa;${ip_minion_sim}"
           style="endArrow=none;strokeColor=#008A00;exitX=0.8;exitY=0;exitDx=0;exitDy=0;
                  fontSize=13;fontColor=#008A00;align=left;"
           edge="1" source="vm_minion" parent="1">
@@ -256,7 +256,7 @@
         </mxCell>
 
         <!-- SNMP Simulator → Sim subnet  (ens0) -->
-        <mxCell id="e_netsim_sim" value="ens0"
+        <mxCell id="e_netsim_sim" value="ens0&#xa;${ip_netsim_sim}"
           style="endArrow=none;strokeColor=#008A00;exitX=0.5;exitY=0;exitDx=0;exitDy=0;
                  fontSize=13;fontColor=#008A00;align=right;"
           edge="1" source="vm_netsim" parent="1">
