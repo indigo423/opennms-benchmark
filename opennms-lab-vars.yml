@@ -11,6 +11,9 @@ opennms_datasource_db_password: p4a55word!
 
 onns_hzn_base_url: http://192.0.2.197:8980
 
+# Elasticsearch datasource
+opennms_es_host: "192.0.2.202"
+opennms_es_port: 9200
 
 grafana_datasources:
   - name: OpenNMS Performance
@@ -65,25 +68,38 @@ grafana_datasources:
       sslmode: disable
       tlsAuth: false
       tlsSkipVerify: true
+  - name: Elasticsearch
+    type: elasticsearch
+    orgId: 1
+    access: proxy
+    url: "http://{{ opennms_es_host }}:{{ opennms_es_port }}"
+    jsonData:
+      esVersion: "8.0.0"
+      timeField: "@timestamp"
+      maxConcurrentShardRequests: 5
+      logMessageField: message
+      logLevelField: fields.level
 
-elasticsearch_host: 192.0.2.6
-elasticsearch_port: 9200
-
+es_jvm_options: {}
 es_configuration:
-  action.destructive_requires_name: "true"
-  bootstrap.memory_lock: "true"
+  action.destructive_requires_name: true
+  bootstrap.memory_lock: true
+  # cluster.initial_master_nodes: '["node-1", "node-2"]'
   cluster.max_shards_per_node: 6000
-  cluster.name: opennms-benchmark
+  cluster.name: opennms-flows
   discovery.type: single-node
+  # discovery.seed_hosts: '["host1", "host2"]'
   http.port: 9200
-  network.host: 192.0.2.6
+  network.host: 0.0.0.0
+  node.attr.rack: r1
   node.name: "{{ ansible_hostname }}"
-  node.data: "true"
-  node.ingest: "true"
-  node.master: "true"
+  node.roles: '[master, data, ingest]'
   search.max_buckets: 50000
   path.data: /var/lib/elasticsearch
   path.logs: /var/log/elasticsearch
+  xpack.security.enabled: 'false'
+  xpack.security.http.ssl.enabled: 'false'
+  xpack.security.transport.ssl.enabled: 'false'
 
 postgres_user: postgres
 postgres_password: oth3rP455w0rd!
