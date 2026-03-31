@@ -116,7 +116,7 @@ resource "azurerm_linux_virtual_machine" "elasticsearch" {
   name                         = "es-benchmark-01"
   resource_group_name          = var.resource_group
   location                     = var.location
-  size                         = var.vm_size_medium
+  size                         = var.vm_size_small
   priority                     = var.priority
   proximity_placement_group_id = var.ppg_id
   admin_username               = var.admin_user

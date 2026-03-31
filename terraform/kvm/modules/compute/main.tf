@@ -411,7 +411,7 @@ resource "libvirt_domain" "elasticsearch" {
   name        = "es-benchmark-01"
   type        = "kvm"
   running     = true
-  memory      = 16384
+  memory      = 8192
   memory_unit = "MiB"
   vcpu        = 4
 
