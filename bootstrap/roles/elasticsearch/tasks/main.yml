@@ -31,7 +31,7 @@
     owner: root
     group: elasticsearch
     mode: "0660"
-  notify: restart elasticsearch
+  notify: Restart elasticsearch
 
 - name: Configure JVM heap
   ansible.builtin.copy:
@@ -42,7 +42,7 @@
     owner: root
     group: elasticsearch
     mode: "0660"
-  notify: restart elasticsearch
+  notify: Restart elasticsearch
 
 - name: Enable and start Elasticsearch
   ansible.builtin.systemd:
