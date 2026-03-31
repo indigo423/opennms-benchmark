@@ -92,6 +92,29 @@
     enabled: true
   tags: ["monitoring", "jaeger"]
 
+- name: Create ElasticVue directory
+  ansible.builtin.file:
+    path: /etc/docker/elasticvue
+    state: directory
+    mode: "0755"
+  tags: ["monitoring", "elasticvue"]
+
+- name: Create ElasticVue compose
+  ansible.builtin.copy:
+    src: elasticvue/compose.yml
+    dest: /etc/docker/elasticvue/compose.yml
+    mode: "0644"
+  notify:
+    - Restart elasticvue
+  tags: ["monitoring", "elasticvue"]
+
+- name: Enable ElasticVue as a service
+  ansible.builtin.service:
+    name: docker-compose@elasticvue.service
+    state: started
+    enabled: true
+  tags: ["monitoring", "elasticvue"]
+
 - name: Enable IPv4 forwarding temporarily
   ansible.posix.sysctl:
     name: net.ipv4.ip_forward

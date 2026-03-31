@@ -39,6 +39,12 @@ http:
         - websecure
       service: pgadmin
       tls: {}
+    elasticvue:
+      rule: "PathPrefix(`/elasticvue`)"
+      entryPoints:
+        - websecure
+      service: elasticvue
+      tls: {}
   middlewares:
     jaeger-strip:
       stripPrefix:
@@ -75,3 +81,8 @@ http:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:5050"
+
+    elasticvue:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8081"
