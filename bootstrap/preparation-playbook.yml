@@ -55,4 +55,4 @@
   hosts: elasticsearch
   become: true
   roles:
-    - elasticsearch
+    - stub_elasticsearch

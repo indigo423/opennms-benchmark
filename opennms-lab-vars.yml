@@ -69,6 +69,22 @@ grafana_datasources:
 elasticsearch_host: 192.0.2.6
 elasticsearch_port: 9200
 
+es_configuration:
+  action.destructive_requires_name: "true"
+  bootstrap.memory_lock: "true"
+  cluster.max_shards_per_node: 6000
+  cluster.name: opennms-benchmark
+  discovery.type: single-node
+  http.port: 9200
+  network.host: 192.0.2.6
+  node.name: "{{ ansible_hostname }}"
+  node.data: "true"
+  node.ingest: "true"
+  node.master: "true"
+  search.max_buckets: 50000
+  path.data: /var/lib/elasticsearch
+  path.logs: /var/log/elasticsearch
+
 postgres_user: postgres
 postgres_password: oth3rP455w0rd!
 postgres_listen_addresses: "*"
