@@ -20,6 +20,9 @@ jobs:
       - name: Install collections
         run: ansible-galaxy collection install -r bootstrap/requirements.yml -p ~/.ansible/collections --force-with-deps
 
+      - name: Set Ansible roles path
+        run: echo "ANSIBLE_ROLES_PATH=$GITHUB_WORKSPACE/bootstrap/roles:$GITHUB_WORKSPACE/ansible-opennms/roles" >> "$GITHUB_ENV"
+
       - name: Run ansible-lint
         uses: ansible/ansible-lint@v26
         with:
