@@ -99,11 +99,15 @@
     mode: "0755"
   tags: ["monitoring", "elasticvue"]
 
-- name: Create ElasticVue compose
+- name: Deploy ElasticVue build files
   ansible.builtin.copy:
-    src: elasticvue/compose.yml
-    dest: /etc/docker/elasticvue/compose.yml
+    src: "elasticvue/{{ item }}"
+    dest: "/etc/docker/elasticvue/{{ item }}"
     mode: "0644"
+  loop:
+    - compose.yml
+    - Dockerfile
+    - nginx.conf
   notify:
     - Restart elasticvue
   tags: ["monitoring", "elasticvue"]

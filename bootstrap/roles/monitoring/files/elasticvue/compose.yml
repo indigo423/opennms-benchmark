@@ -2,7 +2,7 @@
 services:
 
   elasticvue:
-    image: cars10/elasticvue:latest
+    build: .
     deploy:
       resources:
         limits:
@@ -10,6 +10,5 @@ services:
           memory: 128m
     environment:
       TZ: UTC
-      ELASTICVUE_BASEPATH: /elasticvue
     ports:
       - "8081:8080/tcp"
