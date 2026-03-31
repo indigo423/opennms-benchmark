@@ -53,6 +53,15 @@ module "compute" {
   gateway_mgmt        = cidrhost(var.subnet_mgmt, 1)
 }
 
+module "diagram" {
+  source = "../modules/diagram"
+
+  subnet_mgmt  = var.subnet_mgmt
+  subnet_db    = var.subnet_db
+  subnet_kafka = var.subnet_kafka
+  subnet_sim   = var.subnet_sim
+}
+
 module "inventory" {
   source = "../modules/inventory"
 

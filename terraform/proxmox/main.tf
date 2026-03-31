@@ -47,6 +47,15 @@ module "compute" {
   disk_sizes_gb      = var.disk_sizes_gb
 }
 
+module "diagram" {
+  source = "../modules/diagram"
+
+  subnet_mgmt  = var.subnet_mgmt
+  subnet_db    = var.subnet_db
+  subnet_kafka = var.subnet_kafka
+  subnet_sim   = var.subnet_sim
+}
+
 module "inventory" {
   source = "../modules/inventory"
 
