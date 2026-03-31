@@ -23,6 +23,8 @@ variable "admin_user" { type = string }
 variable "vm_names" {
   type = map(string)
 }
+variable "ip_elasticsearch" { type = string }
+variable "ip_es_core"       { type = string }
 
 # KVM-specific (from kvm.tfvars)
 variable "libvirt_uri" { type = string }

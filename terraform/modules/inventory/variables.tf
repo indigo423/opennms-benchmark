@@ -9,6 +9,7 @@ variable "ssh_key_path" {
   type        = string
   description = "Path to private SSH key for Ansible"
 }
+variable "ip_elasticsearch" { type = string }
 variable "jump_host" {
   type        = string
   default     = ""

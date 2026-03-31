@@ -24,6 +24,8 @@ variable "vm_names" {
   type    = map(string)
   default = null # accepted from lab.tfvars; not used by this module
 }
+variable "ip_elasticsearch" { type = string }
+variable "ip_es_core"       { type = string }
 
 # Proxmox-specific (from proxmox.tfvars)
 variable "proxmox_endpoint" {
@@ -109,12 +111,13 @@ variable "vm_ids" {
   type        = map(number)
   description = "Proxmox VM ID per VM name — must be unique across the cluster"
   default = {
-    database   = 196
-    core       = 197
-    kafka      = 198
-    minion     = 199
-    monitoring = 200
-    netsim     = 201
+    database      = 196
+    core          = 197
+    kafka         = 198
+    minion        = 199
+    monitoring    = 200
+    netsim        = 201
+    elasticsearch = 202
   }
 }
 
@@ -122,12 +125,13 @@ variable "disk_sizes_gb" {
   type        = map(number)
   description = "Disk size in GB per VM"
   default = {
-    database   = 20
-    core       = 30
-    kafka      = 20
-    minion     = 20
-    netsim     = 20
-    monitoring = 30
+    database      = 20
+    core          = 30
+    kafka         = 20
+    minion        = 20
+    netsim        = 20
+    monitoring    = 30
+    elasticsearch = 50
   }
 }
 

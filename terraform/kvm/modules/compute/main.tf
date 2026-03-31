@@ -10,29 +10,33 @@ terraform {
 
 locals {
   cloud_init_meta_data = {
-    database   = <<-EOF
+    database      = <<-EOF
       instance-id: db-benchmark-01
       local-hostname: db-benchmark-01
     EOF
-    core       = <<-EOF
+    core          = <<-EOF
       instance-id: core-benchmark-01
       local-hostname: core-benchmark-01
     EOF
-    kafka      = <<-EOF
+    kafka         = <<-EOF
       instance-id: kafka-benchmark-01
       local-hostname: kafka-benchmark-01
     EOF
-    minion     = <<-EOF
+    minion        = <<-EOF
       instance-id: minion-benchmark-01
       local-hostname: minion-benchmark-01
     EOF
-    netsim     = <<-EOF
+    netsim        = <<-EOF
       instance-id: netsim-benchmark-01
       local-hostname: netsim-benchmark-01
     EOF
-    monitoring = <<-EOF
+    monitoring    = <<-EOF
       instance-id: mon-benchmark-01
       local-hostname: mon-benchmark-01
+    EOF
+    elasticsearch = <<-EOF
+      instance-id: es-benchmark-01
+      local-hostname: es-benchmark-01
     EOF
   }
 }
@@ -62,6 +66,23 @@ resource "libvirt_volume" "ubuntu_base" {
       error_message = "Ubuntu 24.04 cloud image must be either an existing local qcow2 path or an http(s) URL. Got '${var.ubuntu_cloud_image}'."
     }
   }
+}
+
+resource "libvirt_volume" "elasticsearch" {
+  name = "es-benchmark-01.qcow2"
+  pool = var.storage_pool
+
+  target = {
+    format = { type = "qcow2" }
+  }
+
+  backing_store = {
+    path   = libvirt_volume.ubuntu_base.path
+    format = { type = "qcow2" }
+  }
+
+  capacity      = var.disk_sizes_gb["elasticsearch"]
+  capacity_unit = "GiB"
 }
 
 resource "libvirt_volume" "database" {
@@ -166,6 +187,19 @@ resource "libvirt_volume" "monitoring" {
   capacity_unit = "GiB"
 }
 
+module "cloud_init_elasticsearch" {
+  source         = "../../../modules/cloud-init"
+  vm_name        = "es-benchmark-01"
+  admin_user     = var.admin_user
+  ssh_public_key = var.ssh_public_key
+  hosts          = var.hosts
+  extra_packages = var.extra_packages
+  interfaces = [
+    { name = "enp1s0", address = var.ip_elasticsearch, prefix = 26, gateway = var.gateway_mgmt },
+    { name = "enp2s0", address = var.ip_es_core,       prefix = 26, gateway = null },
+  ]
+}
+
 module "cloud_init_database" {
   source         = "../../../modules/cloud-init"
   vm_name        = "db-benchmark-01"
@@ -247,6 +281,13 @@ module "cloud_init_monitoring" {
   ]
 }
 
+resource "libvirt_cloudinit_disk" "elasticsearch" {
+  name           = "es-benchmark-01-cloudinit"
+  user_data      = module.cloud_init_elasticsearch.user_data
+  meta_data      = local.cloud_init_meta_data.elasticsearch
+  network_config = module.cloud_init_elasticsearch.network_config
+}
+
 resource "libvirt_cloudinit_disk" "database" {
   name           = "db-benchmark-01-cloudinit"
   user_data      = module.cloud_init_database.user_data
@@ -287,6 +328,17 @@ resource "libvirt_cloudinit_disk" "monitoring" {
   user_data      = module.cloud_init_monitoring.user_data
   meta_data      = local.cloud_init_meta_data.monitoring
   network_config = module.cloud_init_monitoring.network_config
+}
+
+resource "libvirt_volume" "elasticsearch_cloudinit" {
+  name = "es-benchmark-01-cloudinit.iso"
+  pool = var.storage_pool
+
+  create = {
+    content = {
+      url = "file://${libvirt_cloudinit_disk.elasticsearch.path}"
+    }
+  }
 }
 
 resource "libvirt_volume" "database_cloudinit" {
@@ -352,6 +404,121 @@ resource "libvirt_volume" "monitoring_cloudinit" {
     content = {
       url = "file://${libvirt_cloudinit_disk.monitoring.path}"
     }
+  }
+}
+
+resource "libvirt_domain" "elasticsearch" {
+  name        = "es-benchmark-01"
+  type        = "kvm"
+  running     = true
+  memory      = 16384
+  memory_unit = "MiB"
+  vcpu        = 4
+
+  os = {
+    type         = "hvm"
+    type_arch    = "x86_64"
+    type_machine = "q35"
+    boot         = [{ dev = "hd" }]
+  }
+
+  features = {
+    acpi = true
+  }
+
+  devices = {
+    disks = [
+      {
+        source = {
+          volume = {
+            pool   = libvirt_volume.elasticsearch.pool
+            volume = libvirt_volume.elasticsearch.name
+          }
+        }
+        driver = {
+          name = "qemu"
+          type = "qcow2"
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      },
+      {
+        device = "cdrom"
+        source = {
+          volume = {
+            pool   = libvirt_volume.elasticsearch_cloudinit.pool
+            volume = libvirt_volume.elasticsearch_cloudinit.name
+          }
+        }
+        target = {
+          dev = "sdb"
+          bus = "sata"
+        }
+      }
+    ]
+    interfaces = [
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_mgmt_id
+          }
+        }
+      },
+      {
+        type = "network"
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = var.network_db_id
+          }
+        }
+      }
+    ]
+    consoles = [
+      {
+        type        = "pty"
+        target_port = 0
+        target_type = "serial"
+      }
+    ]
+    channels = [
+      {
+        target = {
+          virt_io = {
+            name = "org.qemu.guest_agent.0"
+          }
+        }
+        source = {
+          unix = {}
+        }
+      }
+    ]
+    graphics = [
+      {
+        vnc = {
+          auto_port = true
+          listen    = "0.0.0.0"
+        }
+      }
+    ]
+    videos = [
+      {
+        model = {
+          type    = "vga"
+          primary = "yes"
+          heads   = 1
+          vram    = 16384
+        }
+      }
+    ]
   }
 }
 

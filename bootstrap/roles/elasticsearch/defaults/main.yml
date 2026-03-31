@@ -1,0 +1,7 @@
+---
+elasticsearch_version: "8.x"
+elasticsearch_cluster_name: opennms-benchmark
+elasticsearch_node_name: "{{ inventory_hostname }}"
+elasticsearch_network_host: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+elasticsearch_http_port: 9200
+elasticsearch_heap_size: 4g

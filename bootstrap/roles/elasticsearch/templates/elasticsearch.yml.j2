@@ -1,0 +1,14 @@
+cluster.name: {{ elasticsearch_cluster_name }}
+node.name: {{ elasticsearch_node_name }}
+
+# Bind to the db-subnet NIC so Core and Database VMs can reach ES directly
+network.host: {{ elasticsearch_network_host }}
+http.port: {{ elasticsearch_http_port }}
+
+# Single-node cluster — no discovery required
+discovery.type: single-node
+
+# Disable security for lab use
+xpack.security.enabled: false
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false

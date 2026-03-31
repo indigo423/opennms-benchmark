@@ -10,6 +10,7 @@ locals {
     "minion-benchmark-01" = var.ip_minion
     "netsim-benchmark-01" = var.ip_netsim
     "mon-benchmark-01"    = var.ip_monitoring
+    "es-benchmark-01"     = var.ip_elasticsearch
   }
 }
 
@@ -48,8 +49,10 @@ module "network" {
   ip_minion       = var.ip_minion
   ip_netsim       = var.ip_netsim
   ip_netsim_sim   = var.ip_netsim_sim
-  ip_monitoring   = var.ip_monitoring
-  operator_cidr   = var.operator_cidr
+  ip_monitoring    = var.ip_monitoring
+  operator_cidr    = var.operator_cidr
+  ip_elasticsearch = var.ip_elasticsearch
+  ip_es_core       = var.ip_es_core
 }
 
 module "compute" {
@@ -91,7 +94,11 @@ module "compute" {
   nic_minion_sim      = module.network.nic_minion_sim
   nic_netsim_mgmt     = module.network.nic_netsim_mgmt
   nic_netsim_sim      = module.network.nic_netsim_sim
-  nic_monitoring_mgmt = module.network.nic_monitoring_mgmt
+  nic_monitoring_mgmt    = module.network.nic_monitoring_mgmt
+  ip_elasticsearch       = var.ip_elasticsearch
+  ip_es_core             = var.ip_es_core
+  nic_elasticsearch_mgmt = module.network.nic_elasticsearch_mgmt
+  nic_elasticsearch_db   = module.network.nic_elasticsearch_db
 }
 
 module "inventory" {
@@ -102,8 +109,9 @@ module "inventory" {
   ip_kafka      = var.ip_kafka
   ip_minion     = var.ip_minion
   ip_netsim     = var.ip_netsim
-  ip_monitoring = var.ip_monitoring
-  admin_user    = var.admin_user
-  ssh_key_path  = var.ssh_key_path
-  jump_host     = module.network.monitoring_public_ip
+  ip_monitoring    = var.ip_monitoring
+  ip_elasticsearch = var.ip_elasticsearch
+  admin_user       = var.admin_user
+  ssh_key_path     = var.ssh_key_path
+  jump_host        = module.network.monitoring_public_ip
 }

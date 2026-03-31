@@ -13,6 +13,19 @@ terraform {
 #   ens18 = first NIC, ens19 = second, ens20 = third, ens21 = fourth.
 # Verify on your Proxmox setup: ssh ubuntu@<ip> ip link
 
+module "cloud_init_elasticsearch" {
+  source         = "../../../modules/cloud-init"
+  vm_name        = "es-benchmark-01"
+  admin_user     = var.admin_user
+  ssh_public_key = var.ssh_public_key
+  hosts          = var.hosts
+  extra_packages = ["qemu-guest-agent"]
+  interfaces = [
+    { name = "ens18", address = var.ip_elasticsearch, prefix = 26, gateway = var.gateway_mgmt },
+    { name = "ens19", address = var.ip_es_core,       prefix = 26, gateway = null },
+  ]
+}
+
 module "cloud_init_database" {
   source         = "../../../modules/cloud-init"
   vm_name        = "db-benchmark-01"
@@ -96,6 +109,28 @@ module "cloud_init_monitoring" {
 
 # Cloud-init snippet files — uploaded to the Proxmox snippets datastore via SFTP.
 # Requires a file-based datastore (e.g. "local"); LVM-thin datastores are not supported.
+
+resource "proxmox_virtual_environment_file" "user_data_elasticsearch" {
+  content_type = "snippets"
+  datastore_id = var.snippets_datastore
+  node_name    = var.proxmox_node
+
+  source_raw {
+    file_name = "es-benchmark-01-user-data.yaml"
+    data      = module.cloud_init_elasticsearch.user_data
+  }
+}
+
+resource "proxmox_virtual_environment_file" "network_data_elasticsearch" {
+  content_type = "snippets"
+  datastore_id = var.snippets_datastore
+  node_name    = var.proxmox_node
+
+  source_raw {
+    file_name = "es-benchmark-01-network-data.yaml"
+    data      = module.cloud_init_elasticsearch.network_config
+  }
+}
 
 resource "proxmox_virtual_environment_file" "user_data_database" {
   content_type = "snippets"
@@ -570,4 +605,59 @@ resource "proxmox_virtual_environment_vm" "monitoring" {
   }
 
   depends_on = [proxmox_virtual_environment_vm.netsim]
+}
+
+resource "proxmox_virtual_environment_vm" "elasticsearch" {
+  name      = "es-benchmark-01"
+  node_name = var.proxmox_node
+  vm_id     = var.vm_ids["elasticsearch"]
+  tags      = ["opennms-benchmark"]
+
+  clone {
+    vm_id = var.template_vm_id
+    full  = true
+  }
+
+  cpu {
+    cores = 4
+    type  = "host"
+  }
+
+  memory {
+    dedicated = 16384
+  }
+
+  disk {
+    datastore_id = var.storage_pool
+    interface    = "scsi0"
+    size         = var.disk_sizes_gb["elasticsearch"]
+    iothread     = true
+  }
+
+  network_device {
+    bridge = var.bridge_mgmt
+    model  = "virtio"
+  }
+
+  network_device {
+    bridge = var.bridge_db
+    model  = "virtio"
+  }
+
+  agent {
+    enabled = true
+  }
+
+  serial_device {}
+
+  operating_system {
+    type = "l26"
+  }
+
+  initialization {
+    user_data_file_id    = proxmox_virtual_environment_file.user_data_elasticsearch.id
+    network_data_file_id = proxmox_virtual_environment_file.network_data_elasticsearch.id
+  }
+
+  depends_on = [proxmox_virtual_environment_vm.monitoring]
 }

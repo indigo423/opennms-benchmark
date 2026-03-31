@@ -11,4 +11,6 @@ output "nic_minion_mgmt" { value = azurerm_network_interface.minion_mgmt.id }
 output "nic_netsim_sim" { value = azurerm_network_interface.netsim_sim.id }
 output "nic_netsim_mgmt" { value = azurerm_network_interface.netsim_mgmt.id }
 output "nic_monitoring_mgmt" { value = azurerm_network_interface.monitoring_mgmt.id }
-output "monitoring_public_ip" { value = azurerm_public_ip.monitoring.ip_address }
+output "monitoring_public_ip"      { value = azurerm_public_ip.monitoring.ip_address }
+output "nic_elasticsearch_mgmt"   { value = azurerm_network_interface.elasticsearch_mgmt.id }
+output "nic_elasticsearch_db"     { value = azurerm_network_interface.elasticsearch_db.id }

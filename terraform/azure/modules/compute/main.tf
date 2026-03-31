@@ -99,6 +99,48 @@ module "cloud_init_monitoring" {
   ]
 }
 
+module "cloud_init_elasticsearch" {
+  source                   = "../../../modules/cloud-init"
+  vm_name                  = "es-benchmark-01"
+  admin_user               = var.admin_user
+  ssh_public_key           = var.ssh_public_key
+  hosts                    = var.hosts
+  network_config_supported = false
+  interfaces = [
+    { name = "eth0", address = var.ip_elasticsearch, prefix = 26, gateway = null },
+    { name = "eth1", address = var.ip_es_core,       prefix = 26, gateway = null },
+  ]
+}
+
+resource "azurerm_linux_virtual_machine" "elasticsearch" {
+  name                         = "es-benchmark-01"
+  resource_group_name          = var.resource_group
+  location                     = var.location
+  size                         = var.vm_size_medium
+  priority                     = var.priority
+  proximity_placement_group_id = var.ppg_id
+  admin_username               = var.admin_user
+  network_interface_ids        = [var.nic_elasticsearch_mgmt, var.nic_elasticsearch_db]
+  custom_data                  = module.cloud_init_elasticsearch.user_data_base64
+
+  admin_ssh_key {
+    username   = var.admin_user
+    public_key = var.ssh_public_key
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = local.image.publisher
+    offer     = local.image.offer
+    sku       = local.image.sku
+    version   = local.image.version
+  }
+}
+
 resource "azurerm_linux_virtual_machine" "database" {
   name                         = "db-benchmark-01"
   resource_group_name          = var.resource_group

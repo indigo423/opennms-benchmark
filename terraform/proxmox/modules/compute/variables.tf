@@ -30,15 +30,19 @@ variable "bridge_kafka" { type = string }
 variable "bridge_sim" { type = string }
 variable "bridge_ext" { type = string }
 variable "vm_ids" { type = map(number) }
+variable "ip_elasticsearch" { type = string }
+variable "ip_es_core"       { type = string }
+
 variable "disk_sizes_gb" {
   type        = map(number)
   description = "Disk size in GB per VM"
   default = {
-    database   = 20
-    core       = 30
-    kafka      = 20
-    minion     = 20
-    netsim     = 20
-    monitoring = 30
+    database      = 20
+    core          = 30
+    kafka         = 20
+    minion        = 20
+    netsim        = 20
+    monitoring    = 30
+    elasticsearch = 50
   }
 }

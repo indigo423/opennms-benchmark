@@ -252,6 +252,31 @@ resource "azurerm_network_interface" "monitoring_mgmt" {
   }
 }
 
+# NICs — elasticsearch
+resource "azurerm_network_interface" "elasticsearch_mgmt" {
+  name                = "nic-${local.loc}-${local.env}-es-vnet-mgmt"
+  resource_group_name = var.resource_group
+  location            = var.location
+  ip_configuration {
+    name                          = "ipconfig1"
+    subnet_id                     = azurerm_subnet.mgmt.id
+    private_ip_address_allocation = "Static"
+    private_ip_address            = var.ip_elasticsearch
+  }
+}
+
+resource "azurerm_network_interface" "elasticsearch_db" {
+  name                = "nic-${local.loc}-${local.env}-es-vnet-db"
+  resource_group_name = var.resource_group
+  location            = var.location
+  ip_configuration {
+    name                          = "ipconfig1"
+    subnet_id                     = azurerm_subnet.db.id
+    private_ip_address_allocation = "Static"
+    private_ip_address            = var.ip_es_core
+  }
+}
+
 resource "azurerm_network_interface_security_group_association" "monitoring" {
   network_interface_id      = azurerm_network_interface.monitoring_mgmt.id
   network_security_group_id = azurerm_network_security_group.monitoring.id

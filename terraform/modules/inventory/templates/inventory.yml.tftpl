@@ -17,6 +17,8 @@ all:
       ansible_host: ${ip_minion}
     netsim-benchmark-01:
       ansible_host: ${ip_netsim}
+    es-benchmark-01:
+      ansible_host: ${ip_elasticsearch}
     mon-benchmark-01:
 %{ if jump_host != "" ~}
       ansible_host: ${jump_host}
@@ -40,6 +42,9 @@ all:
     net_sim:
       hosts:
         netsim-benchmark-01:
+    elasticsearch:
+      hosts:
+        es-benchmark-01:
     mon_servers:
       hosts:
         mon-benchmark-01:
@@ -48,6 +53,7 @@ all:
         mon-benchmark-01:
         kafka-benchmark-01:
         netsim-benchmark-01:
+        es-benchmark-01:
     grafana:
       hosts:
         mon-benchmark-01:

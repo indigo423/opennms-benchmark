@@ -66,6 +66,9 @@ grafana_datasources:
       tlsAuth: false
       tlsSkipVerify: true
 
+elasticsearch_host: 192.0.2.6
+elasticsearch_port: 9200
+
 postgres_user: postgres
 postgres_password: oth3rP455w0rd!
 postgres_listen_addresses: "*"
