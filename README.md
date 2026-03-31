@@ -23,11 +23,13 @@ There is a [Wiki](https://github.com/opennms-forge/opennms-benchmark/wiki) with 
 
 ## 📐 Lab Design
 
-![](assets/ck1m.png)
+![](assets/ck1m.svg)
+
+> **Source:** [`assets/ck1m.drawio`](assets/ck1m.drawio) — open in [draw.io](https://app.diagrams.net) or the VS Code Draw.io extension to edit. Re-export as `assets/ck1m.svg` after any topology changes.
 
 ## ⚙️ Compute and Storage
 
-This benchmark lab deploys 6 virtual machines and wires them in specific way together.
+This benchmark lab deploys 7 virtual machines and wires them in specific way together.
 
 > [!NOTE]
 > You need Virtual Machine specifications that can handle at least 3 network interfaces
@@ -40,6 +42,7 @@ This benchmark lab deploys 6 virtual machines and wires them in specific way tog
 | OpenNMS Minion     | OpenNMS Horizon              |
 | Net-SNMP Simulator | Net-SNMP Agent               |
 | Monitoring         | Prometheus, Jaeger, Grafana  |
+| Elasticsearch      | Elasticsearch with Drift plugin |
 
 ## ⛓️ Networking
 
@@ -52,6 +55,7 @@ The network IP space is chosen from the private 192.0.2/24 range which is not pu
 |:-----------|:----------|:-----------------|:----------------|:--------------------------|
 | database   | ens0      | `192.0.2.4/26`   | 192.0.2.1       | PostgreSQL database       |
 | core       | ens2      | `192.0.2.5/26`   | 192.0.2.1       | Core to PostgreSQL        |
+| elasticsearch | ens0   | `192.0.2.6/26`   | 192.0.2.1       | Elasticsearch             |
 | kafka      | ens0      | `192.0.2.68/26`  | 192.0.2.65      | Kafka Broker              |
 | core       | ens0      | `192.0.2.69/26`  | 192.0.2.65      | Core to Kafka             |
 | minion     | ens2      | `192.0.2.70/26`  | 192.0.2.65      | Minion to Kafka           |
@@ -68,6 +72,7 @@ The network IP space is chosen from the private 192.0.2/24 range which is not pu
 | minion     | ens1      | `192.0.2.199/26` | 192.0.2.193     | OpenNMS Minion Managament |
 | monitoring | ens1      | `192.0.2.200/26` | 192.0.2.193     | Monitoring Managament     |
 | netsim     | ens1      | `192.0.2.201/26` | 192.0.2.193     | SNMP Simulator            |
+| elasticsearch | ens1   | `192.0.2.202/26` | 192.0.2.193     | Elasticsearch Management  |
 
 
 ### Network for simulation
