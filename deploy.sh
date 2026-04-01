@@ -113,7 +113,7 @@ discover_jump_host() {
       'ip -4 addr | grep inet | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v "^192\.0\.2\.\|^127\."' \
       2>/dev/null | head -1 || true)
     [[ -n "$jump_host" ]] && break
-    info "waiting for external IP on monitoring VM... ($i/24)"
+    info "waiting for external IP on monitoring VM... ($i/24)" >&2
     sleep 5
   done
   echo "$jump_host"
