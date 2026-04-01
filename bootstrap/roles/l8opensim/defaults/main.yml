@@ -1,7 +1,7 @@
 ---
-l8opensim_image: "saichler/opensim-web:latest"
+l8opensim_image: "l8opensim:latest"
 l8opensim_auto_start_ip: "10.42.0.1"
 l8opensim_auto_count: 100
+l8opensim_auto_netmask: "16"
 l8opensim_web_port: 8080
-l8opensim_snmp_port: 1161
 l8opensim_restart_policy: "unless-stopped"

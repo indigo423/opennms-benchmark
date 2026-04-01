@@ -50,12 +50,18 @@ http:
       entryPoints:
         - websecure
       service: opensim
+      middlewares:
+        - opensim-strip
       tls: {}
   middlewares:
     jaeger-strip:
       stripPrefix:
         prefixes:
           - /jaeger
+    opensim-strip:
+      stripPrefix:
+        prefixes:
+          - /opensim
 
 
   services:
