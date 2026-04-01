@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /
 ARG L8OPENSIM_REF=main
 RUN git clone --depth 1 --branch ${L8OPENSIM_REF} https://github.com/saichler/l8opensim.git /src
 WORKDIR /src/go/simulator
-RUN go build -o /simulator .
+RUN go build -mod=mod -o /simulator .
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
