@@ -3,6 +3,7 @@
 # The SNMP port (161) is hardcoded in constants.go and is not configurable
 # via flags. Each simulated device binds UDP 161 on its own TUN interface IP.
 FROM golang:1.23-bookworm AS builder
+ENV GOTOOLCHAIN=auto
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 ARG L8OPENSIM_REF=main
 RUN git clone --depth 1 --branch ${L8OPENSIM_REF} https://github.com/saichler/l8opensim.git /src
