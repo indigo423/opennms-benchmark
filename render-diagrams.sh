@@ -10,7 +10,7 @@
 #   Debian: apt-get install gettext-base
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TFVARS="$REPO_ROOT/terraform/lab.tfvars"
 TPLS="$REPO_ROOT/terraform/modules/diagram/templates"
 

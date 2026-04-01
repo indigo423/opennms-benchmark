@@ -50,11 +50,10 @@ module "compute" {
 module "diagram" {
   source = "../modules/diagram"
 
-  provider_name = "proxmox"
-  subnet_mgmt   = var.subnet_mgmt
-  subnet_db     = var.subnet_db
-  subnet_kafka  = var.subnet_kafka
-  subnet_sim    = var.subnet_sim
+  subnet_mgmt  = var.subnet_mgmt
+  subnet_db    = var.subnet_db
+  subnet_kafka = var.subnet_kafka
+  subnet_sim   = var.subnet_sim
 
   ip_monitoring    = var.ip_monitoring
   ip_database      = var.ip_database
