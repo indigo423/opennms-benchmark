@@ -10,8 +10,8 @@ services:
           memory: 512m
     environment:
       TZ: UTC
-      PGADMIN_DEFAULT_EMAIL: admin@benchmark.lab
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: "{{ pgadmin_default_email }}"
+      PGADMIN_DEFAULT_PASSWORD: "{{ pgadmin_default_password }}"
       SCRIPT_NAME: /pgadmin
     volumes:
       - data-pgadmin:/var/lib/pgadmin

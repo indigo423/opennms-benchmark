@@ -54,8 +54,8 @@
   tags: ["monitoring", "pgadmin"]
 
 - name: Create pgAdmin compose
-  ansible.builtin.copy:
-    src: pgadmin/compose.yml
+  ansible.builtin.template:
+    src: pgadmin/compose.yml.j2
     dest: /etc/docker/pgadmin/compose.yml
     mode: "0644"
   notify:
