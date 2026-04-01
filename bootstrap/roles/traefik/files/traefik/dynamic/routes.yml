@@ -53,6 +53,12 @@ http:
       middlewares:
         - opensim-strip
       tls: {}
+    opensim-assets:
+      rule: "PathPrefix(`/web`) || PathPrefix(`/api`) || Path(`/logo.png`)"
+      entryPoints:
+        - websecure
+      service: opensim
+      tls: {}
   middlewares:
     jaeger-strip:
       stripPrefix:
@@ -62,7 +68,6 @@ http:
       stripPrefix:
         prefixes:
           - /opensim
-
 
   services:
     grafana:
