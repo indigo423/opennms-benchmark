@@ -3,6 +3,9 @@ opennms_distribution: Horizon
 opennms_version: "35.0.4"
 opennms_pkg_version: "{{ opennms_version }}*"
 
+opennms_es_host: 192.0.2.202
+opennms_es_port: 9200
+
 opennms_datasource_db_host: 192.0.2.196
 opennms_datasource_db_port: 5432
 opennms_datasource_db_name: onms_benchmark
@@ -68,7 +71,7 @@ grafana_datasources:
     type: elasticsearch
     orgId: 1
     access: proxy
-    url: "http://192.0.2.202:9200"
+    url: "http://{{ opennms_es_host }}:{{ opennms_es_port }}"
     jsonData:
       esVersion: "8.0.0"
       timeField: "@timestamp"
