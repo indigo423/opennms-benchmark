@@ -130,7 +130,7 @@ tf_apply() {
     -var-file="../lab.tfvars" \
     -var-file="${PROVIDER}.tfvars" \
     "$@" \
-    "${TF_EXTRA_ARGS[@]}" \
+    "${TF_EXTRA_ARGS[@]+"${TF_EXTRA_ARGS[@]}"}" \
     -input=false \
     -auto-approve
 }
@@ -140,7 +140,7 @@ tf_destroy() {
     -var-file="../lab.tfvars" \
     -var-file="${PROVIDER}.tfvars" \
     "$@" \
-    "${TF_EXTRA_ARGS[@]}" \
+    "${TF_EXTRA_ARGS[@]+"${TF_EXTRA_ARGS[@]}"}" \
     -input=false \
     -auto-approve
 }
@@ -155,7 +155,7 @@ if $DESTROY; then
   step "Destroying infrastructure ($PROVIDER)..."
   tf_init
   set_provider_vars
-  tf_destroy "${PROVIDER_VARS[@]}"
+  tf_destroy "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}"
   rm -f "$REPO_ROOT/ansible-inventory.yml"
   step "Done. All $PROVIDER lab resources destroyed."
   exit 0
@@ -166,7 +166,7 @@ fi
 step "[1/3] Provisioning infrastructure ($PROVIDER)..."
 tf_init
 set_provider_vars
-tf_apply "${PROVIDER_VARS[@]}"
+tf_apply "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}"
 
 # KVM and Proxmox: the monitoring VM's external (jump host) IP is DHCP-assigned
 # after boot and cannot be known at plan time.  Discover it via SSH through the
@@ -189,7 +189,7 @@ if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" ]]; then
 
     if [[ -n "$JUMP_HOST" ]]; then
       info "found: $JUMP_HOST — regenerating inventory with jump host..."
-      tf_apply "${PROVIDER_VARS[@]}" -var "jump_host=$JUMP_HOST"
+      tf_apply "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}" -var "jump_host=$JUMP_HOST"
     else
       warn "could not discover external IP after 2 minutes; jump host not configured"
     fi
