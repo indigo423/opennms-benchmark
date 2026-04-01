@@ -46,14 +46,14 @@ warn() { echo "    warning: $*" >&2; }
 
 PROVIDER=""
 DESTROY=false
-TF_EXTRA_ARGS=""
+TF_EXTRA_ARGS=()
 ANSIBLE_VERBOSITY=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --provider) PROVIDER="$2"; shift 2 ;;
     --destroy)  DESTROY=true; shift ;;
-    --tf-args)  TF_EXTRA_ARGS="$2"; shift 2 ;;
+    --tf-args)  read -ra TF_EXTRA_ARGS <<< "$2"; shift 2 ;;
     -v|-vv|-vvv|-vvvv) ANSIBLE_VERBOSITY="$1"; shift ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "Error: unknown option: $1" >&2; error_usage ;;
@@ -78,16 +78,19 @@ fi
 
 # ── provider-specific extra vars ──────────────────────────────────────────────
 
-# Emit extra -var flags needed before a plan/apply (Azure: operator CIDR).
-# All log output goes to stderr so it is not captured by callers.
-provider_tf_vars() {
+# Populate PROVIDER_VARS array with extra -var flags needed for this provider.
+# Azure: detect the operator's public IP for the NSG SSH-allow rule.
+PROVIDER_VARS=()
+
+set_provider_vars() {
+  PROVIDER_VARS=()
   if [[ "$PROVIDER" == "azure" ]]; then
     local op_ip
     op_ip=$(host -4 myip.opendns.com resolver1.opendns.com 2>/dev/null \
             | awk '/has address/ {print $NF; exit}' || true)
     if [[ -n "$op_ip" ]]; then
-      info "detected operator IP: $op_ip" >&2
-      echo "-var operator_cidr=${op_ip}/32"
+      info "detected operator IP: $op_ip"
+      PROVIDER_VARS=(-var "operator_cidr=${op_ip}/32")
     else
       warn "could not detect public IP; SSH access on monitoring VM will be open to *"
     fi
@@ -123,27 +126,23 @@ tf_init() {
 }
 
 tf_apply() {
-  local extra_vars="${1:-}"
-  # shellcheck disable=SC2086
   terraform -chdir="$TF_DIR" apply \
     -var-file="../lab.tfvars" \
     -var-file="${PROVIDER}.tfvars" \
-    ${extra_vars} \
+    "$@" \
+    "${TF_EXTRA_ARGS[@]}" \
     -input=false \
-    -auto-approve \
-    $TF_EXTRA_ARGS
+    -auto-approve
 }
 
 tf_destroy() {
-  local extra_vars="${1:-}"
-  # shellcheck disable=SC2086
   terraform -chdir="$TF_DIR" destroy \
     -var-file="../lab.tfvars" \
     -var-file="${PROVIDER}.tfvars" \
-    ${extra_vars} \
+    "$@" \
+    "${TF_EXTRA_ARGS[@]}" \
     -input=false \
-    -auto-approve \
-    $TF_EXTRA_ARGS
+    -auto-approve
 }
 
 tf_output() {
@@ -155,7 +154,8 @@ tf_output() {
 if $DESTROY; then
   step "Destroying infrastructure ($PROVIDER)..."
   tf_init
-  tf_destroy "$(provider_tf_vars)"
+  set_provider_vars
+  tf_destroy "${PROVIDER_VARS[@]}"
   rm -f "$REPO_ROOT/ansible-inventory.yml"
   step "Done. All $PROVIDER lab resources destroyed."
   exit 0
@@ -165,7 +165,8 @@ fi
 
 step "[1/3] Provisioning infrastructure ($PROVIDER)..."
 tf_init
-tf_apply "$(provider_tf_vars)"
+set_provider_vars
+tf_apply "${PROVIDER_VARS[@]}"
 
 # KVM and Proxmox: the monitoring VM's external (jump host) IP is DHCP-assigned
 # after boot and cannot be known at plan time.  Discover it via SSH through the
@@ -188,7 +189,7 @@ if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" ]]; then
 
     if [[ -n "$JUMP_HOST" ]]; then
       info "found: $JUMP_HOST — regenerating inventory with jump host..."
-      tf_apply "$(provider_tf_vars) -var jump_host=$JUMP_HOST"
+      tf_apply "${PROVIDER_VARS[@]}" -var "jump_host=$JUMP_HOST"
     else
       warn "could not discover external IP after 2 minutes; jump host not configured"
     fi
