@@ -11,10 +11,6 @@ opennms_datasource_db_password: p4a55word!
 
 onns_hzn_base_url: http://192.0.2.197:8980
 
-# Elasticsearch datasource
-opennms_es_host: "192.0.2.202"
-opennms_es_port: 9200
-
 grafana_datasources:
   - name: OpenNMS Performance
     type: opennms-performance-datasource
@@ -72,7 +68,7 @@ grafana_datasources:
     type: elasticsearch
     orgId: 1
     access: proxy
-    url: "http://{{ opennms_es_host }}:{{ opennms_es_port }}"
+    url: "http://192.0.2.202:9200"
     jsonData:
       esVersion: "8.0.0"
       timeField: "@timestamp"
