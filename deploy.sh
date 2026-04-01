@@ -15,7 +15,7 @@ set -euo pipefail
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 usage() {
-  cat >&2 <<EOF
+  cat <<EOF
 Usage: $0 --provider <azure|kvm|proxmox> [OPTIONS]
 
 Options:
@@ -33,8 +33,10 @@ Examples:
   $0 --provider proxmox --tf-args "-var proxmox_insecure=true"
   $0 --provider kvm -vvv
 EOF
-  exit 1
 }
+
+# Print usage to stderr and exit non-zero (used on bad arguments).
+error_usage() { usage >&2; exit 1; }
 
 step() { echo "==> $*"; }
 info() { echo "    $*"; }
@@ -53,15 +55,15 @@ while [[ $# -gt 0 ]]; do
     --destroy)  DESTROY=true; shift ;;
     --tf-args)  TF_EXTRA_ARGS="$2"; shift 2 ;;
     -v|-vv|-vvv|-vvvv) ANSIBLE_VERBOSITY="$1"; shift ;;
-    -h|--help)  usage ;;
-    *) echo "Error: unknown option: $1" >&2; usage ;;
+    -h|--help)  usage; exit 0 ;;
+    *) echo "Error: unknown option: $1" >&2; error_usage ;;
   esac
 done
 
-[[ -z "$PROVIDER" ]] && { echo "Error: --provider is required" >&2; usage; }
+[[ -z "$PROVIDER" ]] && { echo "Error: --provider is required" >&2; error_usage; }
 case "$PROVIDER" in
   azure|kvm|proxmox) ;;
-  *) echo "Error: provider must be 'azure', 'kvm', or 'proxmox'" >&2; usage ;;
+  *) echo "Error: provider must be 'azure', 'kvm', or 'proxmox'" >&2; error_usage ;;
 esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,13 +79,14 @@ fi
 # ── provider-specific extra vars ──────────────────────────────────────────────
 
 # Emit extra -var flags needed before a plan/apply (Azure: operator CIDR).
+# All log output goes to stderr so it is not captured by callers.
 provider_tf_vars() {
   if [[ "$PROVIDER" == "azure" ]]; then
     local op_ip
     op_ip=$(host -4 myip.opendns.com resolver1.opendns.com 2>/dev/null \
             | awk '/has address/ {print $NF; exit}' || true)
     if [[ -n "$op_ip" ]]; then
-      info "detected operator IP: $op_ip"
+      info "detected operator IP: $op_ip" >&2
       echo "-var operator_cidr=${op_ip}/32"
     else
       warn "could not detect public IP; SSH access on monitoring VM will be open to *"
@@ -179,7 +182,7 @@ if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" ]]; then
     HYPERVISOR=$(echo "$PROXMOX_ENDPOINT" | sed 's|https\?://||; s|[:/].*||')
   fi
 
-  if [[ -n "${HYPERVISOR:-}" && -n "$IP_MONITORING" ]]; then
+  if [[ -n "$HYPERVISOR" && -n "$IP_MONITORING" ]]; then
     step "Discovering monitoring VM external IP (via $HYPERVISOR → $IP_MONITORING)..."
     JUMP_HOST=$(discover_jump_host "$HYPERVISOR" "$IP_MONITORING" "$ADMIN_USER")
 
