@@ -45,11 +45,23 @@ http:
         - websecure
       service: kibana
       tls: {}
+    snmpsim:
+      rule: "PathPrefix(`/snmpsim`)"
+      entryPoints:
+        - websecure
+      service: snmpsim
+      middlewares:
+        - snmpsim-strip
+      tls: {}
   middlewares:
     jaeger-strip:
       stripPrefix:
         prefixes:
           - /jaeger
+    snmpsim-strip:
+      stripPrefix:
+        prefixes:
+          - /snmpsim
 
   services:
     grafana:
@@ -86,3 +98,8 @@ http:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:5601"
+
+    snmpsim:
+      loadBalancer:
+        servers:
+          - url: "http://192.0.2.201:8080"
