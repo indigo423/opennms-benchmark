@@ -1,0 +1,18 @@
+---
+services:
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.18.2
+    deploy:
+      resources:
+        limits:
+          cpus: 1.0
+          memory: 1g
+    environment:
+      TZ: UTC
+      ELASTICSEARCH_HOSTS: "http://192.0.2.202:9200"
+      SERVER_BASEPATH: /kibana
+      SERVER_REWRITEBASEPATH: "true"
+      XPACK_SECURITY_ENABLED: "false"
+    ports:
+      - "5601:5601/tcp"

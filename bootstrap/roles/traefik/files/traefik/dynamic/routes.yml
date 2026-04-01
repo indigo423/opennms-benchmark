@@ -39,11 +39,11 @@ http:
         - websecure
       service: pgadmin
       tls: {}
-    elasticvue:
-      rule: "PathPrefix(`/elasticvue`)"
+    kibana:
+      rule: "PathPrefix(`/kibana`)"
       entryPoints:
         - websecure
-      service: elasticvue
+      service: kibana
       tls: {}
   middlewares:
     jaeger-strip:
@@ -82,7 +82,7 @@ http:
         servers:
           - url: "http://host.docker.internal:5050"
 
-    elasticvue:
+    kibana:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8081"
+          - url: "http://host.docker.internal:5601"

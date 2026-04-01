@@ -92,32 +92,28 @@
     enabled: true
   tags: ["monitoring", "jaeger"]
 
-- name: Create ElasticVue directory
+- name: Create Kibana directory
   ansible.builtin.file:
-    path: /etc/docker/elasticvue
+    path: /etc/docker/kibana
     state: directory
     mode: "0755"
-  tags: ["monitoring", "elasticvue"]
+  tags: ["monitoring", "kibana"]
 
-- name: Deploy ElasticVue build files
+- name: Deploy Kibana compose
   ansible.builtin.copy:
-    src: "elasticvue/{{ item }}"
-    dest: "/etc/docker/elasticvue/{{ item }}"
+    src: kibana/compose.yml
+    dest: /etc/docker/kibana/compose.yml
     mode: "0644"
-  loop:
-    - compose.yml
-    - Dockerfile
-    - nginx.conf
   notify:
-    - Restart elasticvue
-  tags: ["monitoring", "elasticvue"]
+    - Restart kibana
+  tags: ["monitoring", "kibana"]
 
-- name: Enable ElasticVue as a service
+- name: Enable Kibana as a service
   ansible.builtin.service:
-    name: docker-compose@elasticvue.service
+    name: docker-compose@kibana.service
     state: started
     enabled: true
-  tags: ["monitoring", "elasticvue"]
+  tags: ["monitoring", "kibana"]
 
 - name: Enable IPv4 forwarding temporarily
   ansible.posix.sysctl:

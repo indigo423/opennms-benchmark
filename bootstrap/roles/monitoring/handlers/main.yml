@@ -20,9 +20,9 @@
     name: docker-compose@jaeger.service
     state: restarted
 
-- name: Restart elasticvue
+- name: Restart kibana
   ansible.builtin.service:
-    name: docker-compose@elasticvue.service
+    name: docker-compose@kibana.service
     state: restarted
 
 - name: Restart kafka-ui
