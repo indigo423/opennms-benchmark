@@ -1,22 +1,46 @@
 #!/usr/bin/env bash
-# deploy.sh — provision infrastructure and bootstrap all VMs, or tear it down
+# deploy.sh — provision lab infrastructure and deploy OpenNMS Horizon
 #
-# Usage:
-#   ./deploy.sh --provider <azure|kvm> [--destroy] [--tf-args "<extra terraform args>"] [-v|-vv|-vvv|-vvvv]
+# Workflow:
+#   1. terraform apply  — creates VMs and writes ansible-inventory.yml
+#   2. ansible-playbook bootstrap/site.yml  — installs base tooling
+#   3. ansible-playbook ansible-opennms/site.yml  — deploys OpenNMS stack
 #
-# Examples:
-#   ./deploy.sh --provider azure
-#   ./deploy.sh --provider kvm
-#   ./deploy.sh --provider azure --destroy
-#   ./deploy.sh --provider azure --tf-args "-var 'operator_cidr=1.2.3.4/32'"
-#   ./deploy.sh --provider kvm -vvv
-
+# For KVM and Proxmox the monitoring VM gets a DHCP address on an external
+# bridge.  The script SSH-probes that address after the first apply, then
+# re-runs apply with -var jump_host=<ip> so the inventory is correct.
+#
 set -euo pipefail
 
+# ── helpers ───────────────────────────────────────────────────────────────────
+
 usage() {
-  echo "Usage: $0 --provider <azure|kvm> [--destroy] [--tf-args <extra terraform args>] [-v|-vv|-vvv|-vvvv]"
+  cat >&2 <<EOF
+Usage: $0 --provider <azure|kvm|proxmox> [OPTIONS]
+
+Options:
+  --provider  <azure|kvm|proxmox>   Target infrastructure provider (required)
+  --destroy                         Tear down all lab resources
+  --tf-args   "<args>"              Extra arguments passed verbatim to terraform
+  -v|-vv|-vvv|-vvvv                 Ansible verbosity
+  -h|--help                         Show this message
+
+Examples:
+  $0 --provider azure
+  $0 --provider kvm
+  $0 --provider proxmox
+  $0 --provider azure --destroy
+  $0 --provider proxmox --tf-args "-var proxmox_insecure=true"
+  $0 --provider kvm -vvv
+EOF
   exit 1
 }
+
+step() { echo "==> $*"; }
+info() { echo "    $*"; }
+warn() { echo "    warning: $*" >&2; }
+
+# ── argument parsing ──────────────────────────────────────────────────────────
 
 PROVIDER=""
 DESTROY=false
@@ -29,122 +53,158 @@ while [[ $# -gt 0 ]]; do
     --destroy)  DESTROY=true; shift ;;
     --tf-args)  TF_EXTRA_ARGS="$2"; shift 2 ;;
     -v|-vv|-vvv|-vvvv) ANSIBLE_VERBOSITY="$1"; shift ;;
-    *) usage ;;
+    -h|--help)  usage ;;
+    *) echo "Error: unknown option: $1" >&2; usage ;;
   esac
 done
 
-[[ -z "$PROVIDER" ]] && usage
-[[ "$PROVIDER" != "azure" && "$PROVIDER" != "kvm" ]] && { echo "Error: provider must be 'azure' or 'kvm'"; usage; }
+[[ -z "$PROVIDER" ]] && { echo "Error: --provider is required" >&2; usage; }
+case "$PROVIDER" in
+  azure|kvm|proxmox) ;;
+  *) echo "Error: provider must be 'azure', 'kvm', or 'proxmox'" >&2; usage ;;
+esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TF_DIR="$REPO_ROOT/terraform/$PROVIDER"
+TFVARS_FILE="$TF_DIR/${PROVIDER}.tfvars"
 
-if $DESTROY; then
-  echo "==> Destroying infrastructure ($PROVIDER)..."
-  cd "$TF_DIR"
+if [[ ! -f "$TFVARS_FILE" ]]; then
+  echo "Error: $TFVARS_FILE not found." >&2
+  echo "       Copy ${TFVARS_FILE}.example → $TFVARS_FILE and fill in your values." >&2
+  exit 1
+fi
 
-  OPERATOR_CIDR_ARG=""
+# ── provider-specific extra vars ──────────────────────────────────────────────
+
+# Emit extra -var flags needed before a plan/apply (Azure: operator CIDR).
+provider_tf_vars() {
   if [[ "$PROVIDER" == "azure" ]]; then
-    OPERATOR_IP=$(host -4 myip.opendns.com resolver1.opendns.com 2>/dev/null | awk '/has address/ {print $NF; exit}')
-    [[ -n "$OPERATOR_IP" ]] && OPERATOR_CIDR_ARG="-var operator_cidr=${OPERATOR_IP}/32"
+    local op_ip
+    op_ip=$(host -4 myip.opendns.com resolver1.opendns.com 2>/dev/null \
+            | awk '/has address/ {print $NF; exit}' || true)
+    if [[ -n "$op_ip" ]]; then
+      info "detected operator IP: $op_ip"
+      echo "-var operator_cidr=${op_ip}/32"
+    else
+      warn "could not detect public IP; SSH access on monitoring VM will be open to *"
+    fi
   fi
+}
 
-  terraform init -upgrade -input=false
+# SSH through the hypervisor to the monitoring VM's management IP and return
+# the first non-internal IPv4 address (the DHCP external bridge address).
+# Retries for up to 2 minutes.
+discover_jump_host() {
+  local hypervisor="$1" mgmt_ip="$2" admin_user="$3"
+  local jump_host=""
+  for i in $(seq 1 24); do
+    jump_host=$(ssh \
+      -o StrictHostKeyChecking=no \
+      -o BatchMode=yes \
+      -o ConnectTimeout=5 \
+      -o ProxyJump="$hypervisor" \
+      "${admin_user}@${mgmt_ip}" \
+      'ip -4 addr | grep inet | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v "^192\.0\.2\.\|^127\."' \
+      2>/dev/null | head -1 || true)
+    [[ -n "$jump_host" ]] && break
+    info "waiting for external IP on monitoring VM... ($i/24)"
+    sleep 5
+  done
+  echo "$jump_host"
+}
+
+# ── terraform wrappers ────────────────────────────────────────────────────────
+
+tf_init() {
+  terraform -chdir="$TF_DIR" init -upgrade -input=false
+}
+
+tf_apply() {
+  local extra_vars="${1:-}"
   # shellcheck disable=SC2086
-  terraform destroy \
+  terraform -chdir="$TF_DIR" apply \
     -var-file="../lab.tfvars" \
     -var-file="${PROVIDER}.tfvars" \
-    $OPERATOR_CIDR_ARG \
+    ${extra_vars} \
     -input=false \
     -auto-approve \
     $TF_EXTRA_ARGS
+}
+
+tf_destroy() {
+  local extra_vars="${1:-}"
+  # shellcheck disable=SC2086
+  terraform -chdir="$TF_DIR" destroy \
+    -var-file="../lab.tfvars" \
+    -var-file="${PROVIDER}.tfvars" \
+    ${extra_vars} \
+    -input=false \
+    -auto-approve \
+    $TF_EXTRA_ARGS
+}
+
+tf_output() {
+  terraform -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || true
+}
+
+# ── destroy path ──────────────────────────────────────────────────────────────
+
+if $DESTROY; then
+  step "Destroying infrastructure ($PROVIDER)..."
+  tf_init
+  tf_destroy "$(provider_tf_vars)"
   rm -f "$REPO_ROOT/ansible-inventory.yml"
-  echo "==> Done. All $PROVIDER lab resources destroyed."
+  step "Done. All $PROVIDER lab resources destroyed."
   exit 0
 fi
 
-echo "==> [1/3] Provisioning infrastructure ($PROVIDER)..."
-cd "$TF_DIR"
+# ── deploy path ───────────────────────────────────────────────────────────────
 
-OPERATOR_CIDR_ARG=""
-if [[ "$PROVIDER" == "azure" ]]; then
-  OPERATOR_IP=$(host -4 myip.opendns.com resolver1.opendns.com 2>/dev/null | awk '/has address/ {print $NF; exit}')
-  if [[ -n "$OPERATOR_IP" ]]; then
-    echo "    detected operator IP: $OPERATOR_IP"
-    OPERATOR_CIDR_ARG="-var operator_cidr=${OPERATOR_IP}/32"
+step "[1/3] Provisioning infrastructure ($PROVIDER)..."
+tf_init
+tf_apply "$(provider_tf_vars)"
+
+# KVM and Proxmox: the monitoring VM's external (jump host) IP is DHCP-assigned
+# after boot and cannot be known at plan time.  Discover it via SSH through the
+# hypervisor, then re-apply to regenerate the Ansible inventory with ProxyJump.
+if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" ]]; then
+  IP_MONITORING=$(tf_output ip_monitoring)
+  ADMIN_USER=$(tf_output admin_user)
+
+  if [[ "$PROVIDER" == "kvm" ]]; then
+    HYPERVISOR=$(tf_output libvirt_host)
   else
-    echo "    warning: could not detect public IP; SSH access on monitoring VM will be open to *"
+    # Proxmox: derive SSH host from the API endpoint URL.
+    PROXMOX_ENDPOINT=$(tf_output proxmox_endpoint)
+    HYPERVISOR=$(echo "$PROXMOX_ENDPOINT" | sed 's|https\?://||; s|[:/].*||')
   fi
-fi
 
-terraform init -upgrade -input=false
-# shellcheck disable=SC2086
-terraform apply \
-  -var-file="../lab.tfvars" \
-  -var-file="${PROVIDER}.tfvars" \
-  $OPERATOR_CIDR_ARG \
-  -input=false \
-  -auto-approve \
-  $TF_EXTRA_ARGS
-
-# KVM only: auto-discover the monitoring VM's external IP and regenerate the
-# inventory with it as the jump host. The IP is DHCP-assigned on br0 and is
-# only known after the VM boots, so it cannot be set at plan time.
-if [[ "$PROVIDER" == "kvm" ]]; then
-  LIBVIRT_HOST=$(terraform output -raw libvirt_host 2>/dev/null || true)
-  IP_MONITORING=$(terraform output -raw ip_monitoring 2>/dev/null || true)
-  ADMIN_USER=$(terraform output -raw admin_user 2>/dev/null || true)
-
-  if [[ -n "$LIBVIRT_HOST" && -n "$IP_MONITORING" ]]; then
-    echo "==> Discovering monitoring VM external IP (SSH via $LIBVIRT_HOST -> $IP_MONITORING)..."
-    JUMP_HOST=""
-    for i in $(seq 1 24); do
-      # ProxyJump through the KVM host to reach monitoring's mgmt IP (NAT network),
-      # then query all non-internal IPv4 addresses to find the br0 external IP.
-      JUMP_HOST=$(ssh \
-        -o StrictHostKeyChecking=no \
-        -o BatchMode=yes \
-        -o ConnectTimeout=5 \
-        -o ProxyJump="$LIBVIRT_HOST" \
-        "${ADMIN_USER}@${IP_MONITORING}" \
-        'ip -4 addr | grep inet | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v "^192\.0\.2\.\|^127\."' \
-        2>/dev/null | head -1 || true)
-      [[ -n "$JUMP_HOST" ]] && break
-      echo "    waiting for external IP... ($i/24)"
-      sleep 5
-    done
+  if [[ -n "${HYPERVISOR:-}" && -n "$IP_MONITORING" ]]; then
+    step "Discovering monitoring VM external IP (via $HYPERVISOR → $IP_MONITORING)..."
+    JUMP_HOST=$(discover_jump_host "$HYPERVISOR" "$IP_MONITORING" "$ADMIN_USER")
 
     if [[ -n "$JUMP_HOST" ]]; then
-      echo "    found: $JUMP_HOST — regenerating inventory..."
-      # shellcheck disable=SC2086
-      terraform apply \
-        -var-file="../lab.tfvars" \
-        -var-file="${PROVIDER}.tfvars" \
-        -var "jump_host=$JUMP_HOST" \
-        -input=false \
-        -auto-approve \
-        $TF_EXTRA_ARGS
+      info "found: $JUMP_HOST — regenerating inventory with jump host..."
+      tf_apply "$(provider_tf_vars) -var jump_host=$JUMP_HOST"
     else
-      echo "    warning: could not discover monitoring external IP after 2 minutes; jump host not configured"
+      warn "could not discover external IP after 2 minutes; jump host not configured"
     fi
   fi
 fi
 
-echo "==> [2/3] Bootstrapping VMs..."
-cd "$REPO_ROOT"
+step "[2/3] Bootstrapping VMs..."
 # shellcheck disable=SC2086
 ansible-playbook \
   --become \
-  -i ansible-inventory.yml \
+  -i "$REPO_ROOT/ansible-inventory.yml" \
   $ANSIBLE_VERBOSITY \
-  bootstrap/site.yml
+  "$REPO_ROOT/bootstrap/site.yml"
 
-echo "==> [3/3] Deploy OpenNMS Horizon..."
-cd "$REPO_ROOT"
+step "[3/3] Deploying OpenNMS Horizon..."
 # shellcheck disable=SC2086
 ansible-playbook \
   --become \
-  -i ansible-inventory.yml \
+  -i "$REPO_ROOT/ansible-inventory.yml" \
   $ANSIBLE_VERBOSITY \
-  ansible-opennms/site.yml \
-  --extra-vars="@./opennms-lab-vars.yml"
+  "$REPO_ROOT/ansible-opennms/site.yml" \
+  --extra-vars="@$REPO_ROOT/opennms-lab-vars.yml"
