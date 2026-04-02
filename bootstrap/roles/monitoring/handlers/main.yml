@@ -29,3 +29,8 @@
   ansible.builtin.service:
     name: docker-compose@kafka-ui.service
     state: restarted
+
+- name: Restart app-starter
+  ansible.builtin.service:
+    name: docker-compose@app-starter.service
+    state: restarted
