@@ -66,9 +66,6 @@ cd experiments/inventory
 
 ### SNMP simulation routing (one-time setup after VM boot)
 ```bash
-# On SNMP simulator host — expose 10.42.0.0/16 on loopback
-ssh labuser@192.0.2.201 "sudo ip route add local 10.42.0.0/16 dev lo"
-
 # On Minion — route SNMP simulation subnet via simulator
 ssh labuser@192.0.2.199 "sudo ip r a 10.42.0.0/16 via 192.0.2.134"
 ```

@@ -95,10 +95,3 @@
     state: "{{ snmpd_service_state }}"
     enabled: "{{ snmpd_service_enabled }}"
   tags: ["net-snmp"]
-
-- name: Add a 10.42/16 local route on loopback
-  ansible.builtin.command:
-    cmd: ip route add local 10.42.0.0/16 dev lo
-  register: route_result
-  changed_when: route_result.rc == 0
-  failed_when: "route_result.rc != 0 and 'RTNETLINK answers: File exists' not in route_result.stderr"

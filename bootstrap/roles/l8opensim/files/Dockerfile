@@ -12,7 +12,7 @@ RUN go build -mod=mod -o /simulator .
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    iproute2 iptables ca-certificates && \
+    iproute2 iptables ca-certificates procps && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /home/run
 COPY --from=builder /simulator ./simulator
