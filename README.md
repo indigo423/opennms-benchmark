@@ -127,12 +127,10 @@ ssh_key_path   = "~/.ssh/id_rsa"
 **3. Deploy**
 
 ```bash
-cd terraform/azure
-terraform init
-terraform apply -var-file=../lab.tfvars -var-file=azure.tfvars
+./deploy.sh --provider azure
 ```
 
-The monitoring VM receives a public IP. All other VMs are accessible only through the management network.
+The script detects your public IP automatically and passes it as `operator_cidr`. It runs `terraform init` and `terraform apply`, then bootstraps the VMs and deploys the full OpenNMS stack. The monitoring VM receives a public IP — all other VMs are accessible only through the management network.
 
 ---
 
