@@ -2,7 +2,7 @@
 http:
   routers:
     app-starter:
-      rule: "Path(`/`)"
+      rule: "Path(`/`) || PathPrefix(`/_next`)"
       entryPoints:
         - websecure
       service: app-starter
