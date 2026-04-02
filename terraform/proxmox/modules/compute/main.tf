@@ -87,7 +87,6 @@ module "cloud_init_netsim" {
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
   extra_packages = ["qemu-guest-agent"]
-  local_routes   = [var.net_sim_cidr]
   interfaces = [
     { name = "ens18", address = var.ip_netsim, prefix = 26, gateway = var.gateway_mgmt },
     { name = "ens19", address = var.ip_netsim_sim, prefix = 26, gateway = null },

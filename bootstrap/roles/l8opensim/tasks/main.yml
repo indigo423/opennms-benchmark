@@ -1,4 +1,19 @@
 ---
+- name: Disable and remove legacy monitoring-net-ipv4 loopback route service
+  ansible.builtin.systemd:
+    name: monitoring-net-ipv4.service
+    state: stopped
+    enabled: false
+  failed_when: false
+  tags: ["l8opensim"]
+
+- name: Remove legacy monitoring-net-ipv4 service unit file
+  ansible.builtin.file:
+    path: /etc/systemd/system/monitoring-net-ipv4.service
+    state: absent
+  notify: Reload systemd daemon
+  tags: ["l8opensim"]
+
 - name: Create l8opensim build directory
   ansible.builtin.file:
     path: /opt/l8opensim
