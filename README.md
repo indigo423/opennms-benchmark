@@ -199,14 +199,14 @@ Edit `kvm.tfvars` and set `libvirt_uri`:
 **4. Deploy**
 
 ```bash
-cd terraform/kvm
-terraform init
-terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
+./deploy.sh --provider kvm
 ```
+
+The script runs `terraform init` and `terraform apply`, then automatically discovers the monitoring VM's external DHCP address (via SSH through the hypervisor) and re-applies to regenerate the Ansible inventory with the correct `jump_host`. It then bootstraps the VMs and deploys the full OpenNMS stack.
 
 **5. Get VM IP addresses**
 
-VMs on `lab-mgmt` have static IPs from `lab.tfvars`. The monitoring VM gets a DHCP address on the external bridge — query it after boot via `qemu-guest-agent`:
+`deploy.sh` handles the IP discovery automatically. If you need to check addresses manually after deployment:
 
 ```bash
 LIBVIRT_URI="qemu+ssh://user@your-kvm-host/system"
