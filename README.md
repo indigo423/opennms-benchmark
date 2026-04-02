@@ -260,26 +260,10 @@ ssh_key_path         = "~/.ssh/id_rsa"
 **4. Deploy**
 
 ```bash
-cd terraform/proxmox
-terraform init
-terraform apply -var-file=../lab.tfvars -var-file=proxmox.tfvars
+./deploy.sh --provider proxmox
 ```
 
-**5. Set the jump host and re-apply**
-
-After the first apply, the monitoring VM receives a DHCP address on `vmbr4`. Find it in the Proxmox UI or by querying the guest agent, then set `jump_host` in `proxmox.tfvars` and re-apply to regenerate the Ansible inventory with `ProxyJump` enabled:
-
-```bash
-qm guest cmd 200 network-get-interfaces
-```
-
-```hcl
-jump_host = "10.0.0.42"   # external IP of the monitoring VM
-```
-
-```bash
-terraform apply -var-file=../lab.tfvars -var-file=proxmox.tfvars
-```
+The script runs `terraform init` and `terraform apply`, then automatically discovers the monitoring VM's external DHCP address on `vmbr4` (via SSH through the Proxmox host) and re-applies to regenerate the Ansible inventory with the correct `jump_host`. It then bootstraps the VMs and deploys the full OpenNMS stack.
 
 ---
 
