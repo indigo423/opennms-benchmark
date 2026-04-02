@@ -1,6 +1,12 @@
 ---
 http:
   routers:
+    app-starter:
+      rule: "Path(`/`)"
+      entryPoints:
+        - websecure
+      service: app-starter
+      tls: {}
     grafana:
       rule: "PathPrefix(`/grafana`)"
       entryPoints:
@@ -109,3 +115,8 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.0.2.201:8080"
+
+    app-starter:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:3010"
