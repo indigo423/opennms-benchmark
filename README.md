@@ -142,6 +142,31 @@ The monitoring VM receives a public IP. All other VMs are accessible only throug
 
 See [`terraform/kvm/README.md`](terraform/kvm/README.md) for full documentation including remote host deployment and multi-host Terraform workspaces.
 
+**0. Create the external bridge (`br0`)** on the KVM host
+
+The monitoring VM gets its public IP via a bridge to your LAN. Create `br0` using Netplan on the KVM host (Ubuntu 24.04):
+
+```bash
+sudo tee /etc/netplan/01-br0.yaml > /dev/null <<'EOF'
+network:
+  version: 2
+  ethernets:
+    enp1s0:
+      dhcp4: false
+  bridges:
+    br0:
+      interfaces: [enp1s0]
+      dhcp4: true
+      parameters:
+        stp: false
+        forward-delay: 0
+EOF
+sudo netplan apply
+```
+
+> [!NOTE]
+> Replace `enp1s0` with your actual interface name (`ip link` to check). After `netplan apply` your host's IP moves to `br0` — SSH sessions may drop briefly.
+
 **1. Download the Ubuntu 24.04 cloud image** onto the KVM host
 
 ```bash
