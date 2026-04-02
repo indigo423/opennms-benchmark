@@ -1,7 +1,4 @@
 ---
-# l8opensim has 161/udp hard coded anc can't be changed.
-# To avoid conflict with NetSNMP we change the snmpd listening port to 1161
-snmpd_port: 1161
 opennms_distribution: Horizon
 opennms_version: "35.0.4"
 opennms_pkg_version: "{{ opennms_version }}*"
