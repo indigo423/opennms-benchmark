@@ -41,7 +41,3 @@ terraform workspace select host-a
 ```
 
 > Each workspace maintains completely independent state — destroying one host's lab has no effect on others.
-
-## Network Quality Note
-
-All 6 VMs must be connected by a network sufficient to avoid introducing artificial latency into benchmark measurements. On a single KVM host this is inherent. On a multi-host KVM cluster, ensure VMs are placed on the same physical host or connected via a low-latency fabric.
