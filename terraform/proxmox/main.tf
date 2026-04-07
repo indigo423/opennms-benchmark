@@ -78,14 +78,15 @@ module "diagram" {
 module "inventory" {
   source = "../modules/inventory"
 
-  ip_database      = var.ip_database
-  ip_core          = var.ip_core
-  ip_kafka         = var.ip_kafka
-  ip_minion        = var.ip_minion
-  ip_netsim        = var.ip_netsim
-  ip_monitoring    = var.ip_monitoring
-  ip_elasticsearch = var.ip_elasticsearch
-  admin_user       = var.admin_user
-  ssh_key_path     = var.ssh_key_path
-  jump_host        = var.jump_host
+  ip_database          = var.ip_database
+  ip_core              = var.ip_core
+  ip_kafka             = var.ip_kafka
+  ip_minion            = var.ip_minion
+  ip_netsim            = var.ip_netsim
+  ip_monitoring        = var.ip_monitoring
+  ip_elasticsearch     = var.ip_elasticsearch
+  admin_user           = var.admin_user
+  ssh_key_path         = var.ssh_key_path
+  jump_host            = var.jump_host
+  netsim_sim_interface = "ens19"
 }

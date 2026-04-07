@@ -17,6 +17,7 @@ all:
       ansible_host: ${ip_minion}
     netsim-benchmark-01:
       ansible_host: ${ip_netsim}
+      l8opensim_net_interface: "${netsim_sim_interface}"
     es-benchmark-01:
       ansible_host: ${ip_elasticsearch}
     mon-benchmark-01:
