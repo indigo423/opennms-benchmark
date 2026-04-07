@@ -1,0 +1,15 @@
+[Unit]
+Description=Allow forwarding to l8opensim simulated devices ({{ l8opensim_sim_network }})
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/iptables -C DOCKER-USER -o {{ l8opensim_net_interface }} -s {{ l8opensim_sim_network }} -j ACCEPT 2>/dev/null || /usr/sbin/iptables -I DOCKER-USER 1 -o {{ l8opensim_net_interface }} -s {{ l8opensim_sim_network }} -j ACCEPT
+ExecStart=/usr/sbin/iptables -C DOCKER-USER -i {{ l8opensim_net_interface }} -d {{ l8opensim_sim_network }} -j ACCEPT 2>/dev/null || /usr/sbin/iptables -I DOCKER-USER 1 -i {{ l8opensim_net_interface }} -d {{ l8opensim_sim_network }} -j ACCEPT
+ExecStop=/usr/sbin/iptables -D DOCKER-USER -o {{ l8opensim_net_interface }} -s {{ l8opensim_sim_network }} -j ACCEPT || true
+ExecStop=/usr/sbin/iptables -D DOCKER-USER -i {{ l8opensim_net_interface }} -d {{ l8opensim_sim_network }} -j ACCEPT || true
+
+[Install]
+WantedBy=multi-user.target

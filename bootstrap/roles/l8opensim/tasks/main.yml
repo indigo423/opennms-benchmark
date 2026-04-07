@@ -14,6 +14,27 @@
   notify: Reload systemd daemon
   tags: ["l8opensim"]
 
+- name: Install opensim-forward systemd service
+  ansible.builtin.template:
+    src: opensim-forward.service.j2
+    dest: /etc/systemd/system/opensim-forward.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd daemon
+  tags: ["l8opensim"]
+
+- name: Flush handlers to reload systemd before starting opensim-forward
+  ansible.builtin.meta: flush_handlers
+  tags: ["l8opensim"]
+
+- name: Enable and start opensim-forward service
+  ansible.builtin.systemd:
+    name: opensim-forward.service
+    enabled: true
+    state: started
+  tags: ["l8opensim"]
+
 - name: Pull l8opensim image
   community.docker.docker_image:
     name: "{{ l8opensim_image }}"
