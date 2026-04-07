@@ -1,5 +1,5 @@
 ---
-l8opensim_image: "l8opensim:latest"
+l8opensim_image: "ghcr.io/labmonkeys-space/l8opensim:v0.1.0"
 l8opensim_auto_start_ip: "10.42.0.1"
 l8opensim_auto_count: 100
 l8opensim_auto_netmask: "16"

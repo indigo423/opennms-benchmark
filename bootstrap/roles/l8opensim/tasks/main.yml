@@ -14,27 +14,10 @@
   notify: Reload systemd daemon
   tags: ["l8opensim"]
 
-- name: Create l8opensim build directory
-  ansible.builtin.file:
-    path: /opt/l8opensim
-    state: directory
-    mode: "0755"
-  tags: ["l8opensim"]
-
-- name: Copy l8opensim Dockerfile
-  ansible.builtin.copy:
-    src: Dockerfile
-    dest: /opt/l8opensim/Dockerfile
-    mode: "0644"
-  tags: ["l8opensim"]
-
-- name: Build l8opensim image
+- name: Pull l8opensim image
   community.docker.docker_image:
     name: "{{ l8opensim_image }}"
-    source: build
-    build:
-      path: /opt/l8opensim
-      pull: true
+    source: pull
     force_source: true
   tags: ["l8opensim"]
 
