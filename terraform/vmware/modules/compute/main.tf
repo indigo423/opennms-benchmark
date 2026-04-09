@@ -88,7 +88,6 @@ module "cloud_init_netsim" {
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
-  local_routes   = [var.net_sim_cidr]
   interfaces = [
     { name = "ens160", address = var.ip_netsim, prefix = 26, gateway = var.gateway_mgmt },
     { name = "ens192", address = var.ip_netsim_sim, prefix = 26, gateway = null },
