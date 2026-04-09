@@ -87,5 +87,5 @@ If you need to set it manually:
 ssh ubuntu@192.0.2.200 ip -4 addr show ens192
 
 # Re-apply with the discovered IP
-terraform apply -var-file=../lab.tfvars -var-file=vmware.tfvars -var jump_host=<ip>
+terraform apply -var-file=../lab.tfvars -var-file=../disk-sizes.tfvars -var-file=vmware.tfvars -var jump_host=<ip>
 ```

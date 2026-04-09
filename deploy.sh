@@ -68,6 +68,12 @@ case "$PROVIDER" in
   *) echo "Error: provider must be 'azure', 'kvm', 'proxmox', or 'vmware'" >&2; error_usage ;;
 esac
 
+# lab.tfvars is provider-agnostic; disk-sizes.tfvars is not supported by azure.
+COMMON_VAR_FILES=(-var-file="../lab.tfvars")
+if [[ "$PROVIDER" != "azure" ]]; then
+  COMMON_VAR_FILES+=(-var-file="../disk-sizes.tfvars")
+fi
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TF_DIR="$REPO_ROOT/terraform/$PROVIDER"
 TFVARS_FILE="$TF_DIR/${PROVIDER}.tfvars"
@@ -129,7 +135,7 @@ tf_init() {
 
 tf_apply() {
   terraform -chdir="$TF_DIR" apply \
-    -var-file="../lab.tfvars" \
+    "${COMMON_VAR_FILES[@]}" \
     -var-file="${PROVIDER}.tfvars" \
     "$@" \
     "${TF_EXTRA_ARGS[@]+"${TF_EXTRA_ARGS[@]}"}" \
@@ -139,7 +145,7 @@ tf_apply() {
 
 tf_destroy() {
   terraform -chdir="$TF_DIR" destroy \
-    -var-file="../lab.tfvars" \
+    "${COMMON_VAR_FILES[@]}" \
     -var-file="${PROVIDER}.tfvars" \
     "$@" \
     "${TF_EXTRA_ARGS[@]+"${TF_EXTRA_ARGS[@]}"}" \
