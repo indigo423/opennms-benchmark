@@ -16,10 +16,10 @@ set -euo pipefail
 
 usage() {
   cat <<EOF
-Usage: $0 --provider <azure|kvm|proxmox> [OPTIONS]
+Usage: $0 --provider <azure|kvm|proxmox|vmware> [OPTIONS]
 
 Options:
-  --provider  <azure|kvm|proxmox>   Target infrastructure provider (required)
+  --provider  <azure|kvm|proxmox|vmware>   Target infrastructure provider (required)
   --destroy                         Tear down all lab resources
   --tf-args   "<args>"              Extra arguments passed verbatim to terraform
   -v|-vv|-vvv|-vvvv                 Ansible verbosity
@@ -29,8 +29,10 @@ Examples:
   $0 --provider azure
   $0 --provider kvm
   $0 --provider proxmox
+  $0 --provider vmware
   $0 --provider azure --destroy
   $0 --provider proxmox --tf-args "-var proxmox_insecure=true"
+  $0 --provider vmware --tf-args "-var vsphere_insecure=true"
   $0 --provider kvm -vvv
 EOF
 }
@@ -62,8 +64,8 @@ done
 
 [[ -z "$PROVIDER" ]] && { echo "Error: --provider is required" >&2; error_usage; }
 case "$PROVIDER" in
-  azure|kvm|proxmox) ;;
-  *) echo "Error: provider must be 'azure', 'kvm', or 'proxmox'" >&2; error_usage ;;
+  azure|kvm|proxmox|vmware) ;;
+  *) echo "Error: provider must be 'azure', 'kvm', 'proxmox', or 'vmware'" >&2; error_usage ;;
 esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -171,16 +173,19 @@ tf_apply "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}"
 # KVM and Proxmox: the monitoring VM's external (jump host) IP is DHCP-assigned
 # after boot and cannot be known at plan time.  Discover it via SSH through the
 # hypervisor, then re-apply to regenerate the Ansible inventory with ProxyJump.
-if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" ]]; then
+if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" || "$PROVIDER" == "vmware" ]]; then
   IP_MONITORING=$(tf_output ip_monitoring)
   ADMIN_USER=$(tf_output admin_user)
 
   if [[ "$PROVIDER" == "kvm" ]]; then
     HYPERVISOR=$(tf_output libvirt_host)
-  else
+  elif [[ "$PROVIDER" == "proxmox" ]]; then
     # Proxmox: derive SSH host from the API endpoint URL.
     PROXMOX_ENDPOINT=$(tf_output proxmox_endpoint)
     HYPERVISOR=$(echo "$PROXMOX_ENDPOINT" | sed 's|https\?://||; s|[:/].*||')
+  else
+    # VMware: SSH directly to the ESXi host (or vCenter) to probe the monitoring VM.
+    HYPERVISOR=$(tf_output vsphere_server)
   fi
 
   if [[ -n "$HYPERVISOR" && -n "$IP_MONITORING" ]]; then

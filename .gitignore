@@ -52,6 +52,9 @@ terraform/kvm/kvm.tfvars
 # Proxmox tfvars contains an API token — gitignored, use proxmox.tfvars.example as template
 terraform/proxmox/proxmox.tfvars
 
+# VMware tfvars contains a vCenter password — gitignored, use vmware.tfvars.example as template
+terraform/vmware/vmware.tfvars
+
 # CLI config files
 .terraformrc
 terraform.rc

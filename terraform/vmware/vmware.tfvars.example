@@ -1,0 +1,62 @@
+# VMware vSphere variables
+# Usage:
+#   cp vmware.tfvars.example vmware.tfvars
+#   # Edit vmware.tfvars with your real values (it is gitignored)
+#   terraform init
+#   terraform apply -var-file=../lab.tfvars -var-file=vmware.tfvars
+
+# vCenter connection
+vsphere_server   = "vcenter.example.com"  # Replace with your vCenter hostname or IP
+vsphere_user     = "administrator@vsphere.local"
+vsphere_password = ""                     # Set via TF_VAR_vsphere_password env var
+vsphere_insecure = false                  # Set true only if vCenter has a self-signed certificate
+
+# vSphere topology
+datacenter = "dc1"       # Datacenter name as shown in the vSphere UI
+cluster    = "cluster1"  # Cluster or standalone host name
+datastore  = "datastore1"
+
+# Template VM — create once before running terraform apply:
+#   1. Deploy an Ubuntu 24.04 LTS cloud image OVA (or import the cloud .vmdk):
+#        govc import.ova noble-server-cloudimg-amd64.ova
+#   2. Ensure open-vm-tools and cloud-init are installed:
+#        apt install -y open-vm-tools cloud-init
+#   3. Sysprep / generalize:
+#        cloud-init clean --logs
+#        shutdown -h now
+#   4. Convert VM to template in vSphere (right-click → Convert to Template)
+#
+# The name must match exactly as shown in the vSphere VM inventory.
+template_name = "ubuntu-2404-cloud-init"
+
+# SSH key for VM access
+ssh_key_path = "~/.ssh/id_rsa"
+
+# Port groups — create these on a vSwitch or dvSwitch before running terraform apply.
+# Each port group corresponds to one lab subnet. Internal port groups (pg_db, pg_kafka,
+# pg_sim) carry only lab traffic and do not need uplinks. pg_mgmt and pg_ext need
+# uplinks for operator SSH access and DHCP.
+#
+# VM interface names inside Ubuntu 24.04 VMs with VMXNET3 (PCI slot order):
+#   ens160 = first NIC, ens192 = second, ens224 = third, ens256 = fourth.
+# Verify on your setup with: ssh ubuntu@<vm-ip> ip link
+pg_mgmt  = "PG-LAB-MGMT"   # Management subnet 192.0.2.192/26 — static IPs, operator SSH
+pg_db    = "PG-LAB-DB"     # Database subnet 192.0.2.0/26
+pg_kafka = "PG-LAB-KAFKA"  # Kafka subnet 192.0.2.64/26
+pg_sim   = "PG-LAB-SIM"    # SNMP simulation subnet 192.0.2.128/26
+pg_ext   = "PG-LAB-EXT"    # External DHCP port group — monitoring VM gets a routable IP on this NIC
+
+# Disk sizes — IMPORTANT: if overriding, provide ALL seven keys. Terraform replaces the
+# entire map; a partial override drops the remaining keys and causes a plan error.
+# disk_sizes_gb = {
+#   database      = 20
+#   core          = 30
+#   kafka         = 20
+#   minion        = 20
+#   netsim        = 20
+#   monitoring    = 30
+#   elasticsearch = 50
+# }
+
+# jump_host = ""  # Set after first apply: external IP of the monitoring VM (from pg_ext DHCP).
+#                 # Re-run apply to regenerate the Ansible inventory with ProxyJump enabled.
