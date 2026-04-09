@@ -128,8 +128,13 @@ fi
 opennms_base="https://${OPENNMS_HOST}:${OPENNMS_PORT}/opennms"
 curl_opts=(-sk -u "${OPENNMS_USER}:${OPENNMS_PASS}" -H "Content-Type: application/xml" -H "Accept: application/xml")
 
+tmp=$(mktemp /tmp/opensim-requisition.XXXXXX.xml)
+chmod 600 "$tmp"
+trap 'rm -f "$tmp"' EXIT
+printf '%s' "$requisition" > "$tmp"
+
 echo -n "Uploading requisition  ... "
-curl "${curl_opts[@]}" -X POST -d "$requisition" \
+curl "${curl_opts[@]}" -X POST -d "@${tmp}" \
   "${opennms_base}/rest/requisitions"
 echo "done"
 
