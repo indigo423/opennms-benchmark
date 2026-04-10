@@ -69,29 +69,6 @@
     enabled: true
   tags: ["monitoring", "jaeger"]
 
-- name: Create Kibana directory
-  ansible.builtin.file:
-    path: /etc/docker/kibana
-    state: directory
-    mode: "0755"
-  tags: ["monitoring", "kibana"]
-
-- name: Deploy Kibana compose
-  ansible.builtin.copy:
-    src: kibana/compose.yml
-    dest: /etc/docker/kibana/compose.yml
-    mode: "0644"
-  notify:
-    - Restart kibana
-  tags: ["monitoring", "kibana"]
-
-- name: Enable Kibana as a service
-  ansible.builtin.service:
-    name: docker-compose@kibana.service
-    state: started
-    enabled: true
-  tags: ["monitoring", "kibana"]
-
 
 - name: Enable IPv4 forwarding temporarily
   ansible.posix.sysctl:

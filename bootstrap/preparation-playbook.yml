@@ -38,6 +38,7 @@
     - monitoring
     - pgadmin
     - app_starter
+    - kibana
     - traefik
 
 - name: Net-Simulator

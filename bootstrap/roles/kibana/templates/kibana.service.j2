@@ -1,0 +1,25 @@
+[Unit]
+Description=Kibana
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop kibana
+ExecStartPre=-/usr/bin/docker rm kibana
+ExecStart=/usr/bin/docker run \
+  --name kibana \
+  -p {{ kibana_port }}:5601 \
+  --cpus={{ kibana_cpus }} \
+  --memory={{ kibana_memory }} \
+  -e TZ={{ kibana_tz }} \
+  -e ELASTICSEARCH_HOSTS={{ kibana_elasticsearch_hosts }} \
+  -e SERVER_BASEPATH={{ kibana_server_basepath }} \
+  -e SERVER_REWRITEBASEPATH={{ kibana_server_rewritebasepath }} \
+  -e XPACK_SECURITY_ENABLED={{ kibana_xpack_security_enabled }} \
+  {{ kibana_image }}
+ExecStop=/usr/bin/docker stop kibana
+
+[Install]
+WantedBy=multi-user.target

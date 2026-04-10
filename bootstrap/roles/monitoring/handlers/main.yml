@@ -14,8 +14,3 @@
   ansible.builtin.service:
     name: docker-compose@jaeger.service
     state: restarted
-
-- name: Restart kibana
-  ansible.builtin.service:
-    name: docker-compose@kibana.service
-    state: restarted

@@ -1,0 +1,21 @@
+---
+- name: Deploy Kibana systemd unit
+  ansible.builtin.template:
+    src: kibana.service.j2
+    dest: /etc/systemd/system/kibana.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart kibana
+  tags: ["monitoring", "kibana"]
+
+- name: Flush handlers before enabling Kibana service
+  ansible.builtin.meta: flush_handlers
+  tags: ["monitoring", "kibana"]
+
+- name: Enable Kibana as a service
+  ansible.builtin.service:
+    name: kibana.service
+    state: started
+    enabled: true
+  tags: ["monitoring", "kibana"]

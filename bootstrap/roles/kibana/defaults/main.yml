@@ -1,0 +1,10 @@
+---
+kibana_image: docker.elastic.co/kibana/kibana:8.18.2
+kibana_port: "5601"
+kibana_cpus: "1.0"
+kibana_memory: 1g
+kibana_tz: UTC
+kibana_elasticsearch_hosts: http://192.0.2.202:9200
+kibana_server_basepath: /kibana
+kibana_server_rewritebasepath: "true"
+kibana_xpack_security_enabled: "false"
