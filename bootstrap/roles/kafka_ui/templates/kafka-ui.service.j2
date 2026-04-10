@@ -1,0 +1,24 @@
+[Unit]
+Description=Kafka UI
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop kafka-ui
+ExecStartPre=-/usr/bin/docker rm kafka-ui
+ExecStart=/usr/bin/docker run --rm \
+  --name kafka-ui \
+  -p {{ kafka_ui_port }}:8080 \
+  --cpus={{ kafka_ui_cpus }} \
+  --memory={{ kafka_ui_memory }} \
+  -e TZ={{ kafka_ui_tz }} \
+  -e KAFKA_CLUSTERS_0_NAME={{ kafka_ui_cluster_name }} \
+  -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS={{ kafka_ui_bootstrap_servers }} \
+  -e SERVER_SERVLET_CONTEXT_PATH={{ kafka_ui_context_path }} \
+  {{ kafka_ui_image }}
+ExecStop=/usr/bin/docker stop kafka-ui
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,9 @@
 ---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
 - name: Restart kafka-ui
   ansible.builtin.service:
-    name: docker-compose@kafka-ui.service
+    name: kafka-ui.service
     state: restarted

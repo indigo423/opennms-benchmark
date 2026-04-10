@@ -1,0 +1,9 @@
+---
+kafka_ui_image: ghcr.io/kafbat/kafka-ui:latest
+kafka_ui_port: "8080"
+kafka_ui_cpus: "0.5"
+kafka_ui_memory: 512m
+kafka_ui_tz: UTC
+kafka_ui_cluster_name: opennms-benchmark
+kafka_ui_bootstrap_servers: 192.0.2.68:9092
+kafka_ui_context_path: /kafka
