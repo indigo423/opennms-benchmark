@@ -9,6 +9,10 @@
     - Restart kafka-ui
   tags: ["monitoring", "kafka-ui"]
 
+- name: Flush handlers before enabling service
+  ansible.builtin.meta: flush_handlers
+  tags: ["monitoring", "kafka-ui"]
+
 - name: Enable Kafka UI as a service
   ansible.builtin.service:
     name: kafka-ui.service
