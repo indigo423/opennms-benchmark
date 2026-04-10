@@ -1,7 +1,8 @@
 [Unit]
 Description=Allow forwarding to l8opensim simulated devices ({{ l8opensim_sim_network }})
-After=docker.service
+After=docker.service l8opensim.service
 Requires=docker.service
+BindsTo=l8opensim.service
 
 [Service]
 Type=oneshot
