@@ -33,16 +33,16 @@ The lab deploys 7 virtual machines. Each VM needs at least 2 NICs (management + 
 
 Default VM sizes map to Azure SKUs. For other providers (KVM, Proxmox, VMware) you set these values directly in the provider's `.tfvars`.
 
-| VM | Role | Azure size | vCPU | RAM |
-|:---|:-----|:-----------|-----:|----:|
-| `db-benchmark-01` | PostgreSQL | `Standard_B2ms` | 2 | 8 GB |
-| `core-benchmark-01` | OpenNMS Core (8 GB JVM heap) | `Standard_B4ms` | 4 | 16 GB |
-| `kafka-benchmark-01` | Apache Kafka + Kafka UI | `Standard_B2ms` | 2 | 8 GB |
-| `minion-benchmark-01` | OpenNMS Minion | `Standard_B2ms` | 2 | 8 GB |
-| `netsim-benchmark-01` | SNMP Simulator (l8opensim) | `Standard_B2ms` | 2 | 8 GB |
-| `mon-benchmark-01` | Monitoring stack (Prometheus, Grafana, Jaeger, …) | `Standard_B2ms` | 2 | 8 GB |
-| `es-benchmark-01` | Elasticsearch | `Standard_B2ms` | 2 | 8 GB |
-| **Total** | | | **16** | **64 GB** |
+| VM | Role | Azure size | vCPU | RAM | NICs |
+|:---|:-----|:-----------|-----:|----:|-----:|
+| `db-benchmark-01` | PostgreSQL | `Standard_B2ms` | 2 | 8 GB | 2 |
+| `core-benchmark-01` | OpenNMS Core (8 GB JVM heap) | `Standard_B4ms` | 4 | 16 GB | 3 |
+| `kafka-benchmark-01` | Apache Kafka + Kafka UI | `Standard_B2ms` | 2 | 8 GB | 2 |
+| `minion-benchmark-01` | OpenNMS Minion | `Standard_B2ms` | 2 | 8 GB | 3 |
+| `netsim-benchmark-01` | SNMP Simulator (l8opensim) | `Standard_B2ms` | 2 | 8 GB | 2 |
+| `mon-benchmark-01` | Monitoring stack (Prometheus, Grafana, Jaeger, …) | `Standard_B2ms` | 2 | 8 GB | 2 |
+| `es-benchmark-01` | Elasticsearch | `Standard_B2ms` | 2 | 8 GB | 2 |
+| **Total** | | | **16** | **64 GB** | |
 
 ### Storage
 
