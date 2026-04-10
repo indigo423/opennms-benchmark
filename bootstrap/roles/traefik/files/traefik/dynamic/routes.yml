@@ -24,8 +24,6 @@ http:
       entryPoints:
         - websecure
       service: jaeger
-      middlewares:
-        - jaeger-strip
       tls: {}
     opennms:
       rule: "PathPrefix(`/opennms`)"
@@ -68,10 +66,6 @@ http:
       service: opensim
       tls: {}
   middlewares:
-    jaeger-strip:
-      stripPrefix:
-        prefixes:
-          - /jaeger
     kibana-strip:
       stripPrefix:
         prefixes:
