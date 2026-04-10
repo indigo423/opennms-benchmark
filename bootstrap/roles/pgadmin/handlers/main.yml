@@ -1,0 +1,9 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart pgadmin
+  ansible.builtin.service:
+    name: pgadmin.service
+    state: restarted

@@ -1,0 +1,21 @@
+---
+- name: Deploy pgAdmin systemd unit
+  ansible.builtin.template:
+    src: pgadmin.service.j2
+    dest: /etc/systemd/system/pgadmin.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart pgadmin
+  tags: ["monitoring", "pgadmin"]
+
+- name: Flush handlers before enabling pgAdmin service
+  ansible.builtin.meta: flush_handlers
+  tags: ["monitoring", "pgadmin"]
+
+- name: Enable pgAdmin as a service
+  ansible.builtin.service:
+    name: pgadmin.service
+    state: started
+    enabled: true
+  tags: ["monitoring", "pgadmin"]

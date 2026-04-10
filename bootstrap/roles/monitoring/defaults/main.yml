@@ -4,6 +4,3 @@ opennms_datasource_db_port: 5432
 opennms_datasource_db_name: onms_benchmark
 opennms_datasource_db_user: opennms
 opennms_datasource_db_password: p4a55word!
-
-pgadmin_default_email: admin@benchmark.lab
-pgadmin_default_password: admin

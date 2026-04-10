@@ -46,29 +46,6 @@
   notify: Restart grafana
   tags: ["monitoring", "grafana"]
 
-- name: Create pgAdmin directory
-  ansible.builtin.file:
-    path: /etc/docker/pgadmin
-    state: directory
-    mode: "0755"
-  tags: ["monitoring", "pgadmin"]
-
-- name: Create pgAdmin compose
-  ansible.builtin.template:
-    src: pgadmin/compose.yml.j2
-    dest: /etc/docker/pgadmin/compose.yml
-    mode: "0644"
-  notify:
-    - Restart pgadmin
-  tags: ["monitoring", "pgadmin"]
-
-- name: Enable pgAdmin as a service
-  ansible.builtin.service:
-    name: docker-compose@pgadmin.service
-    state: started
-    enabled: true
-  tags: ["monitoring", "pgadmin"]
-
 - name: Create Jaeger directory
   ansible.builtin.file:
     path: /etc/docker/jaeger

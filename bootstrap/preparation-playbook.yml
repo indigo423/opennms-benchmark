@@ -36,6 +36,7 @@
   become: true
   roles:
     - monitoring
+    - pgadmin
     - traefik
 
 - name: Net-Simulator

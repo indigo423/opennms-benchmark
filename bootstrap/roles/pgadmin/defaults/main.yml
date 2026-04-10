@@ -1,0 +1,10 @@
+---
+pgadmin_image: dpage/pgadmin4:latest
+pgadmin_port: "5050"
+pgadmin_cpus: "1.0"
+pgadmin_memory: 512m
+pgadmin_tz: UTC
+pgadmin_default_email: admin@benchmark.lab
+pgadmin_default_password: admin
+pgadmin_script_name: /pgadmin
+pgadmin_data_volume: data-pgadmin

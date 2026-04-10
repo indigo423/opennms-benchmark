@@ -1,0 +1,25 @@
+[Unit]
+Description=pgAdmin 4
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop pgadmin
+ExecStartPre=-/usr/bin/docker rm pgadmin
+ExecStart=/usr/bin/docker run \
+  --name pgadmin \
+  -p {{ pgadmin_port }}:80 \
+  --cpus={{ pgadmin_cpus }} \
+  --memory={{ pgadmin_memory }} \
+  -e TZ={{ pgadmin_tz }} \
+  -e PGADMIN_DEFAULT_EMAIL={{ pgadmin_default_email }} \
+  -e PGADMIN_DEFAULT_PASSWORD={{ pgadmin_default_password }} \
+  -e SCRIPT_NAME={{ pgadmin_script_name }} \
+  -v {{ pgadmin_data_volume }}:/var/lib/pgadmin \
+  {{ pgadmin_image }}
+ExecStop=/usr/bin/docker stop pgadmin
+
+[Install]
+WantedBy=multi-user.target
