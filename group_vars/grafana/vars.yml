@@ -14,6 +14,6 @@ grafana_ini:
     type: sqlite3
   auth: {}
 
-# Dashboards are provisioned by bootstrap/roles/monitoring, not this collection.
+# Dashboards are provisioned by bootstrap/roles/grafana, not this collection.
 # Point to a non-existent path so the collection skips its custom dashboard import block.
 grafana_dashboards_dir: "/nonexistent/grafana-dashboards"
