@@ -15,6 +15,11 @@ onns_hzn_base_url: http://192.0.2.197:8980
 opennms_es_host: "192.0.2.202"
 opennms_es_port: 9200
 
+# Datasources are provisioned by bootstrap/roles/grafana via files.
+# Empty list overrides the submodule's group_vars (which the collection
+# would otherwise use to call its datasource module — rejecting plugin types).
+grafana_datasources: []
+
 es_jvm_options: {}
 es_configuration:
   action.destructive_requires_name: true
