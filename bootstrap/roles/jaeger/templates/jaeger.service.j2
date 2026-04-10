@@ -15,7 +15,8 @@ ExecStart=/usr/bin/docker run \
   --cpus={{ jaeger_cpus }} \
   --memory={{ jaeger_memory }} \
   -e TZ={{ jaeger_tz }} \
-  {{ jaeger_image }}
+  {{ jaeger_image }} \
+  --query.base-path={{ jaeger_query_base_path }}
 ExecStop=/usr/bin/docker stop jaeger
 
 [Install]

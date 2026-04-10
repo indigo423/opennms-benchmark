@@ -5,3 +5,4 @@ jaeger_port_ui: "16686"
 jaeger_cpus: "1.0"
 jaeger_memory: 256m
 jaeger_tz: UTC
+jaeger_query_base_path: /jaeger
