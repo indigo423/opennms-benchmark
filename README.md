@@ -25,22 +25,59 @@ There is a [Wiki](https://github.com/opennms-forge/opennms-benchmark/wiki) with 
 
 ![](assets/ck1m.svg)
 
-## ⚙️ Compute and Storage
+## ⚙️ Requirements
 
-This benchmark lab deploys 7 virtual machines and wires them in specific way together.
+The lab deploys 7 virtual machines. Each VM needs at least 2 NICs (management + one functional subnet); Core and Minion need 3.
 
-> [!NOTE]
-> You need Virtual Machine specifications that can handle at least 3 network interfaces
+### Compute
 
-| Virtual Machine    | Description                  |
-|:-------------------|:-----------------------------|
-| OpenNMS Core       | OpenNMS Horizon              |
-| PostgreSQL         | PostgreSQL                   |
-| Apache Kafka       | Kafka with Kafka UI          |
-| OpenNMS Minion     | OpenNMS Horizon              |
-| Net-SNMP Simulator | Net-SNMP Agent               |
-| Monitoring         | Prometheus, Jaeger, Grafana  |
-| Elasticsearch      | Elasticsearch with Drift plugin |
+Default VM sizes map to Azure SKUs. For other providers (KVM, Proxmox, VMware) you set these values directly in the provider's `.tfvars`.
+
+| VM | Role | Azure size | vCPU | RAM |
+|:---|:-----|:-----------|-----:|----:|
+| `db-benchmark-01` | PostgreSQL | `Standard_B2ms` | 2 | 8 GB |
+| `core-benchmark-01` | OpenNMS Core (8 GB JVM heap) | `Standard_B4ms` | 4 | 16 GB |
+| `kafka-benchmark-01` | Apache Kafka + Kafka UI | `Standard_B2ms` | 2 | 8 GB |
+| `minion-benchmark-01` | OpenNMS Minion | `Standard_B2ms` | 2 | 8 GB |
+| `netsim-benchmark-01` | SNMP Simulator (l8opensim) | `Standard_B2ms` | 2 | 8 GB |
+| `mon-benchmark-01` | Monitoring stack (Prometheus, Grafana, Jaeger, …) | `Standard_B2ms` | 2 | 8 GB |
+| `es-benchmark-01` | Elasticsearch | `Standard_B2ms` | 2 | 8 GB |
+| **Total** | | | **16** | **64 GB** |
+
+### Storage
+
+OS disk sizes below are the defaults used by the non-Azure Terraform providers. Azure provisions the Ubuntu 24.04 LTS image default (~30 GB) unless overridden.
+
+| VM | OS disk |
+|:---|--------:|
+| `db-benchmark-01` | 50 GB |
+| `core-benchmark-01` | 100 GB |
+| `kafka-benchmark-01` | 50 GB |
+| `minion-benchmark-01` | 20 GB |
+| `netsim-benchmark-01` | 20 GB |
+| `mon-benchmark-01` | 30 GB |
+| `es-benchmark-01` | 50 GB |
+| **Total** | **320 GB** |
+
+### Network
+
+The lab uses four isolated subnets inside `192.0.2.0/24` plus one DHCP/public interface on the monitoring VM. Only the monitoring VM requires a publicly routable IP.
+
+| Subnet | CIDR | Purpose |
+|:-------|:-----|:--------|
+| Management | `192.0.2.192/26` | Operator SSH, Ansible, out-of-band access to all VMs |
+| Database | `192.0.2.0/26` | PostgreSQL and Elasticsearch traffic |
+| Kafka | `192.0.2.64/26` | Kafka broker, OpenNMS IPC (Core ↔ Kafka ↔ Minion) |
+| Simulation | `192.0.2.128/26` | SNMP simulation (Minion ↔ NetSim, `10.42.0.0/16` route) |
+
+**Inbound firewall rules required on the monitoring VM:**
+
+| Port | Protocol | Source | Purpose |
+|-----:|:---------|:-------|:--------|
+| 22 | TCP | operator CIDR | SSH access |
+| 443 | TCP | operator CIDR | HTTPS (Traefik — all web UIs) |
+
+All inter-VM communication stays on the internal subnets and requires no additional inbound rules.
 
 ## ⛓️ Networking
 
