@@ -51,6 +51,7 @@ module "compute" {
   network_mgmt_id     = module.network.network_mgmt_id
   network_external_id = module.network.network_external_id
   gateway_mgmt        = cidrhost(var.subnet_mgmt, 1)
+  disk_sizes_gb       = var.disk_sizes_gb
 }
 
 module "diagram" {

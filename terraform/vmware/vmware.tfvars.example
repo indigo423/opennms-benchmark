@@ -3,7 +3,7 @@
 #   cp vmware.tfvars.example vmware.tfvars
 #   # Edit vmware.tfvars with your real values (it is gitignored)
 #   terraform init
-#   terraform apply -var-file=../lab.tfvars -var-file=vmware.tfvars
+#   terraform apply -var-file=../lab.tfvars -var-file=../disk-sizes.tfvars -var-file=vmware.tfvars
 
 # vCenter connection
 vsphere_server   = "vcenter.example.com"  # Replace with your vCenter hostname or IP
@@ -49,9 +49,9 @@ pg_ext   = "PG-LAB-EXT"    # External DHCP port group — monitoring VM gets a r
 # Disk sizes — IMPORTANT: if overriding, provide ALL seven keys. Terraform replaces the
 # entire map; a partial override drops the remaining keys and causes a plan error.
 # disk_sizes_gb = {
-#   database      = 20
-#   core          = 30
-#   kafka         = 20
+#   database      = 50
+#   core          = 100
+#   kafka         = 50
 #   minion        = 20
 #   netsim        = 20
 #   monitoring    = 30

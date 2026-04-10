@@ -36,3 +36,17 @@ variable "jump_host" {
   type    = string
   default = ""
 }
+
+variable "disk_sizes_gb" {
+  type        = map(number)
+  description = "Disk size in GB per VM"
+  default = {
+    database      = 50
+    core          = 100
+    kafka         = 50
+    minion        = 20
+    netsim        = 20
+    monitoring    = 30
+    elasticsearch = 50
+  }
+}

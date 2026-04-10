@@ -125,9 +125,9 @@ variable "disk_sizes_gb" {
   type        = map(number)
   description = "Disk size in GB per VM"
   default = {
-    database      = 20
-    core          = 30
-    kafka         = 20
+    database      = 50
+    core          = 100
+    kafka         = 50
     minion        = 20
     netsim        = 20
     monitoring    = 30
