@@ -1,0 +1,9 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart jaeger
+  ansible.builtin.service:
+    name: jaeger.service
+    state: restarted

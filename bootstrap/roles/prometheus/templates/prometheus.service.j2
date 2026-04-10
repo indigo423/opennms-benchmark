@@ -1,0 +1,32 @@
+[Unit]
+Description=Prometheus
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop prometheus
+ExecStartPre=-/usr/bin/docker rm prometheus
+ExecStartPre=/usr/bin/docker run --rm \
+  -v data-prometheus:/prometheus/data \
+  busybox chown -R 65534:65534 /prometheus/data
+ExecStart=/usr/bin/docker run \
+  --name prometheus \
+  -p {{ prometheus_port }}:9090 \
+  --cpus={{ prometheus_cpus }} \
+  --memory={{ prometheus_memory }} \
+  -u 65534 \
+  -e TZ={{ prometheus_tz }} \
+  -v data-prometheus:/prometheus/data \
+  -v {{ prometheus_config_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro \
+  {{ prometheus_image }} \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --web.enable-remote-write-receiver \
+  --storage.tsdb.retention.time={{ prometheus_retention_time }} \
+  --web.external-url=/prometheus \
+  --web.route-prefix=/prometheus
+ExecStop=/usr/bin/docker stop prometheus
+
+[Install]
+WantedBy=multi-user.target

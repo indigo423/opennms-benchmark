@@ -1,0 +1,22 @@
+[Unit]
+Description=Jaeger
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop jaeger
+ExecStartPre=-/usr/bin/docker rm jaeger
+ExecStart=/usr/bin/docker run \
+  --name jaeger \
+  -p {{ jaeger_port_collector }}:14268 \
+  -p {{ jaeger_port_ui }}:16686 \
+  --cpus={{ jaeger_cpus }} \
+  --memory={{ jaeger_memory }} \
+  -e TZ={{ jaeger_tz }} \
+  {{ jaeger_image }}
+ExecStop=/usr/bin/docker stop jaeger
+
+[Install]
+WantedBy=multi-user.target

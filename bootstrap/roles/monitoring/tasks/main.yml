@@ -1,36 +1,4 @@
 ---
-- name: Create Prometheus directory
-  ansible.builtin.file:
-    path: /etc/docker/prometheus
-    state: directory
-    mode: "0755"
-  tags: ["monitoring", "prometheus"]
-
-- name: Prometheus configuration
-  ansible.builtin.template:
-    src: prometheus/prometheus.yml.j2
-    dest: /etc/docker/prometheus/prometheus.yml
-    mode: "0644"
-  notify:
-    - Restart prometheus
-  tags: ["monitoring", "prometheus"]
-
-- name: Create Prometheus compose
-  ansible.builtin.copy:
-    src: prometheus/compose.yml
-    dest: /etc/docker/prometheus/compose.yml
-    mode: "0644"
-  notify:
-    - Restart prometheus
-  tags: ["monitoring", "prometheus"]
-
-- name: Enable Prometheus as a service
-  ansible.builtin.service:
-    name: docker-compose@prometheus.service
-    state: started
-    enabled: true
-  tags: ["monitoring", "prometheus"]
-
 - name: Create Grafana dashboards provisioning directory
   ansible.builtin.file:
     path: /etc/grafana/provisioning/dashboards
@@ -45,30 +13,6 @@
     mode: "0644"
   notify: Restart grafana
   tags: ["monitoring", "grafana"]
-
-- name: Create Jaeger directory
-  ansible.builtin.file:
-    path: /etc/docker/jaeger
-    state: directory
-    mode: "0755"
-  tags: ["monitoring", "jaeger"]
-
-- name: Create Jaeger compose
-  ansible.builtin.copy:
-    src: jaeger/compose.yml
-    dest: /etc/docker/jaeger/compose.yml
-    mode: "0644"
-  notify:
-    - Restart grafana
-  tags: ["monitoring", "jaeger"]
-
-- name: Enable Jaeger as a service
-  ansible.builtin.service:
-    name: docker-compose@jaeger.service
-    state: started
-    enabled: true
-  tags: ["monitoring", "jaeger"]
-
 
 - name: Enable IPv4 forwarding temporarily
   ansible.posix.sysctl:

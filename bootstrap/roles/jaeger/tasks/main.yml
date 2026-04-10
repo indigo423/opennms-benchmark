@@ -1,0 +1,21 @@
+---
+- name: Deploy Jaeger systemd unit
+  ansible.builtin.template:
+    src: jaeger.service.j2
+    dest: /etc/systemd/system/jaeger.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart jaeger
+  tags: ["monitoring", "jaeger"]
+
+- name: Flush handlers before enabling Jaeger service
+  ansible.builtin.meta: flush_handlers
+  tags: ["monitoring", "jaeger"]
+
+- name: Enable Jaeger as a service
+  ansible.builtin.service:
+    name: jaeger.service
+    state: started
+    enabled: true
+  tags: ["monitoring", "jaeger"]

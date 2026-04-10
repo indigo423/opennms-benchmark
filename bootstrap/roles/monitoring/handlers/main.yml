@@ -1,16 +1,6 @@
 ---
-- name: Restart prometheus
-  ansible.builtin.service:
-    name: docker-compose@prometheus.service
-    state: restarted
-
 - name: Restart grafana
   ansible.builtin.service:
     name: grafana-server.service
     state: restarted
   failed_when: false
-
-- name: Restart jaeger
-  ansible.builtin.service:
-    name: docker-compose@jaeger.service
-    state: restarted

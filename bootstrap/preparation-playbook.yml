@@ -39,6 +39,8 @@
     - pgadmin
     - app_starter
     - kibana
+    - prometheus
+    - jaeger
     - traefik
 
 - name: Net-Simulator

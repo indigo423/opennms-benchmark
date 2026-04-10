@@ -1,0 +1,8 @@
+---
+prometheus_image: quay.io/prometheus/prometheus:latest
+prometheus_port: "9090"
+prometheus_cpus: "2.0"
+prometheus_memory: 512m
+prometheus_tz: UTC
+prometheus_config_dir: /etc/docker/prometheus
+prometheus_retention_time: 90d
