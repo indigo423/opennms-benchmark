@@ -61,7 +61,7 @@ OS disk sizes below are the defaults used by the non-Azure Terraform providers. 
 
 ### Network
 
-The lab uses four isolated subnets inside `192.0.2.0/24` plus one DHCP/public interface on the monitoring VM. Only the monitoring VM requires a publicly routable IP.
+The lab uses four isolated subnets inside `192.0.2.0/24` plus one DHCP/public interface on the monitoring VM. Only the monitoring VM (`mon-benchmark-01`) requires a publicly routable IP — it acts as the SSH jump host and Traefik reverse proxy entry point for the entire lab. All other VMs are reachable only via the management subnet.
 
 | Subnet | CIDR | Purpose |
 |:-------|:-----|:--------|
@@ -74,7 +74,7 @@ The lab uses four isolated subnets inside `192.0.2.0/24` plus one DHCP/public in
 
 | Port | Protocol | Source | Purpose |
 |-----:|:---------|:-------|:--------|
-| 22 | TCP | operator CIDR | SSH access |
+| 22 | TCP | operator CIDR | SSH access / jump host into the lab |
 | 443 | TCP | operator CIDR | HTTPS (Traefik — all web UIs) |
 
 All inter-VM communication stays on the internal subnets and requires no additional inbound rules.
