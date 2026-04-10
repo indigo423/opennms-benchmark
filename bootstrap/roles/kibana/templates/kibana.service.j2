@@ -15,8 +15,6 @@ ExecStart=/usr/bin/docker run \
   --memory={{ kibana_memory }} \
   -e TZ={{ kibana_tz }} \
   -e ELASTICSEARCH_HOSTS={{ kibana_elasticsearch_hosts }} \
-  -e SERVER_BASEPATH={{ kibana_server_basepath }} \
-  -e SERVER_REWRITEBASEPATH={{ kibana_server_rewritebasepath }} \
   -e XPACK_SECURITY_ENABLED={{ kibana_xpack_security_enabled }} \
   {{ kibana_image }}
 ExecStop=/usr/bin/docker stop kibana
