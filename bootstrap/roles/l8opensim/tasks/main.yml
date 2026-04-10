@@ -35,26 +35,23 @@
     state: started
   tags: ["l8opensim"]
 
-- name: Pull l8opensim image
-  community.docker.docker_image:
-    name: "{{ l8opensim_image }}"
-    source: pull
-    force_source: true
+- name: Deploy l8opensim systemd unit
+  ansible.builtin.template:
+    src: l8opensim.service.j2
+    dest: /etc/systemd/system/l8opensim.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd daemon
   tags: ["l8opensim"]
 
-- name: Run l8opensim container
-  community.docker.docker_container:
-    name: l8opensim
-    image: "{{ l8opensim_image }}"
+- name: Flush handlers before enabling l8opensim service
+  ansible.builtin.meta: flush_handlers
+  tags: ["l8opensim"]
+
+- name: Enable and start l8opensim service
+  ansible.builtin.systemd:
+    name: l8opensim.service
+    enabled: true
     state: started
-    restart_policy: "{{ l8opensim_restart_policy }}"
-    privileged: true
-    network_mode: host
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    command: >-
-      -auto-start-ip {{ l8opensim_auto_start_ip }}
-      -auto-count {{ l8opensim_auto_count }}
-      -auto-netmask {{ l8opensim_auto_netmask }}
-      -port {{ l8opensim_web_port }}
   tags: ["l8opensim"]
