@@ -1,0 +1,22 @@
+[Unit]
+Description=App Starter
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop app-starter
+ExecStartPre=-/usr/bin/docker rm app-starter
+ExecStart=/usr/bin/docker run \
+  --name app-starter \
+  -p {{ app_starter_port }}:3000 \
+  --cpus={{ app_starter_cpus }} \
+  --memory={{ app_starter_memory }} \
+  -e TZ={{ app_starter_tz }} \
+  -e MONITORING_IP={{ app_starter_monitoring_ip }} \
+  {{ app_starter_image }}
+ExecStop=/usr/bin/docker stop app-starter
+
+[Install]
+WantedBy=multi-user.target

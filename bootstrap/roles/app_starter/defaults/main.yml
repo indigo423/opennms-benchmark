@@ -1,0 +1,7 @@
+---
+app_starter_image: ghcr.io/indigo423/app-starter:latest
+app_starter_port: "3010"
+app_starter_cpus: "0.5"
+app_starter_memory: 128m
+app_starter_tz: UTC
+app_starter_monitoring_ip: "{{ ansible_host }}"

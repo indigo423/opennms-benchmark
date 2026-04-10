@@ -37,6 +37,7 @@
   roles:
     - monitoring
     - pgadmin
+    - app_starter
     - traefik
 
 - name: Net-Simulator

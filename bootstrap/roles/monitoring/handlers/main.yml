@@ -20,7 +20,3 @@
     name: docker-compose@kibana.service
     state: restarted
 
-- name: Restart app-starter
-  ansible.builtin.service:
-    name: docker-compose@app-starter.service
-    state: restarted
