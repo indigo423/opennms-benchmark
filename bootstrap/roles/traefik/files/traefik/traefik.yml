@@ -16,12 +16,5 @@ providers:
     directory: /etc/traefik/dynamic
     watch: true
 
-tls:
-  stores:
-    default:
-      defaultCertificate:
-        certFile: /etc/traefik/certs/lab.crt
-        keyFile: /etc/traefik/certs/lab.key
-
 api:
   dashboard: false
