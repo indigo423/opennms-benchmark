@@ -36,6 +36,7 @@
   become: true
   roles:
     - monitoring
+    - grafana
     - pgadmin
     - app_starter
     - kibana

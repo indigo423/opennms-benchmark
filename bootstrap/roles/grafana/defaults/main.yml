@@ -1,0 +1,2 @@
+---
+grafana_provisioning_dashboards_dir: /etc/grafana/provisioning/dashboards

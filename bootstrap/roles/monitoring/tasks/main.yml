@@ -1,19 +1,4 @@
 ---
-- name: Create Grafana dashboards provisioning directory
-  ansible.builtin.file:
-    path: /etc/grafana/provisioning/dashboards
-    state: directory
-    mode: "0755"
-  tags: ["monitoring", "grafana"]
-
-- name: Deploy benchmark dashboards
-  ansible.builtin.copy:
-    src: grafana/provisioning/dashboards/
-    dest: /etc/grafana/provisioning/dashboards/
-    mode: "0644"
-  notify: Restart grafana
-  tags: ["monitoring", "grafana"]
-
 - name: Enable IPv4 forwarding temporarily
   ansible.posix.sysctl:
     name: net.ipv4.ip_forward
