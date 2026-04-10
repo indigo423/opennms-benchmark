@@ -35,7 +35,7 @@
   hosts: mon_servers
   become: true
   roles:
-    - monitoring
+    - ip_forwarding
     - grafana
     - pgadmin
     - app_starter
