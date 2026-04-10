@@ -1,2 +1,3 @@
 ---
 grafana_provisioning_dashboards_dir: /etc/grafana/provisioning/dashboards
+grafana_provisioning_datasources_dir: /etc/grafana/provisioning/datasources

@@ -14,8 +14,11 @@ grafana_ini:
     type: sqlite3
   auth: {}
 
-# Dashboards are provisioned by bootstrap/roles/grafana, not this collection.
-# Disable provisioning-file mode so the collection does not write ansible.yml into
-# /etc/grafana/provisioning/dashboards/ alongside our own opennms-core.yml provider.
+# Dashboards and datasources are provisioned by bootstrap/roles/grafana via files,
+# not by this collection. Disable the collection's provisioning and datasource
+# management so it does not conflict with our provisioning files.
 grafana_use_provisioning: false
 grafana_dashboards_dir: "/nonexistent/grafana-dashboards"
+# Empty list prevents the collection's datasource module from running (it rejects
+# plugin datasource types like opennms-performance-datasource).
+grafana_datasources: []

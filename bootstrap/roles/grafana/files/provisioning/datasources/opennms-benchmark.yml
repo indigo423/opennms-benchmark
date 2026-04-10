@@ -1,0 +1,78 @@
+---
+apiVersion: 1
+
+datasources:
+  - name: OpenNMS Performance
+    type: opennms-performance-datasource
+    orgId: 1
+    access: proxy
+    url: http://192.0.2.197:8980/opennms
+    isDefault: true
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin
+    editable: true
+
+  - name: OpenNMS Entity
+    type: opennms-entity-datasource
+    orgId: 1
+    access: proxy
+    url: http://192.0.2.197:8980/opennms
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin
+    editable: true
+
+  - name: OpenNMS Flow
+    type: opennms-flow-datasource
+    orgId: 1
+    access: proxy
+    url: http://192.0.2.197:8980/opennms
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: admin
+    editable: true
+
+  - name: Prometheus
+    type: prometheus
+    orgId: 1
+    access: proxy
+    url: http://localhost:9090/prometheus
+    jsonData:
+      httpMethod: POST
+      manageAlerts: false
+      prometheusType: Prometheus
+      cacheLevel: Low
+    editable: true
+
+  - name: PostgreSQL
+    type: postgres
+    orgId: 1
+    access: proxy
+    url: "192.0.2.196:5432"
+    database: onms_benchmark
+    user: opennms
+    secureJsonData:
+      password: "p4a55word!"
+    jsonData:
+      postgresVersion: 1500
+      sslmode: disable
+      tlsAuth: false
+      tlsSkipVerify: true
+    editable: true
+
+  - name: Elasticsearch
+    type: elasticsearch
+    orgId: 1
+    access: proxy
+    url: http://192.0.2.202:9200
+    jsonData:
+      esVersion: "8.0.0"
+      timeField: "@timestamp"
+      maxConcurrentShardRequests: 5
+      logMessageField: message
+      logLevelField: fields.level
+    editable: true
