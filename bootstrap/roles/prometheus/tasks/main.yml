@@ -1,18 +1,4 @@
 ---
-- name: Deploy Prometheus systemd unit
-  ansible.builtin.template:
-    src: prometheus.service.j2
-    dest: /etc/systemd/system/prometheus.service
-    mode: "0644"
-  notify:
-    - Reload systemd
-    - Restart prometheus
-  tags: ["monitoring", "prometheus"]
-
-- name: Flush handlers before enabling Prometheus service
-  ansible.builtin.meta: flush_handlers
-  tags: ["monitoring", "prometheus"]
-
 - name: Create Prometheus config directory
   ansible.builtin.file:
     path: "{{ prometheus_config_dir }}"
@@ -27,6 +13,20 @@
     mode: "0644"
   notify:
     - Restart prometheus
+  tags: ["monitoring", "prometheus"]
+
+- name: Deploy Prometheus systemd unit
+  ansible.builtin.template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart prometheus
+  tags: ["monitoring", "prometheus"]
+
+- name: Flush handlers before enabling Prometheus service
+  ansible.builtin.meta: flush_handlers
   tags: ["monitoring", "prometheus"]
 
 - name: Enable Prometheus as a service
