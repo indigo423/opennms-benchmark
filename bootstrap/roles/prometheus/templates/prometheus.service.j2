@@ -18,6 +18,9 @@ ExecStart=/usr/bin/docker run \
   --memory={{ prometheus_memory }} \
   -u 65534 \
   -e TZ={{ prometheus_tz }} \
+{% for host in groups['all'] %}
+  --add-host={{ host }}:{{ hostvars[host]['ansible_host'] }} \
+{% endfor %}
   -v data-prometheus:/prometheus/data \
   -v {{ prometheus_config_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro \
   {{ prometheus_image }} \
