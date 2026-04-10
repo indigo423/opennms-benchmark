@@ -1,4 +1,20 @@
 ---
+- name: Create Jaeger config directory
+  ansible.builtin.file:
+    path: "{{ jaeger_config_dir }}"
+    state: directory
+    mode: "0755"
+  tags: ["monitoring", "jaeger"]
+
+- name: Deploy Jaeger config
+  ansible.builtin.template:
+    src: jaeger-config.yaml.j2
+    dest: "{{ jaeger_config_dir }}/config.yaml"
+    mode: "0644"
+  notify:
+    - Restart jaeger
+  tags: ["monitoring", "jaeger"]
+
 - name: Deploy Jaeger systemd unit
   ansible.builtin.template:
     src: jaeger.service.j2

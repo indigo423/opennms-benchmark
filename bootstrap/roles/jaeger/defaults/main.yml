@@ -6,3 +6,4 @@ jaeger_cpus: "1.0"
 jaeger_memory: 256m
 jaeger_tz: UTC
 jaeger_query_base_path: /jaeger
+jaeger_config_dir: /etc/jaeger
