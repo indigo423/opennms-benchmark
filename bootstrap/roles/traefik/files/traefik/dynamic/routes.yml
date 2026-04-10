@@ -50,8 +50,6 @@ http:
       entryPoints:
         - websecure
       service: kibana
-      middlewares:
-        - kibana-strip
       tls: {}
     opensim:
       rule: "PathPrefix(`/opensim`)"
@@ -72,10 +70,6 @@ http:
       stripPrefix:
         prefixes:
           - /jaeger
-    kibana-strip:
-      stripPrefix:
-        prefixes:
-          - /kibana
     opensim-strip:
       stripPrefix:
         prefixes:
