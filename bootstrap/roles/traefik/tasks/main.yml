@@ -5,44 +5,9 @@
     state: directory
     mode: "0755"
   loop:
-    - /etc/docker/traefik
-    - /etc/docker/traefik/certs
-    - /etc/docker/traefik/dynamic
-  tags: ["traefik"]
-
-- name: Copy Traefik static config
-  ansible.builtin.copy:
-    src: traefik/traefik.yml
-    dest: /etc/docker/traefik/traefik.yml
-    mode: "0644"
-  notify:
-    - Restart traefik
-  tags: ["traefik"]
-
-- name: Copy Traefik dynamic routes
-  ansible.builtin.copy:
-    src: traefik/dynamic/routes.yml
-    dest: /etc/docker/traefik/dynamic/routes.yml
-    mode: "0644"
-  notify:
-    - Restart traefik
-  tags: ["traefik"]
-
-- name: Generate self-signed TLS certificate
-  ansible.builtin.command:
-    cmd: >
-      openssl req -x509 -newkey rsa:4096
-        -keyout /etc/docker/traefik/certs/lab.key
-        -out /etc/docker/traefik/certs/lab.crt
-        -days 3650 -nodes
-        -subj "/CN=monitoring/O=Lab"
-    creates: /etc/docker/traefik/certs/lab.crt
-  tags: ["traefik"]
-
-- name: Restrict cert key permissions
-  ansible.builtin.file:
-    path: /etc/docker/traefik/certs/lab.key
-    mode: "0600"
+    - "{{ traefik_config_dir }}"
+    - "{{ traefik_config_dir }}/certs"
+    - "{{ traefik_config_dir }}/dynamic"
   tags: ["traefik"]
 
 - name: Deploy Traefik systemd unit
@@ -55,8 +20,43 @@
     - Restart traefik
   tags: ["traefik"]
 
-- name: Flush handlers before enabling Traefik service
+- name: Flush handlers before copying config files
   ansible.builtin.meta: flush_handlers
+  tags: ["traefik"]
+
+- name: Copy Traefik static config
+  ansible.builtin.copy:
+    src: traefik/traefik.yml
+    dest: "{{ traefik_config_dir }}/traefik.yml"
+    mode: "0644"
+  notify:
+    - Restart traefik
+  tags: ["traefik"]
+
+- name: Copy Traefik dynamic routes
+  ansible.builtin.copy:
+    src: traefik/dynamic/routes.yml
+    dest: "{{ traefik_config_dir }}/dynamic/routes.yml"
+    mode: "0644"
+  notify:
+    - Restart traefik
+  tags: ["traefik"]
+
+- name: Generate self-signed TLS certificate
+  ansible.builtin.command:
+    cmd: >
+      openssl req -x509 -newkey rsa:4096
+        -keyout {{ traefik_config_dir }}/certs/lab.key
+        -out {{ traefik_config_dir }}/certs/lab.crt
+        -days 3650 -nodes
+        -subj "/CN=monitoring/O=Lab"
+    creates: "{{ traefik_config_dir }}/certs/lab.crt"
+  tags: ["traefik"]
+
+- name: Restrict cert key permissions
+  ansible.builtin.file:
+    path: "{{ traefik_config_dir }}/certs/lab.key"
+    mode: "0600"
   tags: ["traefik"]
 
 - name: Enable Traefik as a service
