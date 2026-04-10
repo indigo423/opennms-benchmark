@@ -1,0 +1,26 @@
+[Unit]
+Description=Traefik reverse proxy
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop traefik
+ExecStartPre=-/usr/bin/docker rm traefik
+ExecStart=/usr/bin/docker run \
+  --name traefik \
+  -p {{ traefik_http_port }}:80 \
+  -p {{ traefik_https_port }}:443 \
+  --cpus={{ traefik_cpus }} \
+  --memory={{ traefik_memory }} \
+  -e TZ={{ traefik_tz }} \
+  --add-host=host.docker.internal:host-gateway \
+  -v {{ traefik_config_dir }}/traefik.yml:/etc/traefik/traefik.yml:ro \
+  -v {{ traefik_config_dir }}/dynamic:/etc/traefik/dynamic:ro \
+  -v {{ traefik_config_dir }}/certs:/etc/traefik/certs:ro \
+  {{ traefik_image }}
+ExecStop=/usr/bin/docker stop traefik
+
+[Install]
+WantedBy=multi-user.target

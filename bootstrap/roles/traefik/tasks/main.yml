@@ -10,15 +10,6 @@
     - /etc/docker/traefik/dynamic
   tags: ["traefik"]
 
-- name: Copy Traefik compose file
-  ansible.builtin.copy:
-    src: traefik/compose.yml
-    dest: /etc/docker/traefik/compose.yml
-    mode: "0644"
-  notify:
-    - Restart traefik
-  tags: ["traefik"]
-
 - name: Copy Traefik static config
   ansible.builtin.copy:
     src: traefik/traefik.yml
@@ -54,9 +45,23 @@
     mode: "0600"
   tags: ["traefik"]
 
+- name: Deploy Traefik systemd unit
+  ansible.builtin.template:
+    src: traefik.service.j2
+    dest: /etc/systemd/system/traefik.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart traefik
+  tags: ["traefik"]
+
+- name: Flush handlers before enabling Traefik service
+  ansible.builtin.meta: flush_handlers
+  tags: ["traefik"]
+
 - name: Enable Traefik as a service
   ansible.builtin.service:
-    name: docker-compose@traefik.service
+    name: traefik.service
     state: started
     enabled: true
   tags: ["traefik"]

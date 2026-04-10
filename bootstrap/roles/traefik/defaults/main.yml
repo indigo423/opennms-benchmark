@@ -1,0 +1,8 @@
+---
+traefik_image: traefik:v3
+traefik_http_port: "80"
+traefik_https_port: "443"
+traefik_cpus: "0.5"
+traefik_memory: 128m
+traefik_tz: UTC
+traefik_config_dir: /etc/docker/traefik
