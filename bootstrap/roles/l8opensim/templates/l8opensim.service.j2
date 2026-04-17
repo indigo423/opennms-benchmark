@@ -17,7 +17,9 @@ ExecStart=/usr/bin/docker run \
   -auto-start-ip {{ l8opensim_auto_start_ip }} \
   -auto-count {{ l8opensim_auto_count }} \
   -auto-netmask {{ l8opensim_auto_netmask }} \
-  -port {{ l8opensim_web_port }}
+  -port {{ l8opensim_web_port }} \
+  -flow-collector {{ l8opensim_flow_collector }} \
+  -flow-protocol {{ l8opensim_flow_protocol }}
 ExecStop=/usr/bin/docker stop l8opensim
 
 [Install]

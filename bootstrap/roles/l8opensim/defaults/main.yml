@@ -1,8 +1,10 @@
 ---
-l8opensim_image: "ghcr.io/labmonkeys-space/l8opensim:v0.2.0"
+l8opensim_image: "ghcr.io/labmonkeys-space/l8opensim:v0.3.0"
 l8opensim_auto_start_ip: "10.42.0.1"
-l8opensim_auto_count: 100
+l8opensim_auto_count: 1
 l8opensim_auto_netmask: "16"
 l8opensim_web_port: 8080
 l8opensim_sim_network: "10.42.0.0/16"
 l8opensim_net_interface: "enp2s0"
+l8opensim_flow_collector: "192.0.2.133:9999"
+l8opensim_flow_protocol: "ipfix"

@@ -48,8 +48,20 @@
   hosts: net_sim
   become: true
   roles:
+    - role: rp_filter
+      vars:
+        rp_filter_interfaces:
+          - all
+          - default
+          - "{{ l8opensim_net_interface }}"
     - net_snmp
     - l8opensim
+
+- name: Minion
+  hosts: minion
+  become: true
+  roles:
+    - rp_filter
 
 - name: Kafka-UI
   hosts: kafka_ui

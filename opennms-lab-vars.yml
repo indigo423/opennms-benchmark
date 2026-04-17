@@ -91,8 +91,8 @@ kafka_server_properties:
   "log.retention.check.interval.ms": 300000
   "log.dirs": /var/log/kafka/combined-logs
 
-#opennms_properties_timeseries:
-#  org.opennms.timeseries.strategy: osgi
+# opennms_properties_timeseries:
+#   org.opennms.timeseries.strategy: osgi
 
 opennms_jvm_conf:
   JAVA_HEAP_SIZE: 8192

@@ -1,0 +1,17 @@
+---
+- name: Gather network facts for rp_filter
+  ansible.builtin.setup:
+    gather_subset:
+      - network
+  when: ansible_default_ipv4 is not defined
+  tags: ["rp-filter"]
+
+- name: Set IPv4 rp_filter to loose mode (2)
+  ansible.posix.sysctl:
+    name: "net.ipv4.conf.{{ item }}.rp_filter"
+    value: "2"
+    state: present
+    reload: true
+    sysctl_file: /etc/sysctl.d/99-rp-filter.conf
+  loop: "{{ (rp_filter_interfaces + [ansible_default_ipv4.interface]) | unique }}"
+  tags: ["rp-filter"]

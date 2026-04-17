@@ -1,4 +1,12 @@
 ---
+- name: Install iptables on the simulator host
+  ansible.builtin.apt:
+    name: iptables
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: ["l8opensim"]
+
 - name: Disable and remove legacy monitoring-net-ipv4 loopback route service
   ansible.builtin.systemd:
     name: monitoring-net-ipv4.service
