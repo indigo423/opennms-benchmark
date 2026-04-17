@@ -21,12 +21,33 @@
     state: absent
   tags: ["docker"]
 
-- name: Download repository GPG key
-  ansible.builtin.get_url:
-    url: "{{ repo_uri_pubkey }}"
-    dest: "{{ repo_signed_by }}"
-    mode: "0644"
+# get_url can silently leave a 0-byte file behind (e.g. CDN returns 200 with
+# empty body). apt then rejects the repo as "not signed" and subsequent runs
+# fail at apt_update before docker_ce runs, so scrub any bad key on failure.
+- name: Download and validate repository GPG key
   tags: ["docker"]
+  block:
+    - name: Download repository GPG key
+      ansible.builtin.get_url:
+        url: "{{ repo_uri_pubkey }}"
+        dest: "{{ repo_signed_by }}"
+        mode: "0644"
+
+    - name: Validate downloaded GPG key is a PGP public key block
+      ansible.builtin.command:
+        cmd: "grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' {{ repo_signed_by }}"
+      changed_when: false
+  rescue:
+    - name: Remove invalid GPG key so the next run can retry cleanly
+      ansible.builtin.file:
+        path: "{{ repo_signed_by }}"
+        state: absent
+
+    - name: Fail with diagnostic message
+      ansible.builtin.fail:
+        msg: >-
+          Downloaded GPG key at {{ repo_signed_by }} was missing or not a valid
+          PGP public key block. Removed; retry the play.
 
 - name: Add repository with signed-by option
   ansible.builtin.template:
