@@ -29,7 +29,12 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Reload systemd daemon
+  notify:
+    - Reload systemd daemon
+    - Restart l8opensim
+    # opensim-forward BindsTo l8opensim.service: restarting l8opensim
+    # cascades a stop to opensim-forward but does not start it again.
+    - Restart opensim-forward
   tags: ["l8opensim"]
 
 - name: Install opensim-forward systemd service
@@ -39,7 +44,9 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Reload systemd daemon
+  notify:
+    - Reload systemd daemon
+    - Restart opensim-forward
   tags: ["l8opensim"]
 
 - name: Flush handlers before enabling services
