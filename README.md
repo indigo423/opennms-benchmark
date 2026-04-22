@@ -116,6 +116,8 @@ The network IP space is chosen from the private 192.0.2/24 range which is not pu
 |:-------------|:----------------|:----------------|:-------------------------|
 | 10.42.0.0/16 | `192.0.2.201`   | `192.0.2.129`   | Network with SNMP Agents |
 
+The netsim VM's l8opensim simulator emits three baseline event streams to the Minion's sim-facing NIC (`192.0.2.133`): IPFIX flows to `9999/udp`, SNMP traps to `10162/udp`, and UDP syslog (RFC 5424) to `10514/udp`.
+
 ## 🕹️ Usage
 
 ### Clone the repository with submodules

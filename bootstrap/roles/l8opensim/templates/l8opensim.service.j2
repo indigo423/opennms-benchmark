@@ -19,7 +19,9 @@ ExecStart=/usr/bin/docker run \
   -auto-netmask {{ l8opensim_auto_netmask }} \
   -port {{ l8opensim_web_port }} \
   -flow-collector {{ l8opensim_flow_collector }} \
-  -flow-protocol {{ l8opensim_flow_protocol }}
+  -flow-protocol {{ l8opensim_flow_protocol }} \
+  -trap-collector {{ l8opensim_trap_collector }} \
+  -syslog-collector {{ l8opensim_syslog_collector }}
 ExecStop=/usr/bin/docker stop l8opensim
 
 [Install]

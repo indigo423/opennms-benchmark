@@ -1,4 +1,6 @@
 ---
+l8opensim_image: "ghcr.io/labmonkeys-space/l8opensim:v0.4.1"
+
 opennms_distribution: Horizon
 opennms_version: "35.0.5"
 opennms_pkg_version: "{{ opennms_version }}*"
