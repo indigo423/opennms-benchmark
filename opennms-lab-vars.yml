@@ -1,5 +1,5 @@
 ---
-l8opensim_image: "ghcr.io/labmonkeys-space/l8opensim:v0.4.1"
+l8opensim_image: "ghcr.io/labmonkeys-space/l8opensim:v0.5.1"
 
 opennms_distribution: Horizon
 opennms_version: "35.0.5"
