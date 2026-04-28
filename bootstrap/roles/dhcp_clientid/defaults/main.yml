@@ -1,0 +1,4 @@
+---
+dhcp_clientid_file: /etc/netplan/99-dhcp-clientid.yaml
+dhcp_clientid_interface: enp2s0
+dhcp_clientid_mode: mac

@@ -1,0 +1,10 @@
+---
+# netplan apply renegotiates DHCP, which can briefly drop the SSH session and
+# may shift the lease once on the first run. Fire-and-forget so Ansible does
+# not hang on the dropped connection; re-run the playbook if a later task
+# fails because the IP moved.
+- name: Apply netplan
+  ansible.builtin.command: netplan apply
+  async: 30
+  poll: 0
+  changed_when: true

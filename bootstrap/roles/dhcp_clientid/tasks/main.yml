@@ -1,0 +1,16 @@
+---
+- name: Pin DHCP client identifier to {{ dhcp_clientid_mode }} for {{ dhcp_clientid_interface }}
+  ansible.builtin.copy:
+    dest: "{{ dhcp_clientid_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      network:
+        version: 2
+        ethernets:
+          {{ dhcp_clientid_interface }}:
+            dhcp-identifier: {{ dhcp_clientid_mode }}
+  notify:
+    - Apply netplan
+  tags: ["dhcp-clientid", "network"]

@@ -35,6 +35,7 @@
   hosts: mon_servers
   become: true
   roles:
+    - dhcp_clientid
     - ip_forwarding
     - grafana
     - pgadmin
