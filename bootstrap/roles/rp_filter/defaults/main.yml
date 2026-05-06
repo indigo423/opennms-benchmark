@@ -1,6 +1,6 @@
 ---
 # Loose-mode reverse-path filtering (RFC3704). Required for hosts that
-# send or receive traffic via asymmetric routes (e.g. the l8opensim flow
+# send or receive traffic via asymmetric routes (e.g. the nl6 flow
 # exporter and any Minion receiving those flows).
 rp_filter_interfaces:
   - all

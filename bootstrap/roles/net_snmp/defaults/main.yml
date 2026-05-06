@@ -6,7 +6,7 @@ snmpd_disks: ["/ 5000000"]
 snmpd_procs: ["sshd"]
 snmpd_include_dir: "/etc/snmp/conf.d"
 snmpd_community: public
-# l8opensim has 161/udp hard coded anc can't be changed.
+# nl6 has 161/udp hard coded anc can't be changed.
 # To avoid conflict with NetSNMP we change the snmpd listening port to 1161
 snmpd_port: 1161
 snmpd_inform_sink: 127.0.0.1

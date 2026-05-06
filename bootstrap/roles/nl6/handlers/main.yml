@@ -3,9 +3,9 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
-- name: Restart l8opensim
+- name: Restart nl6
   ansible.builtin.systemd:
-    name: l8opensim.service
+    name: nl6.service
     state: restarted
 
 - name: Restart opensim-forward

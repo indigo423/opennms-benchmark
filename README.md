@@ -39,7 +39,7 @@ Default VM sizes map to Azure SKUs. For other providers (KVM, Proxmox, VMware) y
 | `core-benchmark-01` | OpenNMS Core (8 GB JVM heap) | `Standard_B4ms` | 4 | 16 GB | 3 |
 | `kafka-benchmark-01` | Apache Kafka + Kafka UI | `Standard_B2ms` | 2 | 8 GB | 2 |
 | `minion-benchmark-01` | OpenNMS Minion | `Standard_B2ms` | 2 | 8 GB | 3 |
-| `netsim-benchmark-01` | SNMP Simulator (l8opensim) | `Standard_B2ms` | 2 | 8 GB | 2 |
+| `netsim-benchmark-01` | SNMP Simulator (nl6) | `Standard_B2ms` | 2 | 8 GB | 2 |
 | `mon-benchmark-01` | Monitoring stack (Prometheus, Grafana, Jaeger, …) | `Standard_B2ms` | 2 | 8 GB | 2 |
 | `es-benchmark-01` | Elasticsearch | `Standard_B2ms` | 2 | 8 GB | 2 |
 | **Total** | | | **16** | **64 GB** | |
@@ -116,7 +116,7 @@ The network IP space is chosen from the private 192.0.2/24 range which is not pu
 |:-------------|:----------------|:----------------|:-------------------------|
 | 10.42.0.0/16 | `192.0.2.201`   | `192.0.2.129`   | Network with SNMP Agents |
 
-The netsim VM's l8opensim simulator emits three baseline event streams to the Minion's sim-facing NIC (`192.0.2.133`): IPFIX flows to `9999/udp`, SNMP traps to `10162/udp`, and UDP syslog (RFC 5424) to `10514/udp`.
+The netsim VM's nl6 simulator emits three baseline event streams to the Minion's sim-facing NIC (`192.0.2.133`): IPFIX flows to `9999/udp`, SNMP traps to `10162/udp`, and UDP syslog (RFC 5424) to `10514/udp`.
 
 ## 🕹️ Usage
 
@@ -423,7 +423,7 @@ Replace `<monitoring-public-ip>` with the actual public IP assigned to the monit
 | Kafka UI             | `https://<monitoring-public-ip>/kafka`      | no login required           |
 | pgAdmin              | `https://<monitoring-public-ip>/pgadmin`    | admin@benchmark.lab / admin |
 | Kibana               | `https://<monitoring-public-ip>/kibana`     | no login required           |
-| SNMP Sim (l8opensim) | `https://<monitoring-public-ip>/opensim`    | no login required           |
+| SNMP Sim (nl6) | `https://<monitoring-public-ip>/opensim`    | no login required           |
 
 > [!TIP]
 > To reach every VM on the management network (`192.0.2.192/26`) without a bastion host, install [Tailscale](https://tailscale.com) on the monitoring VM and advertise the subnet:

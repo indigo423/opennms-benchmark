@@ -54,9 +54,9 @@
         rp_filter_interfaces:
           - all
           - default
-          - "{{ l8opensim_net_interface }}"
+          - "{{ nl6_net_interface }}"
     - net_snmp
-    - l8opensim
+    - nl6
 
 - name: Minion
   hosts: minion

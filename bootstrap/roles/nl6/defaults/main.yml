@@ -1,0 +1,12 @@
+---
+nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.6.0"
+nl6_auto_start_ip: "10.42.0.1"
+nl6_auto_count: 0
+nl6_auto_netmask: "16"
+nl6_web_port: 8080
+nl6_sim_network: "10.42.0.0/16"
+nl6_net_interface: "enp2s0"
+nl6_flow_collector: "192.0.2.133:9999"
+nl6_flow_protocol: "ipfix"
+nl6_trap_collector: "192.0.2.133:10162"
+nl6_syslog_collector: "192.0.2.133:10514"

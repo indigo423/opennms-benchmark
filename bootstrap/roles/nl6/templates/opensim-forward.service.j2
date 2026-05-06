@@ -1,0 +1,16 @@
+[Unit]
+Description=Allow forwarding to nl6 simulated devices ({{ nl6_sim_network }})
+After=docker.service nl6.service
+Requires=docker.service
+BindsTo=nl6.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c '/usr/sbin/iptables -C DOCKER-USER -o {{ nl6_net_interface }} -s {{ nl6_sim_network }} -j ACCEPT 2>/dev/null || /usr/sbin/iptables -I DOCKER-USER 1 -o {{ nl6_net_interface }} -s {{ nl6_sim_network }} -j ACCEPT'
+ExecStart=/bin/bash -c '/usr/sbin/iptables -C DOCKER-USER -i {{ nl6_net_interface }} -d {{ nl6_sim_network }} -j ACCEPT 2>/dev/null || /usr/sbin/iptables -I DOCKER-USER 1 -i {{ nl6_net_interface }} -d {{ nl6_sim_network }} -j ACCEPT'
+ExecStop=-/usr/sbin/iptables -D DOCKER-USER -o {{ nl6_net_interface }} -s {{ nl6_sim_network }} -j ACCEPT
+ExecStop=-/usr/sbin/iptables -D DOCKER-USER -i {{ nl6_net_interface }} -d {{ nl6_sim_network }} -j ACCEPT
+
+[Install]
+WantedBy=multi-user.target

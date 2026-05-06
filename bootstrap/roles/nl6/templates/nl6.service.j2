@@ -1,0 +1,28 @@
+[Unit]
+Description=NL6 SNMP simulator
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop nl6
+ExecStartPre=-/usr/bin/docker rm nl6
+ExecStart=/usr/bin/docker run \
+  --name nl6 \
+  --privileged \
+  --network host \
+  --device /dev/net/tun:/dev/net/tun \
+  {{ nl6_image }} \
+  -auto-start-ip {{ nl6_auto_start_ip }} \
+  -auto-count {{ nl6_auto_count }} \
+  -auto-netmask {{ nl6_auto_netmask }} \
+  -port {{ nl6_web_port }} \
+  -flow-collector {{ nl6_flow_collector }} \
+  -flow-protocol {{ nl6_flow_protocol }} \
+  -trap-collector {{ nl6_trap_collector }} \
+  -syslog-collector {{ nl6_syslog_collector }}
+ExecStop=/usr/bin/docker stop nl6
+
+[Install]
+WantedBy=multi-user.target

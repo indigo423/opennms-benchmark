@@ -5,7 +5,7 @@
     state: present
     update_cache: true
     cache_valid_time: 3600
-  tags: ["l8opensim"]
+  tags: ["nl6"]
 
 - name: Disable and remove legacy monitoring-net-ipv4 loopback route service
   ansible.builtin.systemd:
@@ -13,29 +13,58 @@
     state: stopped
     enabled: false
   failed_when: false
-  tags: ["l8opensim"]
+  tags: ["nl6"]
 
 - name: Remove legacy monitoring-net-ipv4 service unit file
   ansible.builtin.file:
     path: /etc/systemd/system/monitoring-net-ipv4.service
     state: absent
   notify: Reload systemd daemon
-  tags: ["l8opensim"]
+  tags: ["nl6"]
 
-- name: Deploy l8opensim systemd unit
+- name: Stop and disable legacy l8opensim systemd unit
+  ansible.builtin.systemd:
+    name: l8opensim.service
+    state: stopped
+    enabled: false
+  failed_when: false
+  tags: ["nl6"]
+
+- name: Remove legacy l8opensim systemd unit file
+  ansible.builtin.file:
+    path: /etc/systemd/system/l8opensim.service
+    state: absent
+  notify: Reload systemd daemon
+  tags: ["nl6"]
+
+- name: Check whether legacy l8opensim container exists
+  ansible.builtin.command:
+    cmd: docker inspect l8opensim
+  register: legacy_l8opensim_inspect
+  changed_when: false
+  failed_when: false
+  tags: ["nl6"]
+
+- name: Remove legacy l8opensim container if present
+  ansible.builtin.command:
+    cmd: docker rm -f l8opensim
+  when: legacy_l8opensim_inspect.rc == 0
+  tags: ["nl6"]
+
+- name: Deploy nl6 systemd unit
   ansible.builtin.template:
-    src: l8opensim.service.j2
-    dest: /etc/systemd/system/l8opensim.service
+    src: nl6.service.j2
+    dest: /etc/systemd/system/nl6.service
     owner: root
     group: root
     mode: "0644"
   notify:
     - Reload systemd daemon
-    - Restart l8opensim
-    # opensim-forward BindsTo l8opensim.service: restarting l8opensim
+    - Restart nl6
+    # opensim-forward BindsTo nl6.service: restarting nl6
     # cascades a stop to opensim-forward but does not start it again.
     - Restart opensim-forward
-  tags: ["l8opensim"]
+  tags: ["nl6"]
 
 - name: Install opensim-forward systemd service
   ansible.builtin.template:
@@ -47,22 +76,22 @@
   notify:
     - Reload systemd daemon
     - Restart opensim-forward
-  tags: ["l8opensim"]
+  tags: ["nl6"]
 
 - name: Flush handlers before enabling services
   ansible.builtin.meta: flush_handlers
-  tags: ["l8opensim"]
+  tags: ["nl6"]
 
-- name: Enable and start l8opensim service
+- name: Enable and start nl6 service
   ansible.builtin.systemd:
-    name: l8opensim.service
+    name: nl6.service
     enabled: true
     state: started
-  tags: ["l8opensim"]
+  tags: ["nl6"]
 
 - name: Enable and start opensim-forward service
   ansible.builtin.systemd:
     name: opensim-forward.service
     enabled: true
     state: started
-  tags: ["l8opensim"]
+  tags: ["nl6"]

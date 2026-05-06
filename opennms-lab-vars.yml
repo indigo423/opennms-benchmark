@@ -1,5 +1,6 @@
 ---
-l8opensim_image: "ghcr.io/labmonkeys-space/l8opensim:v0.5.1"
+nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.6.0"
+nl6_auto_count: 0
 
 opennms_distribution: Horizon
 opennms_version: "35.0.5"
@@ -10,6 +11,9 @@ opennms_datasource_db_port: 5432
 opennms_datasource_db_name: onms_benchmark
 opennms_datasource_db_user: opennms
 opennms_datasource_db_password: p4a55word!
+opennms_datasource_connection_pool_min_pool: 100
+opennms_datasource_connection_pool_max_pool: 100
+opennms_datasource_connection_pool_max_size: 100
 
 onns_hzn_base_url: http://192.0.2.197:8980
 
@@ -17,6 +21,7 @@ onns_hzn_base_url: http://192.0.2.197:8980
 opennms_es_host: "192.0.2.202"
 opennms_es_port: 9200
 
+grafana_version: "13.0.1"
 # Datasources are provisioned by bootstrap/roles/grafana via files.
 # Empty list overrides the submodule's group_vars (which the collection
 # would otherwise use to call its datasource module — rejecting plugin types).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# opensim-requisition.sh — generate and import an OpenNMS requisition from l8opensim devices
+# opensim-requisition.sh — generate and import an OpenNMS requisition from nl6 devices
 #
 # Usage:
 #   ./opensim-requisition.sh                  # generate XML to stdout
@@ -23,7 +23,7 @@ usage() {
   cat <<EOF
 Usage: $0 [OPTIONS]
 
-Generate an OpenNMS requisition XML from l8opensim simulated devices.
+Generate an OpenNMS requisition XML from nl6 simulated devices.
 
 Options:
   --import      Upload the requisition to OpenNMS and trigger an import
@@ -31,7 +31,7 @@ Options:
   -h|--help     Show this message
 
 Environment variables (all optional):
-  OPENSIM_URL       l8opensim base URL       (default: https://bench-lab/opensim)
+  OPENSIM_URL       nl6 base URL       (default: https://bench-lab/opensim)
   OPENNMS_HOST      OpenNMS host             (default: bench-lab)
   OPENNMS_PORT      OpenNMS port             (default: 443)
   OPENNMS_USER      OpenNMS username         (default: admin)
