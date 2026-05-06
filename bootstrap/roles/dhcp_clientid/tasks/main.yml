@@ -1,5 +1,5 @@
 ---
-- name: Pin DHCP client identifier to {{ dhcp_clientid_mode }} for {{ dhcp_clientid_interface }}
+- name: Pin DHCP client identifier for interface {{ dhcp_clientid_interface }}
   ansible.builtin.copy:
     dest: "{{ dhcp_clientid_file }}"
     owner: root

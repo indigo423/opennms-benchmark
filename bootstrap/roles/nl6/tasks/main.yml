@@ -49,6 +49,7 @@
   ansible.builtin.command:
     cmd: docker rm -f l8opensim
   when: legacy_l8opensim_inspect.rc == 0
+  changed_when: true
   tags: ["nl6"]
 
 - name: Deploy nl6 systemd unit
