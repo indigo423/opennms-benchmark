@@ -3,7 +3,7 @@ nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.9.0"
 nl6_auto_count: 0
 
 opennms_distribution: Horizon
-opennms_version: "35.0.5"
+opennms_version: "36.0.0"
 opennms_pkg_version: "{{ opennms_version }}*"
 
 opennms_datasource_db_host: 192.0.2.196
