@@ -423,7 +423,7 @@ Replace `<monitoring-public-ip>` with the actual public IP assigned to the monit
 | Kafka UI             | `https://<monitoring-public-ip>/kafka`      | no login required           |
 | pgAdmin              | `https://<monitoring-public-ip>/pgadmin`    | admin@benchmark.lab / admin |
 | Kibana               | `https://<monitoring-public-ip>/kibana`     | no login required           |
-| SNMP Sim (nl6) | `https://<monitoring-public-ip>/opensim`    | no login required           |
+| SNMP Sim (nl6) | `https://<monitoring-public-ip>/nl6`        | no login required           |
 
 > [!TIP]
 > To reach every VM on the management network (`192.0.2.192/26`) without a bastion host, install [Tailscale](https://tailscale.com) on the monitoring VM and advertise the subnet:

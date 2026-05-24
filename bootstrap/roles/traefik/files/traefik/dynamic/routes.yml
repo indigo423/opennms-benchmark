@@ -52,7 +52,7 @@ http:
         - kibana-strip
       tls: {}
     opensim:
-      rule: "PathPrefix(`/opensim`)"
+      rule: "PathPrefix(`/nl6`)"
       entryPoints:
         - websecure
       service: opensim
@@ -73,7 +73,7 @@ http:
     opensim-strip:
       stripPrefix:
         prefixes:
-          - /opensim
+          - /nl6
 
   services:
     grafana:
