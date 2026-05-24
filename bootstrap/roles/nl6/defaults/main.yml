@@ -1,5 +1,5 @@
 ---
-nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.6.0"
+nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.9.0"
 nl6_auto_start_ip: "10.42.0.1"
 nl6_auto_count: 0
 nl6_auto_netmask: "16"
