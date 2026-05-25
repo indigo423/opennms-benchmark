@@ -31,11 +31,22 @@
   roles:
     - docker_ce
 
-- name: Monitoring services
+- name: Pin DHCP client identifier (isolated so netplan applies before later roles)
   hosts: mon_servers
   become: true
   roles:
     - dhcp_clientid
+  post_tasks:
+    - name: Flush handlers so netplan apply runs now
+      ansible.builtin.meta: flush_handlers
+    - name: Wait for SSH after netplan apply
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+
+- name: Monitoring services
+  hosts: mon_servers
+  become: true
+  roles:
     - ip_forwarding
     - grafana
     - pgadmin
