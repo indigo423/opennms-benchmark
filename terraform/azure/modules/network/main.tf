@@ -11,6 +11,27 @@ terraform {
 locals {
   env = var.environment
   loc = var.location
+
+  subnet_ids = {
+    db    = azurerm_subnet.db.id
+    kafka = azurerm_subnet.kafka.id
+    sim   = azurerm_subnet.sim.id
+    mgmt  = azurerm_subnet.mgmt.id
+  }
+
+  # Flatten role x interface into one NIC map keyed "<role>-<subnet>". Only the
+  # mgmt NIC of a public_ip role gets the monitoring public IP.
+  nics = merge([
+    for role, node in var.topology : {
+      for iface in node.interfaces :
+      "${role}-${iface.subnet}" => {
+        nic_label = node.nic_label
+        subnet    = iface.subnet
+        address   = iface.address
+        public_ip = node.public_ip && iface.subnet == "mgmt"
+      }
+    }
+  ]...)
 }
 
 # Public IP for monitoring jump host
@@ -58,7 +79,7 @@ resource "azurerm_subnet" "mgmt" {
   address_prefixes     = [var.subnet_mgmt]
 }
 
-# NSG — SSH from operator IP only on monitoring NIC
+# NSG — SSH/HTTPS from operator IP only, on the monitoring NIC
 resource "azurerm_network_security_group" "monitoring" {
   name                = "nsg-nic-${local.loc}-${local.env}-mon-vnet-mgmt"
   resource_group_name = var.resource_group
@@ -89,195 +110,87 @@ resource "azurerm_network_security_group" "monitoring" {
   }
 }
 
-# NICs — database
-resource "azurerm_network_interface" "database_db" {
-  name                = "nic-${local.loc}-${local.env}-database-vnet-db"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.db.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_database_db
-  }
-}
+# NICs — one per role x interface (see local.nics). Names reproduce the previous
+# hand-written scheme "nic-<loc>-<env>-<nic_label>-vnet-<subnet>" exactly.
+resource "azurerm_network_interface" "nic" {
+  for_each = local.nics
 
-resource "azurerm_network_interface" "database_mgmt" {
-  name                = "nic-${local.loc}-${local.env}-database-vnet-mgmt"
+  name                = "nic-${local.loc}-${local.env}-${each.value.nic_label}-vnet-${each.value.subnet}"
   resource_group_name = var.resource_group
   location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.mgmt.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_database
-  }
-}
 
-# NICs — core
-resource "azurerm_network_interface" "core_db" {
-  name                = "nic-${local.loc}-${local.env}-core-vnet-db"
-  resource_group_name = var.resource_group
-  location            = var.location
   ip_configuration {
     name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.db.id
+    subnet_id                     = local.subnet_ids[each.value.subnet]
     private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_core_db
-  }
-}
-
-resource "azurerm_network_interface" "core_kafka" {
-  name                = "nic-${local.loc}-${local.env}-core-vnet-kafka"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.kafka.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_core_kafka
-  }
-}
-
-resource "azurerm_network_interface" "core_mgmt" {
-  name                = "nic-${local.loc}-${local.env}-core-vnet-mgmt"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.mgmt.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_core
-  }
-}
-
-# NICs — kafka
-resource "azurerm_network_interface" "kafka_kafka" {
-  name                = "nic-${local.loc}-${local.env}-kafka-vnet-kafka"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.kafka.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_kafka_kafka
-  }
-}
-
-resource "azurerm_network_interface" "kafka_mgmt" {
-  name                = "nic-${local.loc}-${local.env}-kafka-vnet-mgmt"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.mgmt.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_kafka
-  }
-}
-
-# NICs — minion
-resource "azurerm_network_interface" "minion_kafka" {
-  name                = "nic-${local.loc}-${local.env}-minion-vnet-kafka"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.kafka.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_minion_kafka
-  }
-}
-
-resource "azurerm_network_interface" "minion_sim" {
-  name                = "nic-${local.loc}-${local.env}-minion-vnet-sim"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.sim.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_minion_sim
-  }
-}
-
-resource "azurerm_network_interface" "minion_mgmt" {
-  name                = "nic-${local.loc}-${local.env}-minion-vnet-mgmt"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.mgmt.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_minion
-  }
-}
-
-# NICs — netsim
-resource "azurerm_network_interface" "netsim_sim" {
-  name                = "nic-${local.loc}-${local.env}-netsim-vnet-sim"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.sim.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_netsim_sim
-  }
-}
-
-resource "azurerm_network_interface" "netsim_mgmt" {
-  name                = "nic-${local.loc}-${local.env}-netsim-vnet-mgmt"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.mgmt.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_netsim
-  }
-}
-
-# NICs — monitoring (jump host, gets public IP)
-resource "azurerm_network_interface" "monitoring_mgmt" {
-  name                = "nic-${local.loc}-${local.env}-mon-vnet-mgmt"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.mgmt.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_monitoring
-    public_ip_address_id          = azurerm_public_ip.monitoring.id
-  }
-}
-
-# NICs — elasticsearch
-resource "azurerm_network_interface" "elasticsearch_mgmt" {
-  name                = "nic-${local.loc}-${local.env}-es-vnet-mgmt"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.mgmt.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_elasticsearch
-  }
-}
-
-resource "azurerm_network_interface" "elasticsearch_db" {
-  name                = "nic-${local.loc}-${local.env}-es-vnet-db"
-  resource_group_name = var.resource_group
-  location            = var.location
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.db.id
-    private_ip_address_allocation = "Static"
-    private_ip_address            = var.ip_es_core
+    private_ip_address            = each.value.address
+    public_ip_address_id          = each.value.public_ip ? azurerm_public_ip.monitoring.id : null
   }
 }
 
 resource "azurerm_network_interface_security_group_association" "monitoring" {
-  network_interface_id      = azurerm_network_interface.monitoring_mgmt.id
+  network_interface_id      = azurerm_network_interface.nic["monitoring-mgmt"].id
   network_security_group_id = azurerm_network_security_group.monitoring.id
+}
+
+# Preserve state addresses across the count=1 -> for_each refactor (no destroy).
+moved {
+  from = azurerm_network_interface.database_mgmt
+  to   = azurerm_network_interface.nic["database-mgmt"]
+}
+moved {
+  from = azurerm_network_interface.database_db
+  to   = azurerm_network_interface.nic["database-db"]
+}
+moved {
+  from = azurerm_network_interface.core_mgmt
+  to   = azurerm_network_interface.nic["core-mgmt"]
+}
+moved {
+  from = azurerm_network_interface.core_db
+  to   = azurerm_network_interface.nic["core-db"]
+}
+moved {
+  from = azurerm_network_interface.core_kafka
+  to   = azurerm_network_interface.nic["core-kafka"]
+}
+moved {
+  from = azurerm_network_interface.kafka_mgmt
+  to   = azurerm_network_interface.nic["kafka-mgmt"]
+}
+moved {
+  from = azurerm_network_interface.kafka_kafka
+  to   = azurerm_network_interface.nic["kafka-kafka"]
+}
+moved {
+  from = azurerm_network_interface.minion_mgmt
+  to   = azurerm_network_interface.nic["minion-mgmt"]
+}
+moved {
+  from = azurerm_network_interface.minion_kafka
+  to   = azurerm_network_interface.nic["minion-kafka"]
+}
+moved {
+  from = azurerm_network_interface.minion_sim
+  to   = azurerm_network_interface.nic["minion-sim"]
+}
+moved {
+  from = azurerm_network_interface.netsim_mgmt
+  to   = azurerm_network_interface.nic["netsim-mgmt"]
+}
+moved {
+  from = azurerm_network_interface.netsim_sim
+  to   = azurerm_network_interface.nic["netsim-sim"]
+}
+moved {
+  from = azurerm_network_interface.monitoring_mgmt
+  to   = azurerm_network_interface.nic["monitoring-mgmt"]
+}
+moved {
+  from = azurerm_network_interface.elasticsearch_mgmt
+  to   = azurerm_network_interface.nic["elasticsearch-mgmt"]
+}
+moved {
+  from = azurerm_network_interface.elasticsearch_db
+  to   = azurerm_network_interface.nic["elasticsearch-db"]
 }

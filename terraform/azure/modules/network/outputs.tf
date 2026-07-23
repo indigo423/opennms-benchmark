@@ -1,16 +1,8 @@
-output "nic_database_db" { value = azurerm_network_interface.database_db.id }
-output "nic_database_mgmt" { value = azurerm_network_interface.database_mgmt.id }
-output "nic_core_db" { value = azurerm_network_interface.core_db.id }
-output "nic_core_kafka" { value = azurerm_network_interface.core_kafka.id }
-output "nic_core_mgmt" { value = azurerm_network_interface.core_mgmt.id }
-output "nic_kafka_kafka" { value = azurerm_network_interface.kafka_kafka.id }
-output "nic_kafka_mgmt" { value = azurerm_network_interface.kafka_mgmt.id }
-output "nic_minion_kafka" { value = azurerm_network_interface.minion_kafka.id }
-output "nic_minion_sim" { value = azurerm_network_interface.minion_sim.id }
-output "nic_minion_mgmt" { value = azurerm_network_interface.minion_mgmt.id }
-output "nic_netsim_sim" { value = azurerm_network_interface.netsim_sim.id }
-output "nic_netsim_mgmt" { value = azurerm_network_interface.netsim_mgmt.id }
-output "nic_monitoring_mgmt" { value = azurerm_network_interface.monitoring_mgmt.id }
-output "monitoring_public_ip" { value = azurerm_public_ip.monitoring.ip_address }
-output "nic_elasticsearch_mgmt" { value = azurerm_network_interface.elasticsearch_mgmt.id }
-output "nic_elasticsearch_db" { value = azurerm_network_interface.elasticsearch_db.id }
+# NIC IDs keyed "<role>-<subnet>" (e.g. "core-kafka"), consumed by the compute module.
+output "nic_ids" {
+  value = { for k, nic in azurerm_network_interface.nic : k => nic.id }
+}
+
+output "monitoring_public_ip" {
+  value = azurerm_public_ip.monitoring.ip_address
+}

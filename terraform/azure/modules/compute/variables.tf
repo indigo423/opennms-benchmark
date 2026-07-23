@@ -9,36 +9,24 @@ variable "ssh_public_key" {
   type      = string
   sensitive = true
 }
-variable "net_sim_cidr" { type = string }
-variable "net_sim_gateway" { type = string }
+
+# /etc/hosts map injected into every node's cloud-init.
 variable "hosts" { type = map(string) }
-variable "ip_database" { type = string }
-variable "ip_core" { type = string }
-variable "ip_kafka" { type = string }
-variable "ip_minion" { type = string }
-variable "ip_netsim" { type = string }
-variable "ip_monitoring" { type = string }
-variable "ip_database_db" { type = string }
-variable "ip_core_db" { type = string }
-variable "ip_core_kafka" { type = string }
-variable "ip_kafka_kafka" { type = string }
-variable "ip_minion_kafka" { type = string }
-variable "ip_minion_sim" { type = string }
-variable "ip_netsim_sim" { type = string }
-variable "nic_database_mgmt" { type = string }
-variable "nic_database_db" { type = string }
-variable "nic_core_mgmt" { type = string }
-variable "nic_core_db" { type = string }
-variable "nic_core_kafka" { type = string }
-variable "nic_kafka_mgmt" { type = string }
-variable "nic_kafka_kafka" { type = string }
-variable "nic_minion_mgmt" { type = string }
-variable "nic_minion_kafka" { type = string }
-variable "nic_minion_sim" { type = string }
-variable "nic_netsim_mgmt" { type = string }
-variable "nic_netsim_sim" { type = string }
-variable "nic_monitoring_mgmt" { type = string }
-variable "ip_elasticsearch" { type = string }
-variable "ip_es_core" { type = string }
-variable "nic_elasticsearch_mgmt" { type = string }
-variable "nic_elasticsearch_db" { type = string }
+
+# NIC IDs keyed "<role>-<subnet>", from the network module.
+variable "nic_ids" { type = map(string) }
+
+# Topology spec (keyed by role); see terraform/azure/main.tf for the schema.
+variable "topology" {
+  type = map(object({
+    vm_name   = string
+    nic_label = string
+    size      = string
+    public_ip = bool
+    interfaces = list(object({
+      subnet  = string
+      address = string
+      routes  = list(object({ to = string, via = string }))
+    }))
+  }))
+}

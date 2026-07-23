@@ -7,19 +7,20 @@ variable "subnet_db" { type = string }
 variable "subnet_kafka" { type = string }
 variable "subnet_sim" { type = string }
 variable "subnet_mgmt" { type = string }
-variable "ip_database_db" { type = string }
-variable "ip_database" { type = string }
-variable "ip_core_db" { type = string }
-variable "ip_core_kafka" { type = string }
-variable "ip_core" { type = string }
-variable "ip_kafka_kafka" { type = string }
-variable "ip_kafka" { type = string }
-variable "ip_minion_kafka" { type = string }
-variable "ip_minion_sim" { type = string }
-variable "ip_minion" { type = string }
-variable "ip_netsim" { type = string }
-variable "ip_netsim_sim" { type = string }
-variable "ip_monitoring" { type = string }
 variable "operator_cidr" { type = string }
-variable "ip_elasticsearch" { type = string }
-variable "ip_es_core" { type = string }
+
+# Topology spec (keyed by role). NICs are derived from each role's interfaces;
+# see terraform/azure/main.tf for the schema and the current layout.
+variable "topology" {
+  type = map(object({
+    vm_name   = string
+    nic_label = string
+    size      = string
+    public_ip = bool
+    interfaces = list(object({
+      subnet  = string
+      address = string
+      routes  = list(object({ to = string, via = string }))
+    }))
+  }))
+}
