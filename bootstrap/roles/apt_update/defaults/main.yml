@@ -8,6 +8,7 @@
 #
 #   grafana        -> grafana_version in opennms-lab-vars.yml (exact, e.g. 12.4.6)
 #   opennms-*      -> opennms_pkg_version, "36.0.2*" (patch level)
+#   clickhouse-*   -> clickhouse_version in the stub_clickhouse role (exact)
 #
 # jrrd2, rrdtool and iplike are deliberately absent: they pin a major version
 # ("1.*"), so an upgrade still satisfies the pin.
@@ -20,3 +21,6 @@ apt_update_pinned_packages:
   - opennms-server
   - opennms-webapp-jetty
   - opennms-webapp-hawtio
+  - clickhouse-common-static
+  - clickhouse-server
+  - clickhouse-client
