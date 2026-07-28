@@ -33,9 +33,12 @@
     - Restart traefik
   tags: ["traefik"]
 
-- name: Copy Traefik dynamic routes
-  ansible.builtin.copy:
-    src: traefik/dynamic/routes.yml
+# Templated, not copied: the OpenNMS / Kafka UI / nl6 back ends live on other
+# VMs whose addresses are provider-dependent, and most deployments do not run
+# all three roles. See the template header.
+- name: Deploy Traefik dynamic routes
+  ansible.builtin.template:
+    src: traefik/dynamic/routes.yml.j2
     dest: "{{ traefik_config_dir }}/dynamic/routes.yml"
     mode: "0644"
   notify:
