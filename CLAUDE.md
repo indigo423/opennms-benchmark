@@ -1,144 +1,81 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) working in this repository.
 
-## What This Repo Does
+## What this repo is
 
-This is an infrastructure-as-code benchmarking lab for [OpenNMS Horizon](https://www.opennms.com/). It provisions a 6-VM lab on Azure and runs performance experiments against an OpenNMS stack with up to 10,000 simulated SNMP nodes.
+An infrastructure-as-code lab for benchmarking [OpenNMS Horizon](https://www.opennms.com/).
+Terraform provisions VMs on one of four providers, Ansible configures them, and experiments
+drive load against the result. Explicitly not for building production environments.
 
-Lab VMs (all in `192.0.2.0/24`):
-- `192.0.2.196` — PostgreSQL (database)
-- `192.0.2.200` — OpenNMS Core
-- `192.0.2.204` — Kafka (message broker)
-- `192.0.2.208` — OpenNMS Minion (distributed collector)
-- `192.0.2.152` — Net-SNMP Simulator (10.42.0.0/16 SNMP targets, sim subnet)
-- `192.0.2.212` — Monitoring (Prometheus, Grafana, Jaeger)
+## The front door is `make`
 
-Addresses come from per-role blocks (`role_block_size` in
-`terraform/kvm/main.tf`), so each role owns a contiguous range and can scale to
-several nodes without colliding with the next role. The previous scheme packed
-roles at adjacent offsets and silently gave two VMs the same address whenever a
-role's count exceeded one.
+Do not invoke `terraform`, `ansible-playbook` or the linters directly. CI calls these same
+targets and nothing else, so bypassing them is how local and CI drift apart. `make help`
+lists everything.
+
+```bash
+make deploy PROVIDER=kvm DEPLOYMENT=mimir-ha-min   # provision + configure
+make destroy PROVIDER=kvm                          # prompts; CONFIRM=yes to skip
+make plan PROVIDER=azure
+make lint                                          # every check CI runs
+make deployments                                   # list topology specs
+```
+
+Providers: `azure`, `kvm`, `proxmox`, `vmware`. `DEPLOYMENT` is consumed by `kvm` only.
 
 ## Architecture
 
-There are three layers:
+Four layers, orchestrated by `deploy.sh` (which `make deploy` wraps):
 
-1. **Azure infrastructure** (`azcli/benchmark-lab.sh`): Creates the VNet, subnets, NICs, NSGs, and VMs via `az` CLI.
+1. **`terraform/<provider>/`** — provisions VMs and writes `ansible-inventory.yml`.
+2. **`bootstrap/`** — base tooling on every VM: Docker, Traefik, Prometheus, Grafana,
+   Jaeger, nl6, Kafka UI, …
+3. **OpenNMS stack** — the `indigo423.opennms` Galaxy collection pinned in
+   `requirements.yml`, applied by `opennms-playbook.yml`. Not a submodule.
+4. **`experiments/<name>/`** — self-contained playbooks reconfiguring the stack for one
+   scenario, plus the tooling to drive and measure load.
 
-2. **Bootstrap** (`bootstrap/`): Prepares all VMs — installs common tools, Docker, Prometheus Node Exporter, Net-SNMP simulator, Kafka UI, Prometheus, Grafana, Jaeger.
+`deployments/<slug>/` is a separate axis: a provider-agnostic *topology* spec
+(`topology.yml` — which components, how many, which subnets) with its Ansible overlay.
+`terraform/kvm` consumes it directly; the other providers do not yet. See
+`deployments/README.md`.
 
-3. **OpenNMS stack** (`ansible-opennms/` submodule): Deploys and configures PostgreSQL, Kafka, OpenNMS Core, and OpenNMS Minion using roles in the submodule.
+Variables layer root → deployment → experiment: `opennms-lab-vars.yml`, then
+`deployments/<slug>/opennms-lab-vars.yml`, then `experiments/<name>/opennms-lab-vars.yml`.
 
-Experiments live in `experiments/` — each subdirectory is a self-contained Ansible playbook that reconfigures the OpenNMS stack for a specific scenario (Kafka vs. RRD timeseries, SNMP metrics vs. syslog vs. traps).
+## Gotchas
 
-Global lab variables (OpenNMS version, JVM heap, Kafka bootstrap servers, DB host) live in `opennms-lab-vars.yml`. Per-experiment overrides live in `experiments/<name>/opennms-lab-vars.yml`.
+- **VM addresses are provider-dependent — never hardcode one.** `kvm` derives them from
+  per-role blocks (`role_block_size`, `terraform/kvm/main.tf`); `azure` uses the fixed
+  `ip_*` values in `terraform/lab.tfvars`. They disagree for every role except `database`:
+  `192.0.2.200` is Core on `kvm` and Monitoring on `azure`. Read the generated
+  `ansible-inventory.yml` instead. Tracked in #161.
+- `ansible.cfg` owns `roles_path`. Never set `ANSIBLE_ROLES_PATH` — the env var overrides
+  the file, and CI has already silently drifted that way once.
+- `ansible-inventory.yml` (generated) and `vault_pass.secret` are gitignored. The vault
+  password comes from `ANSIBLE_VAULT_PASSWORD_FILE`.
+- Lint targets take their file lists from `git ls-files`, so a new script is covered the
+  moment it is tracked — and not at all while it is untracked.
+- `indigo423.opennms` is pinned by git SHA for benchmark reproducibility. Bump it only in a
+  deliberate PR, never automatically.
 
-## Key Commands
+## Conventions
 
-### Deploy Azure infrastructure
-```bash
-export SSH_PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
-cd azcli && ./benchmark-lab.sh
-```
+- **VM names** — `<function>-<env>-<seq>`, e.g. `core-benchmark-01`. Functions: `db`,
+  `core`, `minion`, `kafka`, `netsim`, `mon`, `es`, `sen`.
+- **Experiments** — `c<cores>km<minions>_<cpu>c<ram>g_<broker>_<load>`, e.g.
+  `c1km1_4c16g_kfk_pm_snmp`.
+- **Deployments** — the directory slug, and `name:` inside `topology.yml`, must match.
 
-### Bootstrap all VMs
-```bash
-cd bootstrap
-ansible-playbook -i inventory site.yml
-```
+## Git workflow
 
-### Deploy the OpenNMS stack
-```bash
-ansible-galaxy collection install -r requirements.yml --force-with-deps
+`main` is protected: pull requests only, 13 required status checks, no direct pushes.
+Conventional Commits. Every commit needs `git commit -s` (DCO, enforced by a bot) and an
+`Assisted-by: ClaudeCode:<model>` trailer. Work starts from an issue — reference it with
+`Closes #<n>`.
 
-ansible-playbook --user labuser --become \
-  -i ansible-inventory.yml \
-  opennms-playbook.yml \
-  --extra-vars="@opennms-lab-vars.yml"
-```
+## Further reading
 
-### Run a specific experiment
-```bash
-cd experiments/<experiment-name>
-ansible-playbook -i opennms-lab-inventory.yml experiment.yml
-```
-
-### Provision test nodes into OpenNMS
-```bash
-cd experiments/inventory
-./generate_nodes.sh          # generates 10,000-node XML batches
-./provisioning.sh 01         # imports batch 01 via REST API
-```
-
-### SNMP simulation routing (one-time setup after VM boot)
-```bash
-# On Minion — route SNMP simulation subnet via simulator
-ssh labuser@192.0.2.208 "sudo ip r a 10.42.0.0/16 via 192.0.2.152"
-```
-
-### Update packages / reboot
-```bash
-cd bootstrap
-ansible-playbook -i ../ansible-inventory.yml update-playbook.yml
-ansible-playbook -i ../ansible-inventory.yml reboot-playbook.yml
-```
-
-## Ansible Galaxy Collections
-
-The OpenNMS deployment automation is consumed as the `indigo423.opennms` Ansible Galaxy collection (sourced from `github.com/opennms-forge/ansible-opennms`), alongside `community.postgresql`, `community.general`, and `grafana.grafana`. Pins live in `requirements.yml` at the repo root — `indigo423.opennms` is pinned by git SHA for benchmark reproducibility; the others are pinned by Galaxy version string. SHA bumps are deliberate, manual PRs.
-
-```bash
-ansible-galaxy collection install -r requirements.yml --force-with-deps
-```
-
-When iterating on a role locally without an upstream PR cycle, override the `indigo423.opennms` entry with a `type: dir` pointing at your local checkout — see `docs/development-guide.md`.
-
-## VM Naming Convention
-
-VM names follow the pattern `[function]-[env]-[seq]`:
-
-- **function** — role of the VM:
-  - `mon` — Monitoring (Prometheus, Grafana, Jaeger)
-  - `core` — OpenNMS Core
-  - `minion` — OpenNMS Minion
-  - `db` — Database (PostgreSQL)
-  - `netsim` — Net-SNMP Simulator
-  - `kafka` — Message broker (Kafka)
-  - `es` — Elasticsearch
-  - `sen` — OpenNMS Sentinel
-- **env** — environment name, matching the Azure deployment project name (e.g. `benchmark`)
-- **seq** — two-digit zero-padded sequence number (e.g. `01`, `02`)
-
-Examples: `db-benchmark-01`, `core-benchmark-01`, `minion-benchmark-01`, `mon-benchmark-01`
-
-## Experiment Naming Convention
-
-`c<cores>km<minions>_<cpu>c<ram>g_<broker>_<load-type>`
-
-- `c1km1` — 1 Core, 1 Minion
-- `4c16g` — VM size (4 vCPU, 16 GB RAM)
-- `kfk` / `rrd` — Kafka or RRD timeseries strategy
-- `pm_snmp` / `snmptraps` / `syslog` — load type
-
-## Services and Ports
-
-| Service | URL (via Traefik proxy) | Direct URL |
-|---|---|---|
-| OpenNMS UI | `https://<monitoring>/opennms` | `http://192.0.2.200:8980/opennms` |
-| Grafana | `https://<monitoring>/grafana` | `http://192.0.2.212:3000` |
-| Jaeger | `https://<monitoring>/jaeger` | `http://192.0.2.212:16686` |
-| Prometheus | `https://<monitoring>/prometheus` | `http://192.0.2.212:9090` |
-| Kafka UI | `https://<monitoring>/kafka` | `http://192.0.2.204:8080` |
-
-`<monitoring>` is the monitoring VM's external IP or hostname.
-
-## Git Workflow
-
-Never push directly to `main`. All changes must go through a pull request, regardless of size. Create a feature branch, make your changes, then open a PR for review before merging.
-
-All commits must be signed off using `git commit --signoff` (or `-s`), which adds a `Signed-off-by` trailer certifying that you have the right to submit the contribution under the project license (Developer Certificate of Origin). Example:
-
-```bash
-git commit -s -m "feat: my change"
-```
+`README.md` for network layout and per-provider host prep; `docs/` for the architecture,
+deployment and development guides.
