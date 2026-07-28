@@ -30,7 +30,9 @@ def series_diff(qid):
     b, c = body(B, qid), body(C, qid)
     det_b = body(B, qid, 2) == body(B, qid, 3)
     det_c = body(C, qid, 2) == body(C, qid, 3)
-    keyfn = lambda col: json.dumps(col, sort_keys=True)
+    def keyfn(col):
+        return json.dumps(col, sort_keys=True)
+
     kb = {keyfn(col): i for i, col in enumerate(b["columns"])}
     kc = {keyfn(col): i for i, col in enumerate(c["columns"])}
     shared, only_b, only_c = sorted(kb.keys() & kc.keys()), kb.keys() - kc.keys(), kc.keys() - kb.keys()
@@ -44,7 +46,11 @@ def series_diff(qid):
         sb = sum(x for x in vb if x is not None)
         sc = sum(x for x in vc if x is not None)
         col_diffs = 0
-        for i, (x, y) in enumerate(zip(vb, vc)):
+        # strict=False keeps the existing truncate-to-shorter behaviour. The two
+        # series come from the same query against two variants and should be the
+        # same length; if they ever are not, the extra buckets are silently
+        # dropped rather than reported. Made explicit here, not changed.
+        for i, (x, y) in enumerate(zip(vb, vc, strict=False)):
             total_buckets += 1
             if x != y and not (x is None and y is None):
                 if x is None or y is None:
@@ -85,7 +91,7 @@ def totals_diff(qid):
     for app in sorted(rows_b.keys() & rows_c.keys()):
         vb, vc = rows_b[app], rows_c[app]
         deltas = [round((y - x) / x * 100, 4) if isinstance(x, (int, float)) and x else None
-                  for x, y in zip(vb, vc)]
+                  for x, y in zip(vb, vc, strict=False)]  # see note in series_diff
         per_app.append({"app": app, "plugin": vb, "painless": vc, "rel_delta_pct": deltas})
     return {
         "kind": "totals", "query": qid, "headers": b.get("headers"),

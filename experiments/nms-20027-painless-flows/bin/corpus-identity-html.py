@@ -6,7 +6,7 @@
 # self-contained, human-readable HTML page in results/.
 import html
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 EXP = Path(__file__).resolve().parent.parent
@@ -17,8 +17,8 @@ summary = {}
 if report_path.is_file():
     summary = json.loads(report_path.read_text()).get("summary", {})
 
-t0 = datetime.fromtimestamp(ident["window_start_ms"] / 1000, tz=timezone.utc)
-t1 = datetime.fromtimestamp(ident["window_end_ms"] / 1000, tz=timezone.utc)
+t0 = datetime.fromtimestamp(ident["window_start_ms"] / 1000, tz=UTC)
+t1 = datetime.fromtimestamp(ident["window_end_ms"] / 1000, tz=UTC)
 dur = ident["window_end_ms"] - ident["window_start_ms"]
 sent = summary.get("sent")
 reconciled = sent == ident["doc_count"] if sent is not None else None

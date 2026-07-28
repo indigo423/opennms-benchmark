@@ -1,0 +1,23 @@
+# Ruff configuration for the repo's helper scripts (deployments/bin,
+# experiments/*/bin).
+#
+# This file exists mainly to pin the ruleset. Ruff resolves configuration by
+# walking up from each file, so without a config inside the repo a contributor
+# with a global ~/.config/ruff/ruff.toml lints against a different rule set than
+# CI does — which is exactly the local/CI drift the Makefile front-door is meant
+# to prevent.
+#
+# py311 is the floor we support (Debian 12); runners and lab VMs ship 3.12.
+target-version = "py311"
+
+# These are report-generation scripts with wide f-strings and long literal URLs;
+# 88 would be churn for no readability gain.
+line-length = 120
+
+[lint]
+# E/F  pycodestyle + pyflakes — the default pair, real errors.
+# I    import sorting, so diffs stay small.
+# UP   pyupgrade — keeps the scripts on modern syntax as the floor moves.
+# B    bugbear — the mutable-default and zip-strict class of bugs.
+# SIM  flake8-simplify — cheap readability wins.
+select = ["E", "F", "I", "UP", "B", "SIM"]

@@ -8,8 +8,8 @@ Usage:
     topology-descriptor.py <path/to/topology.yml>
     topology-descriptor.py --validate <path/to/topology.yml>   # exit non-zero on schema errors
 """
-import sys
 import re
+import sys
 
 # role -> descriptor code. monitoring is infra and intentionally excluded.
 ROLE_CODES = {

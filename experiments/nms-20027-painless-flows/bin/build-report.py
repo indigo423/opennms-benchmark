@@ -172,7 +172,8 @@ def main():
             "hypothesis": "Painless scripted_metric is competitive or faster on both dense and sparse shapes.",
             "independent_variable": "sut.config_delta",
             "baseline_variant": BASELINE,
-            "claim_class": "relative A/B (laptop-container scope: generator co-located; absolute numbers out of scope). "
+            "claim_class": "relative A/B (laptop-container scope: generator co-located; "
+                           "absolute numbers out of scope). "
                            f"Corpus: {corpus['doc_count']} flows (plan amended from 40M; ES-indexing-bound seed), "
                            "direction normalized unknown->ingress.",
             "date": "2026-07-22",
