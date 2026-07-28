@@ -120,7 +120,9 @@ fi
 # counts — only possible when flow-source-per-device=true gave each device its
 # own exporter identity; with shared-socket sourcing (cardinality 1) the
 # aggregate check above is the gate and this step is skipped.
-RECONCILE_BIN="${RECONCILE_BIN:-$(ls "$EXP_DIR"/build/nl6-reconcile-* 2>/dev/null | head -1 || true)}"
+# find + sort rather than ls: same alphabetical pick, but safe for paths with
+# spaces or newlines (SC2012).
+RECONCILE_BIN="${RECONCILE_BIN:-$(find "$EXP_DIR/build" -maxdepth 1 -name 'nl6-reconcile-*' 2>/dev/null | sort | head -1 || true)}"
 CARD="$(curl -sf "$ES_URL/netflow-*/_search" -H 'Content-Type: application/json' \
   -d '{"size":0,"aggs":{"card":{"cardinality":{"field":"host"}}}}' | jq -r '.aggregations.card.value')"
 if [ -n "$RECONCILE_BIN" ] && [ -x "$RECONCILE_BIN" ] && [ "$CARD" -ge "$DEVICES" ]; then

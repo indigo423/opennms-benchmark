@@ -14,14 +14,14 @@ printf '<?xml version="1.0" encoding="UTF-8"?>
 # Outer loop for third octet (0-255)
 for third_octet in {36..39}; do
     # Inner loop for fourth octet (1-254 for first/last subnet, 0-255 for middle subnets)
-    if [ $third_octet -eq 0 ]; then
+    if [ "$third_octet" -eq 0 ]; then
         # First subnet: skip .0 (network address)
         start_fourth=1
     else
         start_fourth=0
     fi
 
-    if [ $third_octet -eq 39 ]; then
+    if [ "$third_octet" -eq 39 ]; then
         # Last subnet: skip .255 (broadcast address)
         end_fourth=254
     else

@@ -66,13 +66,21 @@ export vm_name_netsim        ; vm_name_netsim=$(       _extract_vm netsim)
 export vm_name_elasticsearch ; vm_name_elasticsearch=$(_extract_vm elasticsearch)
 
 # --- render -----------------------------------------------------------------
-VARS='${subnet_mgmt}${subnet_db}${subnet_kafka}${subnet_sim}'
-VARS+='${ip_monitoring}${ip_database}${ip_core}${ip_kafka}${ip_minion}${ip_netsim}${ip_elasticsearch}'
-VARS+='${ip_database_db}${ip_core_db}${ip_es_core}'
-VARS+='${ip_kafka_kafka}${ip_core_kafka}${ip_minion_kafka}'
-VARS+='${ip_minion_sim}${ip_netsim_sim}'
-VARS+='${vm_name_monitoring}${vm_name_database}${vm_name_core}${vm_name_kafka}'
-VARS+='${vm_name_minion}${vm_name_netsim}${vm_name_elasticsearch}'
+# envsubst's SHELL-FORMAT argument is a literal list of ${var} references naming
+# which variables to substitute — it must NOT expand here, so the single quotes
+# are deliberate and SC2016 is a false positive for this whole block.
+# The braces make one compound command, so the directive covers every append —
+# on a bare sequence it would only apply to the first line.
+# shellcheck disable=SC2016
+{
+  VARS='${subnet_mgmt}${subnet_db}${subnet_kafka}${subnet_sim}'
+  VARS+='${ip_monitoring}${ip_database}${ip_core}${ip_kafka}${ip_minion}${ip_netsim}${ip_elasticsearch}'
+  VARS+='${ip_database_db}${ip_core_db}${ip_es_core}'
+  VARS+='${ip_kafka_kafka}${ip_core_kafka}${ip_minion_kafka}'
+  VARS+='${ip_minion_sim}${ip_netsim_sim}'
+  VARS+='${vm_name_monitoring}${vm_name_database}${vm_name_core}${vm_name_kafka}'
+  VARS+='${vm_name_minion}${vm_name_netsim}${vm_name_elasticsearch}'
+}
 
 outdir="$REPO_ROOT/assets"
 mkdir -p "$outdir"

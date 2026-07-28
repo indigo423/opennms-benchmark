@@ -41,7 +41,10 @@ if [ -n "$(git -C "$SRC_DIR" status --porcelain)" ]; then
 fi
 
 JAVA_VERSION="$(java -version 2>&1 | head -1)"
-MVN_VERSION="$( (cd "$SRC_DIR" && ./mvnw --version 2>/dev/null || mvn --version) | head -1)"
+# Braces group the wrapper/fallback pair so this reads as "cd, then try ./mvnw
+# else mvn" — the previous `cd && a || b` form let `mvn --version` run when the
+# cd itself failed, reporting a toolchain from the wrong directory.
+MVN_VERSION="$(cd "$SRC_DIR" && { ./mvnw --version 2>/dev/null || mvn --version; } | head -1)"
 echo "toolchain: $JAVA_VERSION / $MVN_VERSION"
 
 # --- 1.2 assembly tarball ----------------------------------------------------
