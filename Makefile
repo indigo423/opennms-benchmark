@@ -125,8 +125,20 @@ lint-python: ## Run ruff on every tracked Python script (config in ruff.toml)
 lint-yaml: ## Run yamllint on every tracked YAML file (config in .yamllint)
 	yamllint $$(git ls-files '*.yml' '*.yaml')
 
+# actionlint covers workflow schema, expression typing and the shell inside
+# `run:`; zizmor covers the Actions-specific security surface (template
+# injection, credential persistence, over-broad permissions). Together they
+# enforce the hardening rules — SHA pins, least privilege, timeouts — that were
+# applied by hand and would otherwise decay to whoever remembers them.
+# Local install: brew install actionlint && pipx install zizmor
+# --no-online-audits keeps the run deterministic and token-free.
+.PHONY: lint-actions
+lint-actions: ## Lint GitHub Actions workflows (actionlint + zizmor)
+	actionlint
+	zizmor --no-online-audits .github/workflows/
+
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml validate-deployments ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 

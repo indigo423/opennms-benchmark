@@ -82,6 +82,32 @@ jobs:
       - name: make lint-yaml
         run: make lint-yaml
 
+  actions:
+    name: Actions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # Installed from the module proxy at a pinned tag, so the checksum
+      # database verifies the download; Go ships with the runner image.
+      - name: Install actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+
+      - name: Install zizmor
+        run: python3 -m pip install zizmor==1.28.0
+
+      - name: make lint-actions
+        run: make lint-actions
+
   deployment-specs:
     name: Deployment Specs
     runs-on: ubuntu-24.04
