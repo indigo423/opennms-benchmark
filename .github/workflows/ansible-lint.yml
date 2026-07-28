@@ -11,14 +11,31 @@ on:
     branches:
       - main
 
+# The repo-level default workflow token is read-only today; declaring it here
+# keeps that true even if the setting drifts. Nothing in this workflow writes.
+permissions:
+  contents: read
+
+# A superseded lint run tells us nothing — cancel it and keep the queue short.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # CI invokes the `make lint-ansible` target, never ansible-lint directly, so local
 # and CI stay in sync.
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest so GitHub's image migrations don't move
+    # under the build on their own schedule.
+    runs-on: ubuntu-24.04
+    # Collection installs dominate the runtime; 15m is generous headroom, and a
+    # real hang now fails in minutes instead of burning the 6h default.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
