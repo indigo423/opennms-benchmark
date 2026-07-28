@@ -109,8 +109,24 @@ tflint-%:
 lint-ansible: ## Run ansible-lint (config in .ansible-lint)
 	ansible-lint
 
+# The file lists come from `git ls-files`, so the linters see exactly what is
+# tracked: no provider caches under .terraform/, no untracked scratch files, and
+# a new script is picked up the moment it is added rather than when someone
+# remembers to extend a glob here.
+.PHONY: lint-shell
+lint-shell: ## Run shellcheck on every tracked shell script
+	shellcheck $$(git ls-files '*.sh')
+
+.PHONY: lint-python
+lint-python: ## Run ruff on every tracked Python script (config in ruff.toml)
+	ruff check $$(git ls-files '*.py')
+
+.PHONY: lint-yaml
+lint-yaml: ## Run yamllint on every tracked YAML file (config in .yamllint)
+	yamllint $$(git ls-files '*.yml' '*.yaml')
+
 .PHONY: lint
-lint: fmt validate tflint lint-ansible ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml validate-deployments ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 
