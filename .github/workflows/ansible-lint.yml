@@ -1,19 +1,15 @@
 ---
 name: Ansible Lint
 
+# No `paths:` filters: they let a PR touching only unlisted files merge with no
+# checks at all, and a filtered-out workflow reports nothing — which would leave
+# a required status check pending forever once main is protected. The job is
+# cheap enough that linting everything beats reasoning about the filter list.
 on:
   pull_request:
-    paths:
-      - "bootstrap/**"
-      - "deployments/**"
-      - "experiments/**"
-      - "opennms-playbook.yml"
-      - "opennms-lab-vars.yml"
-      - "requirements.yml"
-      - ".ansible-lint"
-      # Owns roles_path, so it governs whether roles resolve at all.
-      - "ansible.cfg"
-      - "Makefile"
+  push:
+    branches:
+      - main
 
 # CI invokes the `make lint-ansible` target, never ansible-lint directly, so local
 # and CI stay in sync.

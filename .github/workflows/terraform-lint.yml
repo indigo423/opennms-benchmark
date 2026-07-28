@@ -1,11 +1,13 @@
 ---
 name: Terraform Lint
 
+# No `paths:` filters — see the note in ansible-lint.yml: a filtered-out workflow
+# reports nothing, which leaves a required status check pending forever.
 on:
   pull_request:
-    paths:
-      - "terraform/**"
-      - "Makefile"
+  push:
+    branches:
+      - main
 
 # CI invokes Makefile targets, never terraform directly, so local and CI stay in sync.
 jobs:
