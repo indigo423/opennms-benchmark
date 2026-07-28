@@ -1,3 +1,4 @@
+---
 name: rrd-minimal
 description: >-
   Deployment B — RRDTool storage on Core, minimal: 1 PostgreSQL, 1 Kafka,

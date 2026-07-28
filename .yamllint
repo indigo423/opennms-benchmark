@@ -1,0 +1,31 @@
+---
+# yamllint configuration.
+#
+# ansible-lint already embeds a yamllint pass over Ansible content. This config
+# governs the standalone `make lint-yaml` run, whose value is the YAML that
+# ansible-lint never looks at: deployments/*/topology.yml, .github/workflows/
+# and the experiment compose files.
+
+extends: default
+
+ignore: |
+  # ansible-vault ciphertext — not YAML, and never decrypted in CI.
+  group_vars/opennms_stack/vault.yml
+  # Provider plugin caches; gitignored, but keep a direct `yamllint .` honest.
+  **/.terraform/
+
+rules:
+  # Ansible vars carry JVM option strings and URLs that cannot be wrapped
+  # without changing the value. What is worth enforcing in this repo is
+  # structural — duplicate keys, indentation, document markers — not width.
+  line-length: disable
+
+  # The deployment topology specs write flow mappings spaced, e.g.
+  # { cores: 4, memory: 8 }. Allow one space; still reject two or more.
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # `on:` in a GitHub Actions workflow is a YAML 1.1 boolean, not truthy misuse.
+  truthy:
+    allowed-values: ["true", "false", "on"]

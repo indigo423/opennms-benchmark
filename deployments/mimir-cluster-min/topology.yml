@@ -1,3 +1,4 @@
+---
 name: mimir-cluster-min
 description: >-
   Component test bed — Mimir cluster formation against shared object storage.

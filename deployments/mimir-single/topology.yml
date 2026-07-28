@@ -1,3 +1,4 @@
+---
 name: mimir-single
 description: Deployment G — single Mimir, 1 PostgreSQL, 1 Core.
 roles:

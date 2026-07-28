@@ -1,3 +1,4 @@
+---
 name: es-nostore
 description: >-
   Deployment D — Elasticsearch for flows, no metrics TSDB persistence, 1

@@ -76,3 +76,9 @@ ansible-inventory.yml
 # Repo-local Ansible Vault master key — minted by init_secrets, NEVER commit
 vault_pass.secret
 
+# === Python / lint tooling ===
+
+__pycache__/
+*.py[cod]
+.ruff_cache/
+

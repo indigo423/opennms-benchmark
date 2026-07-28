@@ -1,3 +1,4 @@
+---
 name: baseline
 description: >-
   The current single-node lab (reference topology). One instance of each

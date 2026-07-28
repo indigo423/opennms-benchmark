@@ -1,3 +1,4 @@
+---
 name: vm-cluster-es
 description: >-
   Deployment C — VictoriaMetrics cluster (3 nodes) for metrics + 1 Elasticsearch

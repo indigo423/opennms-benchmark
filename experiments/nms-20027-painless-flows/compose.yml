@@ -5,7 +5,7 @@
 # Core + PostgreSQL + Elasticsearch + nl6 only — no Minion/Sentinel/Kafka.
 # Select the variant via VARIANT=variant-b-plugin | variant-c-painless.
 # Co-located layout: valid for relative A/B claims only (never absolute capacity).
-
+---
 services:
   database:
     image: postgres:15.13            # pinned; recorded as sut.db_version in the manifest
@@ -89,8 +89,9 @@ services:
       # verify collector routing from the nl6sim namespace at use.
       - "-flow-source-per-device=false"
       - "-flow-tick-interval"
-      - "1"    # 1s emission ticks: 5x smaller bursts, same rate — the receiver's
-               # UDP rcvbuf overflowed on the default 5s batch cycle at 1000 devices
+      # 1s emission ticks: 5x smaller bursts at the same rate — the receiver's
+      # UDP rcvbuf overflowed on the default 5s batch cycle at 1000 devices.
+      - "1"
       - "-fidelity"
     cap_add:
       - NET_ADMIN

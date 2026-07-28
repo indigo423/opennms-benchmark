@@ -1,3 +1,4 @@
+---
 name: vm-cluster-minion
 description: >-
   Deployment E — VictoriaMetrics cluster (3 nodes), 1 PostgreSQL, 1 Core,

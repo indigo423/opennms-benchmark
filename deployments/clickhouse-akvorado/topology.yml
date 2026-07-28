@@ -1,3 +1,4 @@
+---
 name: clickhouse-akvorado
 description: >-
   Deployment H — standalone flow-engine comparison: 1 ClickHouse, 1 Akvorado.

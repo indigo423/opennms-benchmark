@@ -1,3 +1,4 @@
+---
 name: kafka-cluster-min
 description: >-
   Component test bed — KRaft cluster formation only. Not an A–H benchmark
