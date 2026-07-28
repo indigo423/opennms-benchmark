@@ -1,0 +1,96 @@
+---
+name: Code Lint
+
+# No `paths:` filters — see the note in ansible-lint.yml: a filtered-out workflow
+# reports nothing, which leaves a required status check pending forever.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# The repo-level default workflow token is read-only today; declaring it here
+# keeps that true even if the setting drifts. Nothing in this workflow writes.
+permissions:
+  contents: read
+
+# A superseded lint run tells us nothing — cancel it and keep the queue short.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# CI invokes Makefile targets, never the linters directly, so local and CI stay
+# in sync. Every job pins runs-on to a concrete image rather than ubuntu-latest,
+# so GitHub's image migrations don't move under the build on their own schedule.
+#
+# Tool versions are pinned to what the findings were triaged against; a linter
+# minor bump can introduce new rules and should land as its own reviewed change.
+jobs:
+  shell:
+    name: Shell
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # shellcheck ships with the runner image, so its version moves when the
+      # image does. Printed here so a drift-induced failure is obvious from the
+      # log rather than a mystery.
+      - name: Show shellcheck version
+        run: shellcheck --version
+
+      - name: make lint-shell
+        run: make lint-shell
+
+  python:
+    name: Python
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: python3 -m pip install ruff==0.16.0
+
+      - name: make lint-python
+        run: make lint-python
+
+  yaml:
+    name: YAML
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install yamllint
+        run: python3 -m pip install yamllint==1.38.0
+
+      - name: make lint-yaml
+        run: make lint-yaml
+
+  deployment-specs:
+    name: Deployment Specs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # topology-descriptor.py is pure stdlib, so the runner's python3 is enough.
+      - name: make validate-deployments
+        run: make validate-deployments
