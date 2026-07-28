@@ -15,23 +15,23 @@
    already is that address — hence the default(). The distinction matters because
    ansible_host for the jump host is its *external* address.
 
-   Most deployments do not run all three roles (5 of 13 have no core at all), so
-   each router and service is emitted only when its group is populated. The
-   previous static file advertised all three unconditionally, which left routes
-   pointing at addresses that belonged to a different role or to no host at all.
+   Many deployments do not run all three roles — several specs have no core at
+   all, and net_sim is rarer still — so each router and service is emitted only
+   when its group is populated. The previous static file advertised all three
+   unconditionally, which left routes pointing at addresses that belonged to a
+   different role or to no host at all.
+
+   Every member of a group becomes a load-balancer server, not just the first:
+   the mimir-ha shape beds run three Kafka UI nodes, and taking groups[...][0]
+   would silently route to one and ignore the rest.
+
+   default(..., true) rather than plain default(): the second argument makes it
+   fire on an empty value as well as an undefined one, otherwise an empty
+   lab_mgmt_ip renders as "http://:8980" — valid YAML, silently dead.
 #}
 {% set have_core = groups['core'] is defined and groups['core'] | length > 0 %}
 {% set have_kafka_ui = groups['kafka_ui'] is defined and groups['kafka_ui'] | length > 0 %}
 {% set have_net_sim = groups['net_sim'] is defined and groups['net_sim'] | length > 0 %}
-{% if have_core %}
-{% set core_ip = hostvars[groups['core'][0]].lab_mgmt_ip | default(hostvars[groups['core'][0]].ansible_host) %}
-{% endif %}
-{% if have_kafka_ui %}
-{% set kafka_ui_ip = hostvars[groups['kafka_ui'][0]].lab_mgmt_ip | default(hostvars[groups['kafka_ui'][0]].ansible_host) %}
-{% endif %}
-{% if have_net_sim %}
-{% set net_sim_ip = hostvars[groups['net_sim'][0]].lab_mgmt_ip | default(hostvars[groups['net_sim'][0]].ansible_host) %}
-{% endif %}
 http:
   routers:
     app-starter:
@@ -136,14 +136,18 @@ http:
     opennms:
       loadBalancer:
         servers:
-          - url: "http://{{ core_ip }}:8980"
+{% for host in groups['core'] %}
+          - url: "http://{{ hostvars[host].lab_mgmt_ip | default(hostvars[host].ansible_host, true) }}:8980"
+{% endfor %}
 {% endif %}
 {% if have_kafka_ui %}
 
     kafka:
       loadBalancer:
         servers:
-          - url: "http://{{ kafka_ui_ip }}:8080"
+{% for host in groups['kafka_ui'] %}
+          - url: "http://{{ hostvars[host].lab_mgmt_ip | default(hostvars[host].ansible_host, true) }}:8080"
+{% endfor %}
 {% endif %}
 
     pgadmin:
@@ -160,7 +164,9 @@ http:
     opensim:
       loadBalancer:
         servers:
-          - url: "http://{{ net_sim_ip }}:8080"
+{% for host in groups['net_sim'] %}
+          - url: "http://{{ hostvars[host].lab_mgmt_ip | default(hostvars[host].ansible_host, true) }}:8080"
+{% endfor %}
 {% endif %}
 
     app-starter:
