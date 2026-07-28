@@ -95,12 +95,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Installed from the module proxy at a pinned tag, so the checksum
-      # database verifies the download; Go ships with the runner image.
+      # Pinned to the commit behind v1.7.12, matching how the actions above are
+      # pinned. The module proxy's checksum database already made the tag
+      # content-immutable — a retag upstream fails verification rather than
+      # installing different code — so this is for consistency and
+      # reviewability, not because the tag was unsafe.
+      #
+      # What is NOT pinned is the toolchain: the runner's Go bootstraps
+      # whichever go1.25.x satisfies actionlint's go directive and downloads it
+      # at build time. The source is fixed; the compiler that builds it is not.
       - name: Install actionlint
         run: |
-          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          go install github.com/rhysd/actionlint/cmd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca  # v1.7.12
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Install zizmor
         run: python3 -m pip install zizmor==1.28.0

@@ -130,8 +130,17 @@ lint-yaml: ## Run yamllint on every tracked YAML file (config in .yamllint)
 # injection, credential persistence, over-broad permissions). Together they
 # enforce the hardening rules — SHA pins, least privilege, timeouts — that were
 # applied by hand and would otherwise decay to whoever remembers them.
-# Local install: brew install actionlint && pipx install zizmor
-# --no-online-audits keeps the run deterministic and token-free.
+# Install the same versions CI pins, or `make lint-actions` means one thing on
+# your machine and another in CI — the drift ruff.toml exists to prevent:
+#   go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+#   pipx install zizmor==1.28.0
+#
+# --no-online-audits keeps the run deterministic and token-free, at a cost worth
+# stating: it disables impostor-commit (is this SHA a real commit of that repo?)
+# and ref-version-mismatch (does the `# vX.Y.Z` comment match the pinned SHA?).
+# Both are exactly the conventions this repo pins by hand, so offline mode will
+# not catch a forged or mislabelled pin. Enabling them needs a GH token on a
+# required check — tracked separately.
 .PHONY: lint-actions
 lint-actions: ## Lint GitHub Actions workflows (actionlint + zizmor)
 	actionlint
