@@ -1,0 +1,1 @@
+{"variant": "batch_off", "devices": 500, "window": "10m", "t0": "2026-07-28 22:29:31", "t1": "2026-07-28 22:39:52", "sent": 2368000, "persisted": 2201176, "inserts": 2201019, "written_rows": 0, "parts_total": 24467, "parts_flows": 4894, "loss": 166824, "loss_pct": 7.045}

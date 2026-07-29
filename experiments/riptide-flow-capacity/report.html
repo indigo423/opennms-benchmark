@@ -1,0 +1,811 @@
+<!--
+  Copyright 2026 Ronny Trommer <ronny@no42.org>
+  SPDX-License-Identifier: Apache-2.0
+
+  OpenNMS benchmark comparison report — self-contained template.
+  To generate a report: replace ONLY the JSON inside the script block whose
+  id is "benchmark-data" (marked DATA INJECTION POINT below).
+  Everything else (gating, deltas, charts) reads from that block.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenNMS Benchmark Report</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:        #f9f9f7;  --surface-1:   #fcfcfb;
+    --text-primary:#0b0b0b;  --text-secondary:#52514e;  --text-muted:#898781;
+    --grid:        #e1e0d9;  --baseline:    #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+    --series-1:    #2a78d6;  --series-2:    #eb6834;  --series-3: #1baf7a;
+    --status-critical:#d03b3b; --status-serious:#ec835a; --status-good:#0ca30c;
+    --delta-good:  #006300;  --delta-bad:   #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page:        #0d0d0d;  --surface-1:   #1a1a19;
+      --text-primary:#ffffff;  --text-secondary:#c3c2b7;  --text-muted:#898781;
+      --grid:        #2c2c2a;  --baseline:    #383835;
+      --border:      rgba(255,255,255,0.10);
+      --series-1:    #3987e5;  --series-2:    #d95926;  --series-3: #199e70;
+      --delta-good:  #0ca30c;  --delta-bad:   #d03b3b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:        #0d0d0d;  --surface-1:   #1a1a19;
+    --text-primary:#ffffff;  --text-secondary:#c3c2b7;  --text-muted:#898781;
+    --grid:        #2c2c2a;  --baseline:    #383835;
+    --border:      rgba(255,255,255,0.10);
+    --series-1:    #3987e5;  --series-2:    #d95926;  --series-3: #199e70;
+    --delta-good:  #0ca30c;  --delta-bad:   #d03b3b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 12px; }
+  .sub { color: var(--text-secondary); margin: 0 0 8px; }
+  .meta { color: var(--text-muted); font-size: 13px; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 18px; margin: 12px 0;
+  }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .tile .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .tile .value { font-size: 26px; font-weight: 600; margin-top: 2px; }
+  .tile .detail { font-size: 13px; color: var(--text-secondary); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0 4px; font-size: 13px; color: var(--text-secondary); }
+  .legend .chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
+  .callout { border-left: 3px solid var(--status-serious); }
+  .callout.critical { border-left-color: var(--status-critical); }
+  .callout .icon { font-weight: 700; margin-right: 6px; }
+  svg text { fill: var(--text-secondary); font: 12px system-ui, sans-serif; }
+  svg .muted { fill: var(--text-muted); }
+  svg .val { fill: var(--text-primary); font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  /* wide tables scroll inside their container instead of squashing headers */
+  .scroll-x { overflow-x: auto; }
+  .scroll-x table { width: max-content; min-width: 100%; }
+  .scroll-x th, .scroll-x td { white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 500; }
+  code, pre { font: 12px ui-monospace, Menlo, monospace; }
+  pre { background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 10px; overflow-x: auto; }
+  .delta-up   { color: var(--delta-bad); }
+  .delta-down { color: var(--delta-good); }
+  .delta-plain{ color: var(--text-secondary); }
+  #tooltip {
+    position: fixed; pointer-events: none; display: none; z-index: 10;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 12.5px; color: var(--text-primary);
+    box-shadow: 0 2px 10px rgba(0,0,0,.18);
+  }
+  #themeToggle {
+    float: right; background: var(--surface-1); color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 13px;
+  }
+  details summary { cursor: pointer; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div style="max-width:1100px;margin:1rem auto;padding:1rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;font:14px system-ui;color:#c9d1d9"><h2 style="margin-top:0">Profiling: improving the 3,600 flows/s ceiling</h2><p><b>Bound:</b> serialized pipeline, not CPU or ClickHouse — one <code>client.insert().get()</code> per packet (~24 rows) and a per-packet enrich+persist path running at concurrency ≈1 (per-thread CPU under load: udp-listener 36%, two pool workers 18%+9%, rest of the 8-thread pool idle; riptide ~1.1/4 cores, ClickHouse ~2.5/4).</p><table style="border-collapse:collapse;width:100%"><tr style="text-align:left;color:#8b949e"><th style="padding:.3rem .6rem">#</th><th style="padding:.3rem .6rem">Lever</th><th style="padding:.3rem .6rem">Expected</th><th style="padding:.3rem .6rem">Cost</th></tr><tr><td style="padding:.3rem .6rem">1</td><td style="padding:.3rem .6rem"><b>Batch inserts across packets</b><br><span style="color:#8b949e">Accumulate enriched flows into a size/time-bounded buffer (e.g. 5-10k rows or 200ms) and issue one client.insert per batch instead of one per packet.</span></td><td style="padding:.3rem .6rem">Largest single gain; likely multi-x. No new hardware.</td><td style="padding:.3rem .6rem">code</td></tr><tr><td style="padding:.3rem .6rem">2</td><td style="padding:.3rem .6rem"><b>Parallelize the enrich+persist path</b><br><span style="color:#8b949e">Fan Pipeline.process across the existing 8-thread parser pool (or a dedicated worker pool consuming a bounded queue) so packets enrich+insert concurrently.</span></td><td style="padding:.3rem .6rem">Up to ~coresx toward CPU saturation, compounding with batching.</td><td style="padding:.3rem .6rem">code</td></tr><tr><td style="padding:.3rem .6rem">3</td><td style="padding:.3rem .6rem"><b>Stop blocking on .get() per stage</b><br><span style="color:#8b949e">Keep multiple inserts in flight (bounded) rather than await each; run independent enrichers concurrently instead of 7 sequential .get()s.</span></td><td style="padding:.3rem .6rem">Removes per-packet latency floor.</td><td style="padding:.3rem .6rem">code</td></tr><tr><td style="padding:.3rem .6rem">4</td><td style="padding:.3rem .6rem"><b>ClickHouse server async_insert tuning</b><br><span style="color:#8b949e">async_insert_busy_timeout_ms / async_insert_max_data_size.</span></td><td style="padding:.3rem .6rem">Negligible until upstream fixed — included to show where it is NOT.</td><td style="padding:.3rem .6rem">config</td></tr></table></div>
+<main>
+  <button id="themeToggle" aria-label="Toggle color theme">◐ theme</button>
+  <h1 id="rq"></h1>
+  <p class="sub" id="hypothesis"></p>
+  <p class="meta" id="expmeta"></p>
+
+  <section id="gate"></section>
+  <section id="headline"></section>
+  <section id="verdict"></section>
+  <section id="charts"></section>
+  <section id="reconciliation"></section>
+  <section id="correctness"></section>
+
+  <h2>Data table</h2>
+  <div class="card scroll-x" id="datatable"></div>
+
+  <h2>Run manifests</h2>
+  <div id="manifests"></div>
+
+  <p class="meta">Generated from the embedded data block — this file is self-contained: no build, no network, safe to attach anywhere. Contracts: run-time manifest · per-axis reconciliation · comparability gating (see the opennms-benchmark skill).</p>
+</main>
+<div id="tooltip" role="tooltip"></div>
+
+<!-- ══════════════ DATA INJECTION POINT — replace ONLY this block ══════════════ -->
+<script id="benchmark-data" type="application/json">
+{
+  "experiment": {
+    "question": "How many concurrent flow exporters / flows-per-second can riptide 0.6.6 ingest on a 4-vCPU VM before the first flow is dropped, and is the limit riptide or the kernel UDP socket buffer? And what is the ingestion-to-persistence latency? Where is the sustained ingestion limit, and is it CPU- or config-bound?",
+    "hypothesis": "First drop is set by the UDP receive-buffer, not riptide's processing; raising net.core.rmem_max moves the knee far higher.",
+    "independent_variable": "sut.config_delta (net.core.rmem_max)",
+    "baseline_variant": "stock-rmem-208KB",
+    "claim_class": "absolute capacity (generator off-box on monkey-head \u2192 valid); burst-shaped load (nl6 phase-aligned exporters) \u2014 first-drop is a worst-case synchronized burst, not sustained rate",
+    "date": "2026-07-28"
+  },
+  "metrics": [
+    {
+      "id": "first_drop_exporters",
+      "label": "Concurrent synchronized exporters at first dropped flow",
+      "unit": "exporters",
+      "better": "higher"
+    },
+    {
+      "id": "max_clean_burst",
+      "label": "Peak instantaneous rate absorbed with zero loss",
+      "unit": "records/s",
+      "better": "higher"
+    },
+    {
+      "id": "persist_latency_ms",
+      "label": "Ingestion\u2192persistence latency (receivedAt \u2192 queryable in ClickHouse)",
+      "unit": "ms",
+      "better": "lower"
+    },
+    {
+      "id": "sustained_ingestion_rows_s",
+      "label": "Sustained ingestion\u2192persistence rate (ClickHouse part_log, rows/s)",
+      "unit": "rows/s",
+      "better": "higher"
+    }
+  ],
+  "runs": [
+    {
+      "variant": "stock-rmem-208KB",
+      "results": {
+        "metrics": {
+          "first_drop_exporters": {
+            "median": 30,
+            "min": 22,
+            "max": 30,
+            "trials": 1
+          },
+          "max_clean_burst": {
+            "median": 1408,
+            "min": 960,
+            "max": 1408,
+            "trials": 1
+          },
+          "persist_latency_ms": {
+            "note": "not measured \u2014 97% of flows dropped at the socket, so survivors' latency is unrepresentative"
+          },
+          "sustained_ingestion_rows_s": {
+            "note": "n/a \u2014 socket-buffer-bound before the pipeline is reached"
+          }
+        },
+        "reconciliation": {
+          "axis": "push-telemetry",
+          "attempted": 2816,
+          "completed": 2816,
+          "errors": 0,
+          "note": "at last clean point (22 exporters): delivered 2816 = accepted 2816; first drop at 30 exporters (1 packet)"
+        },
+        "ladder": [
+          [
+            15,
+            960,
+            3840,
+            0,
+            3840,
+            "clean"
+          ],
+          [
+            22,
+            1408,
+            2816,
+            0,
+            2816,
+            "clean \u2014 last clean point"
+          ],
+          [
+            30,
+            1536,
+            3840,
+            1,
+            3820,
+            "FIRST DROP (1 packet)"
+          ],
+          [
+            50,
+            2133,
+            12800,
+            263,
+            6077,
+            "dropping"
+          ],
+          [
+            200,
+            8533,
+            51200,
+            1762,
+            6104,
+            "dropping"
+          ],
+          [
+            500,
+            21333,
+            96000,
+            3424,
+            9129,
+            "dropping"
+          ],
+          [
+            1000,
+            42666,
+            256000,
+            10489,
+            6104,
+            "~97% lost at socket"
+          ]
+        ]
+      },
+      "manifest": {
+        "experiment": {
+          "question": "riptide flow-ingest capacity: first dropped flow",
+          "independent_variable": "sut.config_delta",
+          "variant": "stock-rmem-208KB"
+        },
+        "sut": {
+          "version_identity": {
+            "version": "0.6.6",
+            "image": "ghcr.io/riptide-labs/riptide:0.6.6"
+          },
+          "jvm": {
+            "heap": "container default",
+            "gc": "container default"
+          },
+          "db_version": "ClickHouse 26.7.1.1315",
+          "tss_backend": "clickhouse",
+          "config_delta": "net.core.rmem_max=212992 (stock Ubuntu 24.04)",
+          "provisioner": "kvm/ansible (clickhouse-riptide)"
+        },
+        "host": {
+          "cpu": "Intel i9-10880H host-passthrough, 4 vCPU",
+          "ram_gb": 8,
+          "disk": "qcow2/nvme",
+          "generator_colocated": false,
+          "net_core_rmem_max": 212992
+        },
+        "workload": {
+          "axis": "push-telemetry",
+          "generator_scenario": "nl6 ipfix fidelity loadtest, N synchronized exporters, rate=1000, 20-30s window",
+          "generator_version": "nl6 v0.20.1",
+          "parameters": {
+            "protocol": "ipfix",
+            "burst_model": "phase-aligned device ticks (~128 records/device/cycle)"
+          },
+          "fixtures": [
+            {
+              "name": "nl6-fleet",
+              "identity": "auto exporters on 10.42.0.0/16, 5s tick / 30s active-timeout"
+            }
+          ]
+        },
+        "run": {
+          "id": "stock-rmem-208KB",
+          "started_at": "2026-07-28T12:30:00Z"
+        },
+        "comparability_key": [
+          "sut.version_identity",
+          "sut.db_version",
+          "sut.tss_backend",
+          "host.cpu",
+          "host.ram_gb",
+          "host.generator_colocated",
+          "workload.axis",
+          "workload.generator_scenario",
+          "workload.generator_version",
+          "workload.parameters",
+          "sut.config_delta"
+        ]
+      }
+    },
+    {
+      "variant": "tuned-rmem-128MB",
+      "results": {
+        "metrics": {
+          "first_drop_exporters": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000,
+            "trials": 1,
+            "note": "no drop through 1000 \u2014 ceiling not reached"
+          },
+          "max_clean_burst": {
+            "median": 42666,
+            "min": 21333,
+            "max": 42666,
+            "trials": 1
+          },
+          "persist_latency_ms": {
+            "min": 37,
+            "median": 116,
+            "p95": 173,
+            "p99": 226,
+            "max": 261,
+            "trials": 151,
+            "note": "sampled now64()-max(receivedAt) while actively persisting; cross-VM clock skew <0.2ms; async_insert flush dominates"
+          },
+          "sustained_ingestion_rows_s": {
+            "median": 2977,
+            "min": 2950,
+            "max": 3600,
+            "p95": 3600,
+            "trials": 3,
+            "note": "dead-flat 3,600 rows/s (8 parts/s) \u2014 an async-insert cadence, not saturation. During drain riptide java used ~1.1 of 4 cores and ClickHouse ~2.5 of 4; neither CPU-bound, so the limit is insert-config (batch/flush) and tunable with headroom. Bursts far above this are absorbed by the 128MB socket buffer and drained in the gaps; sustained arrival above ~3,600/s would grow backlog until the buffer overflows."
+          }
+        },
+        "reconciliation": {
+          "axis": "push-telemetry",
+          "attempted": 256000,
+          "completed": 256000,
+          "errors": 0,
+          "note": "1000 exporters: delivered 256000 = accepted 256000 after drain, zero kernel drops; riptide processing knee not reached"
+        },
+        "ladder": [
+          [
+            200,
+            8533,
+            51200,
+            0,
+            51200,
+            "clean"
+          ],
+          [
+            500,
+            21333,
+            128000,
+            0,
+            128000,
+            "clean (drained)"
+          ],
+          [
+            1000,
+            21333,
+            256000,
+            0,
+            256000,
+            "clean, zero loss (drained) \u2014 no processing knee reached"
+          ]
+        ],
+        "latency_light_load": {
+          "min": 37,
+          "median": 126,
+          "p95": 405,
+          "max": 405,
+          "trials": 9,
+          "note": "22 exporters (trickle) \u2014 worse tail: a lone flow waits out the async_insert flush timeout"
+        },
+        "nl6_report_html": "nl6-reports/s-000002.html",
+        "nl6_report_json": "nl6-reports/s-000002.json"
+      },
+      "manifest": {
+        "experiment": {
+          "question": "riptide flow-ingest capacity: first dropped flow",
+          "independent_variable": "sut.config_delta",
+          "variant": "tuned-rmem-128MB"
+        },
+        "sut": {
+          "version_identity": {
+            "version": "0.6.6",
+            "image": "ghcr.io/riptide-labs/riptide:0.6.6"
+          },
+          "jvm": {
+            "heap": "container default",
+            "gc": "container default"
+          },
+          "db_version": "ClickHouse 26.7.1.1315",
+          "tss_backend": "clickhouse",
+          "config_delta": "net.core.rmem_max=134217728 (128MB)",
+          "provisioner": "kvm/ansible (clickhouse-riptide)"
+        },
+        "host": {
+          "cpu": "Intel i9-10880H host-passthrough, 4 vCPU",
+          "ram_gb": 8,
+          "disk": "qcow2/nvme",
+          "generator_colocated": false,
+          "net_core_rmem_max": 134217728
+        },
+        "workload": {
+          "axis": "push-telemetry",
+          "generator_scenario": "nl6 ipfix fidelity loadtest, N synchronized exporters, rate=1000, 20-30s window",
+          "generator_version": "nl6 v0.20.1",
+          "parameters": {
+            "protocol": "ipfix",
+            "burst_model": "phase-aligned device ticks (~128 records/device/cycle)"
+          },
+          "fixtures": [
+            {
+              "name": "nl6-fleet",
+              "identity": "auto exporters on 10.42.0.0/16, 5s tick / 30s active-timeout"
+            }
+          ]
+        },
+        "run": {
+          "id": "tuned-rmem-128MB",
+          "started_at": "2026-07-28T12:30:00Z"
+        },
+        "comparability_key": [
+          "sut.version_identity",
+          "sut.db_version",
+          "sut.tss_backend",
+          "host.cpu",
+          "host.ram_gb",
+          "host.generator_colocated",
+          "workload.axis",
+          "workload.generator_scenario",
+          "workload.generator_version",
+          "workload.parameters",
+          "sut.config_delta"
+        ]
+      }
+    }
+  ],
+  "profiling": {
+    "measured_ceiling_rows_s": 3600,
+    "bound": "serialized pipeline, not CPU or ClickHouse \u2014 ~1.1 of 4 cores busy; 8-thread pool idle",
+    "evidence": {
+      "insert_granularity": "ClickhouseRepository.persist() does one client.insert(...).get() per received packet (~24 rows) \u2014 3600 rows/s = ~150 blocking inserts/s",
+      "pipeline_concurrency": "Pipeline.process() runs 7 enricher.get() sequentially then persist per packet; per-thread CPU under load: udp-listener 36%, two pool workers 18%+9%, rest idle",
+      "cpu_headroom": "riptide ~1.1/4 cores, ClickHouse ~2.5/4 cores during drain"
+    },
+    "recommendations": [
+      {
+        "rank": 1,
+        "lever": "Batch inserts across packets",
+        "change": "Accumulate enriched flows into a size/time-bounded buffer (e.g. 5-10k rows or 200ms) and issue one client.insert per batch instead of one per packet.",
+        "why": "Amortizes the per-insert round-trip, async_insert buffer append, and part formation feeding 4 rollup MVs over far more rows. The code's own note measured inserts/s as the governing metric (56->607 with coalescing); fewer, larger inserts move it further.",
+        "expected": "Largest single gain; likely multi-x. No new hardware.",
+        "cost": "code"
+      },
+      {
+        "rank": 2,
+        "lever": "Parallelize the enrich+persist path",
+        "change": "Fan Pipeline.process across the existing 8-thread parser pool (or a dedicated worker pool consuming a bounded queue) so packets enrich+insert concurrently.",
+        "why": "The pool exists but sits idle (concurrency ~1). Three of four cores are unused; parallelism converts them to throughput.",
+        "expected": "Up to ~coresx toward CPU saturation, compounding with batching.",
+        "cost": "code"
+      },
+      {
+        "rank": 3,
+        "lever": "Stop blocking on .get() per stage",
+        "change": "Keep multiple inserts in flight (bounded) rather than await each; run independent enrichers concurrently instead of 7 sequential .get()s.",
+        "why": "Every stage serializes on a round-trip; async_insert already acks fast (wait_for_async_insert=0) so the client blocking is pure latency waste.",
+        "expected": "Removes per-packet latency floor.",
+        "cost": "code"
+      },
+      {
+        "rank": 4,
+        "lever": "ClickHouse server async_insert tuning",
+        "change": "async_insert_busy_timeout_ms / async_insert_max_data_size.",
+        "why": "Not the bottleneck at 150 inserts/s \u2014 the server coalescer keeps up easily; only matters after levers 1-3 raise client-side send rate.",
+        "expected": "Negligible until upstream fixed \u2014 included to show where it is NOT.",
+        "cost": "config"
+      }
+    ]
+  }
+}
+</script>
+<!-- ══════════════════════ END DATA INJECTION POINT ══════════════════════ -->
+
+<script>
+(function () {
+  "use strict";
+  const data = JSON.parse(document.getElementById("benchmark-data").textContent);
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const SERIES = ["--series-1", "--series-2", "--series-3"];
+
+  /* ---------- theme toggle (viewer toggle beats OS setting) ---------- */
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const r = document.documentElement;
+    const dark = r.getAttribute("data-theme") === "dark" ||
+      (!r.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+    r.setAttribute("data-theme", dark ? "light" : "dark");
+    render(); // re-read palette custom props
+  });
+
+  /* ---------- comparability gate (Contract 3) ---------- */
+  const getPath = (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), o);
+  // canonicalize at EVERY depth (a stringify replacer-array would whitelist
+  // nested keys against top-level names and silently drop them — fail-open)
+  const sortDeep = v => Array.isArray(v) ? v.map(sortDeep)
+    : v && typeof v === "object"
+      ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sortDeep(v[k])]))
+      : v;
+  const canon = v => JSON.stringify(sortDeep(v));
+  // remove the IV subtree from a value, so a key path that CONTAINS the IV
+  // still gates the IV's sibling fields instead of exempting them all
+  const pruned = (v, rel) => {
+    if (!rel.length || v == null || typeof v !== "object") return v;
+    const [h, ...t] = rel, c = Array.isArray(v) ? v.slice() : { ...v };
+    if (t.length) c[h] = pruned(c[h], t); else delete c[h];
+    return c;
+  };
+  function gateAgainst(baseline, run) {
+    const iv = baseline.manifest.experiment.independent_variable;
+    const key = baseline.manifest.comparability_key;
+    // fail CLOSED: no comparability key, no comparison
+    if (!Array.isArray(key) || !key.length)
+      return ["comparability_key (missing or empty in baseline manifest — gate cannot run)"];
+    const mismatches = [];
+    if (canon(run.manifest.comparability_key) !== canon(key))
+      mismatches.push("comparability_key (declaration differs from baseline)");
+    if ((run.manifest.experiment || {}).independent_variable !== iv)
+      mismatches.push("experiment.independent_variable (declaration differs from baseline)");
+    for (const p of key) {
+      if (p === iv || p.startsWith(iv + ".")) continue;   // inside the declared IV subtree
+      let a = getPath(baseline.manifest, p), b = getPath(run.manifest, p);
+      if (iv.startsWith(p + ".")) {                        // key path contains the IV: prune it, keep gating siblings
+        const rel = iv.slice(p.length + 1).split(".");
+        a = pruned(a, rel); b = pruned(b, rel);
+      }
+      if (a === undefined && b === undefined) {            // typo'd path must not silently drop a control
+        mismatches.push(p + " (path matches nothing in either manifest — typo in comparability_key?)");
+        continue;
+      }
+      if (canon(a) !== canon(b)) mismatches.push(p);
+    }
+    return mismatches;
+  }
+  // refuse to guess the baseline — a silent runs[0] fallback yields wrong deltas
+  const baseline = data.runs.find(r => r.variant === data.experiment.baseline_variant);
+  const fatal = !data.runs.length ? "the data block contains no runs"
+    : !baseline ? `declared baseline variant "${data.experiment.baseline_variant}" matches no run (variants present: ${data.runs.map(r => r.variant).join(", ")})`
+    : null;
+  const candidates = baseline ? data.runs.filter(r => r !== baseline) : [];
+  const comparable = baseline ? [baseline] : [];
+  const excluded = [];
+  for (const r of candidates) {
+    const mm = gateAgainst(baseline, r);
+    (mm.length ? excluded : comparable).push(mm.length ? { run: r, mismatches: mm } : r);
+  }
+
+  /* ---------- static header ---------- */
+  document.getElementById("rq").textContent = data.experiment.question;
+  document.getElementById("hypothesis").textContent = data.experiment.hypothesis || "";
+  document.getElementById("expmeta").textContent =
+    `${data.experiment.date} · independent variable: ${data.experiment.independent_variable}` +
+    ` · baseline: ${data.experiment.baseline_variant} · claim class: ${data.experiment.claim_class || "unstated"}`;
+
+  const fmt = n => Number(n).toLocaleString("en-US");
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  /* ---------- tooltip ---------- */
+  const tip = document.getElementById("tooltip");
+  const showTip = (e, html) => { tip.innerHTML = html; tip.style.display = "block"; moveTip(e); };
+  const moveTip = e => {
+    const pad = 12, w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.min(e.clientX + pad, innerWidth - w - 8) + "px";
+    tip.style.top = Math.min(e.clientY + pad, innerHeight - h - 8) + "px";
+  };
+  const hideTip = () => (tip.style.display = "none");
+
+  function render() {
+    const colorOf = i => css(SERIES[i % SERIES.length]);
+
+    /* ----- fatal: refuse to render a comparison that would be wrong ----- */
+    const manifestsHtml = data.runs.map(r =>
+      `<details class="card"><summary>${esc(r.variant)} — run ${esc((r.manifest.run || {}).id ?? "?")}</summary>
+       <pre>${esc(JSON.stringify(r.manifest, null, 2))}</pre></details>`).join("");
+    if (fatal) {
+      document.getElementById("gate").innerHTML =
+        `<div class="card callout critical"><span class="icon" aria-hidden="true">⛔</span>` +
+        `<strong>Cannot render comparison:</strong> ${esc(fatal)}. Fix the data block; refusing to guess a baseline.</div>`;
+      for (const id of ["headline", "verdict", "charts", "reconciliation", "correctness", "datatable"])
+        document.getElementById(id).innerHTML = "";
+      document.getElementById("manifests").innerHTML = manifestsHtml;
+      return;
+    }
+
+    /* ----- gate banner ----- */
+    const gateEl = document.getElementById("gate");
+    gateEl.innerHTML = excluded.length ? `
+      <div class="card callout critical">
+        <span class="icon" aria-hidden="true">⛔</span><strong>Not comparable — excluded from the comparison:</strong>
+        ${excluded.map(x => `
+          <div style="margin-top:6px"><strong>${esc(x.run.variant)}</strong> mismatches the baseline on controlled fields:
+          <code>${x.mismatches.map(esc).join("</code>, <code>")}</code></div>`).join("")}
+        <div class="meta" style="margin-top:6px">Contract 3: only the declared independent variable
+        (<code>${esc(data.experiment.independent_variable)}</code>) may differ between compared runs.</div>
+      </div>` : "";
+
+    /* ----- headline tiles: primary metric median + reconciliation ----- */
+    const mval = (r, id) => ((r.results || {}).metrics || {})[id];   // one missing metric must not blank the report
+    const m0 = data.metrics[0];
+    const base0 = mval(baseline, m0.id);
+    const tiles = comparable.map((r, i) => {
+      const v = mval(r, m0.id);
+      let deltaHtml = "";
+      if (r === baseline) deltaHtml = `<span class="delta-plain">baseline</span>`;
+      else if (v && base0 && base0.median) {
+        const d = (v.median - base0.median) / base0.median * 100;
+        const good = (m0.better === "lower") === (d < 0);
+        deltaHtml = `<span class="${good ? "delta-down" : "delta-up"}">${d < 0 ? "▼" : "▲"} ${Math.abs(d).toFixed(1)}% vs baseline</span>`;
+      } else deltaHtml = `<span class="delta-plain">no baseline value — delta unavailable</span>`;
+      return `<div class="tile card">
+        <div class="label"><span class="chip" style="background:${colorOf(i)}"></span>${esc(r.variant)}</div>
+        <div class="value">${v ? `${fmt(v.median)} ${esc(m0.unit)}` : "—"}</div>
+        <div class="detail">${v ? `median, ${esc(m0.label)}` : `no data for ${esc(m0.label)}`} · ${deltaHtml}</div>
+      </div>`;
+    }).join("");
+    document.getElementById("headline").innerHTML = `<h2>Headline — ${esc(m0.label)}</h2><div class="tiles">${tiles}</div>`;
+
+    /* ----- verdict: every metric, baseline vs candidates, plain-words delta ----- */
+    const comparableCandidates = comparable.filter(r => r !== baseline);
+    if (comparableCandidates.length) {
+      const NOISE = 0.10;   // within a ±10% band either way reads as parity, not a claim
+      const PARITY = Math.log1p(NOISE);   // compare in log space so faster/slower cross the band symmetrically
+      const deltaWord = m => (v, b) => {
+        if (!v || !b || !b.median || !v.median) return "—";
+        const f = m.better === "lower" ? b.median / v.median : v.median / b.median;
+        if (Math.abs(Math.log(f)) < PARITY) return "parity (within noise)";
+        const words = m.better === "lower" ? ["faster", "slower"] : ["better", "worse"];
+        return f > 1 ? `${f.toFixed(1)}× ${words[0]}` : `${(1 / f).toFixed(1)}× ${words[1]}`;
+      };
+      document.getElementById("verdict").innerHTML = `<h2>Verdict — medians, ${esc(baseline.variant)} as baseline</h2>
+        <div class="card scroll-x"><table>
+        <thead><tr><th>Metric</th><th>${esc(baseline.variant)}</th>${comparableCandidates.map(c =>
+          `<th>${esc(c.variant)}</th><th>delta</th>`).join("")}</tr></thead>
+        <tbody>${data.metrics.map(m => {
+          const b = mval(baseline, m.id);
+          return `<tr><td>${esc(m.label)}</td><td>${b ? fmt(b.median) + " " + esc(m.unit) : "—"}</td>` +
+            comparableCandidates.map(c => {
+              const v = mval(c, m.id);
+              return `<td>${v ? fmt(v.median) + " " + esc(m.unit) : "—"}</td><td>${deltaWord(m)(v, b)}</td>`;
+            }).join("") + `</tr>`;
+        }).join("")}</tbody></table></div>`;
+    }
+
+    /* ----- legend + one grouped bar chart per metric ----- */
+    const chartsEl = document.getElementById("charts");
+    const legend = comparable.length > 1 ? `<div class="legend">${comparable.map((r, i) =>
+      `<span><span class="chip" style="background:${colorOf(i)}"></span>${esc(r.variant)}</span>`).join("")}</div>` : "";
+    chartsEl.innerHTML = `<h2>Latency percentiles (median + p95, whiskers = min–max across trials)</h2>${legend}` +
+      data.metrics.map(m => `<div class="card">${barChart(m)}</div>`).join("");
+
+    function barChart(metric) {
+      const groups = ["median", "p95"];
+      const W = 880, rowH = 26, gap = 2, groupPad = 18, left = 70, right = 90, topPad = 8;
+      const H = topPad + groups.length * (comparable.length * (rowH + gap) + groupPad) + 24;
+      const vals = comparable.map(r => mval(r, metric.id));
+      const finite = vals.filter(Boolean).flatMap(v => [v.max, v.p95, v.median]).filter(n => Number.isFinite(n));
+      if (!finite.length) return `<div style="font-size:13px;color:var(--text-secondary)">${esc(metric.label)} — no data in any comparable run</div>`;
+      const maxVal = Math.max(...finite);
+      const x = v => left + (v / maxVal) * (W - left - right);
+      let y = topPad, out = [];
+      // hairline grid at quarters
+      for (let q = 1; q <= 4; q++) {
+        const gx = left + (W - left - right) * q / 4;
+        out.push(`<line x1="${gx}" y1="${topPad}" x2="${gx}" y2="${H - 20}" stroke="${css("--grid")}" stroke-width="1"/>`);
+        out.push(`<text class="muted" x="${gx}" y="${H - 6}" text-anchor="middle">${fmt(Math.round(maxVal * q / 4))}</text>`);
+      }
+      for (const g of groups) {
+        out.push(`<text class="muted" x="${left - 8}" y="${y + (comparable.length * (rowH + gap)) / 2 + 4}" text-anchor="end">${g}</text>`);
+        comparable.forEach((r, i) => {
+          const v = mval(r, metric.id);
+          if (!v || !Number.isFinite(v[g])) {   // missing run/percentile: label the gap, never NaN the geometry
+            out.push(`<text class="muted" x="${left + 6}" y="${y + rowH / 2 + 4}">no data — ${esc(r.variant)}</text>`);
+            y += rowH + gap;
+            return;
+          }
+          const val = v[g], bw = Math.max(x(val) - left, 2), by = y, r4 = 4;
+          // bar: anchored at baseline, 4px rounded data-end only
+          const spread = Number.isFinite(v.min) && Number.isFinite(v.max) ? `, min ${fmt(v.min)} / max ${fmt(v.max)}` : "";
+          out.push(`<path data-tip="${esc(`${r.variant} — ${g}: ${fmt(val)} ${metric.unit} (${v.trials ?? "?"} trials${spread})`)}"
+            d="M${left},${by} h${bw - r4} a${r4},${r4} 0 0 1 ${r4},${r4} v${rowH - 2 * r4} a${r4},${r4} 0 0 1 -${r4},${r4} h-${bw - r4} z"
+            fill="${colorOf(i)}"/>`);
+          // spread whisker (min–max) on the median row
+          if (g === "median" && Number.isFinite(v.min) && Number.isFinite(v.max)) {
+            const wy = by + rowH / 2;
+            out.push(`<line x1="${x(v.min)}" y1="${wy}" x2="${x(v.max)}" y2="${wy}" stroke="${css("--baseline")}" stroke-width="2"/>`);
+            out.push(`<line x1="${x(v.min)}" y1="${wy - 4}" x2="${x(v.min)}" y2="${wy + 4}" stroke="${css("--baseline")}" stroke-width="2"/>`);
+            out.push(`<line x1="${x(v.max)}" y1="${wy - 4}" x2="${x(v.max)}" y2="${wy + 4}" stroke="${css("--baseline")}" stroke-width="2"/>`);
+          }
+          // direct value label (relief for sub-3:1 series colors on light surface)
+          out.push(`<text class="val" x="${x(g === "median" ? Math.max(val, v.max ?? val) : val) + 6}" y="${by + rowH / 2 + 4}">${fmt(val)}</text>`);
+          y += rowH + gap;
+        });
+        y += groupPad;
+      }
+      out.push(`<line x1="${left}" y1="${topPad}" x2="${left}" y2="${H - 20}" stroke="${css("--baseline")}" stroke-width="1"/>`);
+      return `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px">${esc(metric.label)} — ${metric.unit}, ${metric.better} is better</div>
+        <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(metric.label)}">${out.join("")}</svg>`;
+    }
+
+    /* ----- reconciliation (Contract 2) ----- */
+    // one delivered/accepted pair, accepting every axis vocabulary from reconcile.md:
+    // push: offered/received · pull: expected/persisted · provisioning: requested/scanned · REST: attempted/completed
+    const recPair = rec => ({
+      delivered: rec.attempted ?? rec.offered ?? rec.expected ?? rec.requested,
+      accepted: rec.completed ?? rec.received ?? rec.persisted ?? rec.scanned
+    });
+    document.getElementById("reconciliation").innerHTML = `<h2>Reconciliation — delivered vs. accepted (Contract 2)</h2>
+      <div class="tiles">` + comparable.map((r, i) => {
+        const rec = r.results.reconciliation || {};
+        const { delivered, accepted } = recPair(rec);
+        const pct = delivered ? (accepted / delivered * 100) : null;
+        const thr = rec.threshold_pct ?? 99.9;                 // per-axis expectation belongs to the data, not the template
+        const over = pct !== null && pct > 100.05;             // accepted > delivered = duplication/leakage: disqualifying
+        const ok = pct !== null && !over && pct >= thr;
+        const status = pct === null ? "⚠ no reconciliation pair found — rate figures unciteable"
+          : over ? "⛔ over-delivery (accepted > delivered): duplication or arm-phase leakage — run disqualified"
+          : ok ? "✓" : `⚠ shortfall vs ${thr}% threshold — rate figures qualified`;
+        return `<div class="tile card" ${over ? 'style="border-left:3px solid var(--status-critical)"' : !ok ? 'style="border-left:3px solid var(--status-serious)"' : ""}>
+          <div class="label"><span class="chip" style="background:${colorOf(i)}"></span>${esc(r.variant)} · ${esc(rec.axis || "")}</div>
+          <div class="value">${pct === null ? "—" : pct.toFixed(1) + "%"}</div>
+          <div class="detail">${fmt(accepted ?? 0)} / ${fmt(delivered ?? 0)} ${status}${rec.errors ? ` · errors: ${fmt(rec.errors)}` : ""}${rec.note ? ` · ${esc(rec.note)}` : ""}</div>
+        </div>`;
+      }).join("") + `</div>`;
+
+    /* ----- correctness confound ----- */
+    const cEl = document.getElementById("correctness");
+    const corr = data.correctness || {};
+    // details[] renders as bullets; legacy string `detail` stays supported.
+    const corrBody = Array.isArray(corr.details) && corr.details.length
+      ? `<ul style="margin:6px 0 0 1.1em;padding:0">${corr.details.map(d =>
+          `<li style="margin-top:4px">${esc(d)}</li>`).join("")}</ul>`
+      : `<div class="meta" style="margin-top:4px">${esc(corr.detail || "")}</div>`;
+    const gt = corr.ground_truth;
+    const gtHtml = gt && Array.isArray(gt.rows) && gt.rows.length ? `
+      <div class="card" style="margin-top:10px">
+        <strong>${esc(gt.title || gt.caption || "Data quality vs. ground truth")}</strong>
+        <div class="scroll-x"><table style="margin-top:8px">
+          <thead><tr>${(gt.headers || []).map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+          <tbody>${gt.rows.map(row =>
+            `<tr>${row.map(c => `<td>${esc(String(c))}</td>`).join("")}</tr>`).join("")}</tbody>
+        </table></div>
+        ${Array.isArray(gt.method) && gt.method.length ? `
+          <div style="margin-top:12px"><strong>How these numbers are computed</strong>
+            <dl style="margin:6px 0 0 0">${gt.method.map(m => `
+              <dt style="font-weight:600;margin-top:8px">${esc(m.label || "")}</dt>
+              <dd style="margin:2px 0 0 0;color:var(--text-secondary)">${esc(m.text || "")}</dd>`).join("")}
+            </dl></div>`
+        : gt.method ? `<div class="meta" style="margin-top:10px">
+            <strong>How these numbers are computed:</strong> ${esc(gt.method)}</div>` : ""}
+      </div>` : "";
+    cEl.innerHTML = corr.differs ? `
+      <h2>Correctness delta (confound rule)</h2>
+      <div class="card callout">
+        <span class="icon" aria-hidden="true">⚠</span><strong>Variants do not return identical results.</strong>
+        <div style="margin-top:4px">${esc(corr.summary)}</div>
+        ${corrBody}
+      </div>${gtHtml}` : "";
+
+    /* ----- table view (accessibility: identity never color-alone) ----- */
+    document.getElementById("datatable").innerHTML = `<table>
+      <thead><tr><th>Variant</th>${data.metrics.map(m =>
+        `<th>${esc(m.label)} median (${m.unit})</th><th>p95</th><th>min–max</th>`).join("")}<th>Reconciliation</th></tr></thead>
+      <tbody>${data.runs.map(r => {
+        const ex = excluded.find(x => x.run === r);
+        const { delivered, accepted } = recPair((r.results || {}).reconciliation || {});
+        return `<tr${ex ? ' style="color:var(--text-muted)"' : ""}><td>${esc(r.variant)}${ex ? " (not comparable)" : ""}</td>` +
+          data.metrics.map(m => { const v = mval(r, m.id);
+            if (!v) return `<td>—</td><td>—</td><td>—</td>`;
+            const spread = Number.isFinite(v.min) && Number.isFinite(v.max) ? `${fmt(v.min)}–${fmt(v.max)}` : "—";
+            return `<td>${Number.isFinite(v.median) ? fmt(v.median) : "—"}</td><td>${Number.isFinite(v.p95) ? fmt(v.p95) : "—"}</td><td>${spread}</td>`; }).join("") +
+          `<td>${fmt(accepted ?? 0)}/${fmt(delivered ?? 0)}</td></tr>`;
+      }).join("")}</tbody></table>`;
+
+    /* ----- manifests ----- */
+    document.getElementById("manifests").innerHTML = manifestsHtml;
+
+    /* ----- hover layer ----- */
+    document.querySelectorAll("[data-tip]").forEach(el => {
+      el.addEventListener("mouseenter", e => showTip(e, esc(el.getAttribute("data-tip"))));
+      el.addEventListener("mousemove", moveTip);
+      el.addEventListener("mouseleave", hideTip);
+    });
+  }
+  render();
+})();
+</script>
+</body>
+</html>

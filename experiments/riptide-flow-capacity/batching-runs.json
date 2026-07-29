@@ -1,0 +1,350 @@
+{
+  "experiment": {
+    "question": "Does client-side ClickHouse insert batching (riptide#382 / PR#387) raise the sustained flow-ingest ceiling above the ~3,600 flows/s of 0.6.6, and does it preserve delivered == persisted?",
+    "hypothesis": "The 0.6.6 ceiling is insert-cadence-bound, not CPU-bound: one blocking insert per flow record caps throughput at ~150 inserts/s x ~24 rows. Batching to 10k rows / 2s should collapse insert and part cadence and move the ceiling several-fold higher.",
+    "independent_variable": "sut.config_delta (riptide.clickhouse.batch.enabled)",
+    "baseline_variant": "batch-off (per-record inserts + async_insert coalescing)",
+    "claim_class": "absolute capacity (generator off-box on monkey-head) + relative A/B",
+    "date": "2026-07-28"
+  },
+  "metrics": [
+    {
+      "id": "sustained_rows_s",
+      "label": "Sustained persisted rate, 10-min confirmed window",
+      "unit": "rows/s",
+      "better": "higher"
+    },
+    {
+      "id": "max_clean_offered_s",
+      "label": "Highest zero-loss offered rate (4-min ladder step)",
+      "unit": "flows/s",
+      "better": "higher"
+    },
+    {
+      "id": "inserts_per_s",
+      "label": "ClickHouse INSERT statements per second",
+      "unit": "inserts/s",
+      "better": "lower"
+    },
+    {
+      "id": "rows_per_insert",
+      "label": "Rows carried per INSERT",
+      "unit": "rows",
+      "better": "higher"
+    },
+    {
+      "id": "new_parts_per_s",
+      "label": "NewPart cadence on the flows table",
+      "unit": "parts/s",
+      "better": "lower"
+    }
+  ],
+  "runs": [
+    {
+      "variant": "batch-off",
+      "results": {
+        "metrics": {
+          "sustained_rows_s": {
+            "median": 3669,
+            "trials": 1,
+            "note": "10-minute confirmed steady window, persisted rows/s"
+          },
+          "max_clean_offered_s": {
+            "median": 3973,
+            "trials": 1,
+            "note": "highest 4-minute ladder step with zero loss"
+          },
+          "inserts_per_s": {
+            "median": 3668.36,
+            "trials": 1
+          },
+          "rows_per_insert": {
+            "median": 1,
+            "trials": 1,
+            "note": "async_insert acknowledges before the write, so query_log written_rows is 0 for batch-off; 1 row per insert by construction"
+          },
+          "new_parts_per_s": {
+            "median": 8.16,
+            "trials": 1
+          }
+        },
+        "reconciliation": {
+          "axis": "push-telemetry",
+          "attempted": 2368000,
+          "completed": 2201176,
+          "errors": 166824,
+          "note": "10-min confirm: nl6 in_window 2,368,000 vs ClickHouse row delta 2,201,176 (7.045% loss)"
+        },
+        "ladder": [
+          [
+            125,
+            933,
+            933,
+            0.0,
+            933.33,
+            2.23,
+            "clean"
+          ],
+          [
+            250,
+            1933,
+            1933,
+            0.0,
+            1933.33,
+            4.41,
+            "clean"
+          ],
+          [
+            500,
+            3973,
+            3973,
+            0.0,
+            3973.33,
+            8.85,
+            "clean"
+          ],
+          [
+            750,
+            5627,
+            3986,
+            29.167,
+            3993.6,
+            8.88,
+            "lossy"
+          ],
+          [
+            1000,
+            7467,
+            3806,
+            49.033,
+            3814.9,
+            8.49,
+            "lossy"
+          ]
+        ]
+      },
+      "manifest": {
+        "experiment": {
+          "question": "Does client-side ClickHouse insert batching raise riptide's sustained flow-ingest ceiling, and is delivered == persisted preserved?",
+          "independent_variable": "sut.config_delta",
+          "variant": "batch-off",
+          "plan": "see plan-batching.md"
+        },
+        "sut": {
+          "version_identity": {
+            "version": "0.6.7-SNAPSHOT",
+            "git_sha": "82b7a041e7ff4d4591bcfc21247bb210270690a8",
+            "branch": "feat/382-batch-clickhouse-inserts",
+            "image": "riptide:pr382-amd64",
+            "image_id": "sha256:0efc35efa0f02c029a2bd5f4d4f7ca85af135bc7f2f92e24f7292bb2e1eb75b6"
+          },
+          "jvm": {
+            "heap": "container default",
+            "gc": "container default",
+            "java": "OpenJDK 25.0.3 LTS"
+          },
+          "db_version": "ClickHouse 26.7.1.1315",
+          "tss_backend": "clickhouse",
+          "provisioner": "kvm/ansible (clickhouse-riptide), container run manually per variant",
+          "config_delta": "riptide.clickhouse.batch.enabled=false (async-inserts derives true: pre-change per-record path)"
+        },
+        "host": {
+          "cpu": "Intel i9-10880H host-passthrough, 4 vCPU",
+          "ram_gb": 7,
+          "disk": "qcow2/nvme",
+          "generator_colocated": false,
+          "net_core_rmem_max": 134217728,
+          "hygiene_notes": "CPU governor not pinned (KVM guest); nl6 daemon shared with an idle foreign 5-device fleet targeting 192.168.11.87"
+        },
+        "workload": {
+          "axis": "push-telemetry",
+          "generator_scenario": "nl6 ipfix fidelity loadtest; ladder by exporter count (rate=1 export/s/device), 4m steps + 10m confirm",
+          "generator_version": "nl6 v0.20.1",
+          "parameters": {
+            "protocol": "ipfix",
+            "flow_model": "~7.9 flows/s per simulated exporter (ConcurrentFlows profile); nl6 'rate' sets export cadence only, so offered load scales with exporter count",
+            "seed": 7
+          },
+          "fixtures": [
+            {
+              "name": "riptide-image",
+              "identity": "sha256:0efc35ef\u2026 built from 82b7a04 (make oci, cross-built linux/amd64)"
+            },
+            {
+              "name": "nl6-fleet",
+              "identity": "2000 auto exporters on 10.42.1.0\u201310.42.9.x, /16, ipfix -> 192.168.11.33:9999"
+            }
+          ]
+        },
+        "run": {
+          "date": "2026-07-28",
+          "operator": "indigo",
+          "trials": 1
+        },
+        "comparability_key": [
+          "sut.version_identity",
+          "sut.db_version",
+          "host",
+          "workload"
+        ]
+      }
+    },
+    {
+      "variant": "batch-on",
+      "results": {
+        "metrics": {
+          "sustained_rows_s": {
+            "median": 11840,
+            "trials": 1,
+            "note": "10-minute confirmed steady window, persisted rows/s"
+          },
+          "max_clean_offered_s": {
+            "median": 12000,
+            "trials": 1,
+            "note": "highest 4-minute ladder step with zero loss"
+          },
+          "inserts_per_s": {
+            "median": 1.19,
+            "trials": 1
+          },
+          "rows_per_insert": {
+            "median": 9922,
+            "trials": 1,
+            "note": "async_insert acknowledges before the write, so query_log written_rows is 0 for batch-off; 1 row per insert by construction"
+          },
+          "new_parts_per_s": {
+            "median": 1.19,
+            "trials": 1
+          }
+        },
+        "reconciliation": {
+          "axis": "push-telemetry",
+          "attempted": 7104000,
+          "completed": 7104000,
+          "errors": 0,
+          "note": "10-min confirm: nl6 in_window 7,104,000 vs ClickHouse row delta 7,104,000 (0.0% loss)"
+        },
+        "ladder": [
+          [
+            500,
+            4000,
+            4000,
+            0.0,
+            0.44,
+            0.44,
+            "clean"
+          ],
+          [
+            1000,
+            8000,
+            8000,
+            0.0,
+            0.82,
+            0.82,
+            "clean"
+          ],
+          [
+            1500,
+            12000,
+            12000,
+            0.0,
+            1.25,
+            1.25,
+            "clean"
+          ],
+          [
+            2000,
+            15733,
+            13327,
+            15.297,
+            1.33,
+            1.33,
+            "lossy"
+          ]
+        ]
+      },
+      "manifest": {
+        "experiment": {
+          "question": "Does client-side ClickHouse insert batching raise riptide's sustained flow-ingest ceiling, and is delivered == persisted preserved?",
+          "independent_variable": "sut.config_delta",
+          "variant": "batch-on",
+          "plan": "see plan-batching.md"
+        },
+        "sut": {
+          "version_identity": {
+            "version": "0.6.7-SNAPSHOT",
+            "git_sha": "82b7a041e7ff4d4591bcfc21247bb210270690a8",
+            "branch": "feat/382-batch-clickhouse-inserts",
+            "image": "riptide:pr382-amd64",
+            "image_id": "sha256:0efc35efa0f02c029a2bd5f4d4f7ca85af135bc7f2f92e24f7292bb2e1eb75b6"
+          },
+          "jvm": {
+            "heap": "container default",
+            "gc": "container default",
+            "java": "OpenJDK 25.0.3 LTS"
+          },
+          "db_version": "ClickHouse 26.7.1.1315",
+          "tss_backend": "clickhouse",
+          "provisioner": "kvm/ansible (clickhouse-riptide), container run manually per variant",
+          "config_delta": "riptide.clickhouse.batch.enabled=true, max-rows=10000, max-latency=2s (async-inserts derives false)"
+        },
+        "host": {
+          "cpu": "Intel i9-10880H host-passthrough, 4 vCPU",
+          "ram_gb": 7,
+          "disk": "qcow2/nvme",
+          "generator_colocated": false,
+          "net_core_rmem_max": 134217728,
+          "hygiene_notes": "CPU governor not pinned (KVM guest); nl6 daemon shared with an idle foreign 5-device fleet targeting 192.168.11.87"
+        },
+        "workload": {
+          "axis": "push-telemetry",
+          "generator_scenario": "nl6 ipfix fidelity loadtest; ladder by exporter count (rate=1 export/s/device), 4m steps + 10m confirm",
+          "generator_version": "nl6 v0.20.1",
+          "parameters": {
+            "protocol": "ipfix",
+            "flow_model": "~7.9 flows/s per simulated exporter (ConcurrentFlows profile); nl6 'rate' sets export cadence only, so offered load scales with exporter count",
+            "seed": 7
+          },
+          "fixtures": [
+            {
+              "name": "riptide-image",
+              "identity": "sha256:0efc35ef\u2026 built from 82b7a04 (make oci, cross-built linux/amd64)"
+            },
+            {
+              "name": "nl6-fleet",
+              "identity": "2000 auto exporters on 10.42.1.0\u201310.42.9.x, /16, ipfix -> 192.168.11.33:9999"
+            }
+          ]
+        },
+        "run": {
+          "date": "2026-07-28",
+          "operator": "indigo",
+          "trials": 1
+        },
+        "comparability_key": [
+          "sut.version_identity",
+          "sut.db_version",
+          "host",
+          "workload"
+        ]
+      }
+    }
+  ],
+  "profiling": {
+    "part_log_totals": {
+      "batch_off": {
+        "flows_parts": 9844,
+        "avg_rows_per_part": 444
+      },
+      "batch_on": {
+        "flows_parts": 1695,
+        "avg_rows_per_part": 9817
+      }
+    },
+    "measurement_limitations": [
+      "riptide registers Dropwizard metrics but exports them nowhere (no reporter, no endpoint), so queue depth, batch-size histogram and drop/fail counters were NOT readable during the run; buffer behaviour is inferred from ClickHouse query_log/part_log and riptide's logs.",
+      "Under batch-off, async_insert acknowledges before the server writes, so system.query_log written_rows is 0 for those INSERTs; rows-per-insert is 1 by construction (one insert per flow record).",
+      "The 4-minute ladder step at 3,973 flows/s showed zero loss for batch-off, but the 10-minute confirm at 3,947 flows/s lost 7.04% \u2014 the short window hid mid-run degradation. Only the 10-minute confirmed figures are headlined."
+    ]
+  }
+}
