@@ -1,0 +1,19 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Deployment R overlay — layered onto the play as extra-vars by deploy.sh.
+#
+# By IP, not by name: riptide runs in a container with --network host, but the
+# lab's chaos.engine DNS does not carry the ClickHouse VM yet, and the address
+# is the load-bearing fact — the lab NIC of the `clickhouse` topology role
+# (vm_name ch-benchmark-01). It shifts if that role's spec address changes.
+riptide_clickhouse_endpoint: "http://192.168.11.34:8123"
+
+# No receivers are configured by default — the daemon starts "0 receivers".
+# Open an IPFIX listener on 9999 (the port nl6's fidelity export targets) so the
+# benchmark has an ingest path. Env form of riptide.receivers.ipfix.{type,host,port}.
+riptide_extra_env:
+  RIPTIDE_RECEIVERS_IPFIX_TYPE: ipfix
+  RIPTIDE_RECEIVERS_IPFIX_HOST: 0.0.0.0
+  RIPTIDE_RECEIVERS_IPFIX_PORT: 9999

@@ -1,0 +1,25 @@
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+# {{ ansible_managed }}
+[Unit]
+Description=riptide NetFlow analysis engine
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+ExecStartPre=-/usr/bin/docker stop riptide
+ExecStartPre=-/usr/bin/docker rm riptide
+ExecStartPre=/usr/bin/docker pull {{ riptide_image }}
+ExecStart=/usr/bin/docker run --name riptide --network host \
+  -e RIPTIDE_CLICKHOUSE_ENDPOINT={{ riptide_clickhouse_endpoint }} \
+{% for key, value in riptide_extra_env.items() %}
+  -e {{ key }}={{ value }} \
+{% endfor %}
+  {{ riptide_image }}
+ExecStop=/usr/bin/docker stop riptide
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,20 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Deployment R — riptide flow-capacity stack. No OpenNMS.
+#
+# ClickHouse first: riptide manages its own schema on startup and needs
+# somewhere to create it.
+
+- name: Manage ClickHouse
+  hosts: clickhouse
+  become: true
+  roles:
+    - clickhouse
+
+- name: Manage riptide
+  hosts: riptide
+  become: true
+  roles:
+    - riptide

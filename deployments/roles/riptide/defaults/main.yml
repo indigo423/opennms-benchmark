@@ -1,0 +1,19 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+# renovate: datasource=docker depName=ghcr.io/riptide-labs/riptide
+riptide_version: "0.6.6"
+riptide_image: "ghcr.io/riptide-labs/riptide:{{ riptide_version }}"
+
+# ClickHouse the collector writes to. Deployments override this with the lab
+# address of their clickhouse role.
+riptide_clickhouse_endpoint: "http://127.0.0.1:8123"
+
+# Default riptide ports (container runs with --network host so they bind on
+# the VM directly): flow ingest and the management/health endpoint.
+riptide_flow_port: 9999
+riptide_mgmt_port: 8080
+
+# Extra RIPTIDE_* environment for the container (Spring relaxed binding of
+# riptide.* properties), e.g. receiver or classification overrides.
+riptide_extra_env: {}

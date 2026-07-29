@@ -58,7 +58,8 @@ Each role maps to a stable 2–3 char code used in the canonical descriptor:
 | `sentinel` | `sn` | `victoriametrics` | `vm` |
 | `database` | `pg` | `clickhouse` | `ch` |
 | `kafka` | `kf` | `akvorado` | `ak` |
-| `rrd` | `rr` | `loadgen` (nl6) | `nl6` |
+| `rrd` | `rr` | `riptide` | `rp` |
+| `rustfs` | `rs` | `loadgen` (nl6) | `nl6` |
 
 `monitoring` is always-present infrastructure (Grafana/Prometheus/Jaeger) and is
 **excluded** from the descriptor. `loadgen` is the nl6 generator — included by
@@ -81,8 +82,29 @@ the provider's `disk_sizes_gb` keyed by role.
 ### Subnets
 
 `mgmt` (management + Ansible/SSH), `db`, `kafka`, `sim` (SNMP simulation),
-`external` (DHCP bridge for the monitoring jump host). Interface order in
-`subnets` fixes NIC order on the VM.
+`external` (DHCP bridge for the monitoring jump host), `lab` (the physical
+bridge LAN, statically addressed). Interface order in `subnets` fixes NIC order
+on the VM.
+
+Addresses on the internal subnets are derived by the provider from per-role
+blocks — do not assume them. Two escape hatches exist for hosts that something
+outside the lab has to reach:
+
+```yaml
+roles:
+  riptide:
+    subnets: [lab]                                       # physical bridge, not a NAT network
+    addresses: { lab: ["192.168.11.33"] }                # pin per subnet, one entry per node
+    routes: { lab: { to: "10.42.0.0/16", via: "192.168.11.73" } }   # inline route…
+  minion:
+    routes: { sim: net_sim }                             # …or a named shared route
+```
+
+A `lab` NIC needs the provider to know the bridge LAN: `subnet_lab` (CIDR, for
+the prefix and gateway) and `lab_nameservers` (a physical LAN, unlike the
+libvirt NAT networks, usually runs no resolver on its gateway). Pinned
+addresses are the deployment's contract with whatever is off-box — the reason to
+use them is a generator or client that cannot discover the lab's addressing.
 
 ## Identifier scheme
 
@@ -97,7 +119,7 @@ the provider's `disk_sizes_gb` keyed by role.
   python3 deployments/bin/topology-descriptor.py deployments/mimir-ha/topology.yml
   ```
 
-Descriptor component order: `es mm vm ch ak rr pg sn kf on mn nl6`.
+Descriptor component order: `es mm vm ch ak rp rs rr pg sn kf on mn nl6`.
 
 ## Deployment index
 
@@ -112,6 +134,7 @@ Descriptor component order: `es mm vm ch ak rr pg sn kf on mn nl6`.
 | `vm-single` (F) | `1vm-1pg-1on` | single VictoriaMetrics |
 | `mimir-single` (G) | `1mm-1pg-1on` | single Mimir |
 | `clickhouse-akvorado` (H) | `1ch-1ak` | standalone flow-engine (no OpenNMS) |
+| `clickhouse-riptide` (R) | `1ch-1rp` | standalone riptide flow engine (no OpenNMS); both nodes on the physical `lab` bridge so an off-hypervisor generator can reach the UDP ingest |
 | `es-cluster-min` | `3es` | **component test bed**, not A–H — verifies Elasticsearch cluster formation on a footprint that fits the lab (28 GB) |
 | `kafka-cluster-min` | `3kf` | **component test bed**, not A–H — verifies KRaft cluster formation (shared cluster ID, quorum, RF 3) at 28 GB |
 | `mimir-cluster-min` | `3mm-1rs` | **component test bed**, not A–H — verifies Mimir cluster formation against shared object storage at 36 GB |

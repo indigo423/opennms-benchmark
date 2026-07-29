@@ -1,0 +1,8 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+- name: Restart riptide
+  ansible.builtin.systemd_service:
+    name: riptide
+    state: restarted
+    daemon_reload: true

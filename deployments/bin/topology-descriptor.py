@@ -24,6 +24,7 @@ ROLE_CODES = {
     "victoriametrics": "vm",
     "clickhouse": "ch",
     "akvorado": "ak",
+    "riptide": "rp",
     "rustfs": "rs",
     "loadgen": "nl6",
 }
@@ -33,9 +34,9 @@ ROLE_CODES = {
 # topologies share a fingerprint.
 EXCLUDED_ROLES = {"monitoring"}
 # Fixed emit order for a stable, comparable descriptor.
-ORDER = ["es", "mm", "vm", "ch", "ak", "rs", "rr", "pg", "sn", "kf", "on", "mn", "nl6"]
+ORDER = ["es", "mm", "vm", "ch", "ak", "rp", "rs", "rr", "pg", "sn", "kf", "on", "mn", "nl6"]
 KNOWN_SIZES = {"tiny", "small", "medium", "large", "xlarge"}
-KNOWN_SUBNETS = {"mgmt", "db", "kafka", "sim", "external"}
+KNOWN_SUBNETS = {"mgmt", "db", "kafka", "sim", "external", "lab"}
 
 
 def _load(path):
