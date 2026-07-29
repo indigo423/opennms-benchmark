@@ -15,6 +15,7 @@ locals {
     kafka    = var.network_kafka_id
     sim      = var.network_sim_id
     external = var.network_external_id
+    lab      = var.network_external_id
   }
 }
 
@@ -75,11 +76,12 @@ module "cloud_init" {
   extra_packages = var.extra_packages
   interfaces = [
     for i in each.value.interfaces : {
-      name    = i.iface_name
-      address = i.address
-      prefix  = i.prefix
-      gateway = i.gateway
-      routes  = i.routes
+      name        = i.iface_name
+      address     = i.address
+      prefix      = i.prefix
+      gateway     = i.gateway
+      routes      = i.routes
+      nameservers = i.nameservers
     }
   ]
 }

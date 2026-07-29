@@ -27,12 +27,13 @@ variable "topology" {
     vcpu    = number
     disk_gb = number
     interfaces = list(object({
-      subnet     = string
-      iface_name = string
-      address    = optional(string)
-      prefix     = optional(number)
-      gateway    = optional(string)
-      routes     = optional(list(object({ to = string, via = string })), [])
+      subnet      = string
+      iface_name  = string
+      address     = optional(string)
+      prefix      = optional(number)
+      gateway     = optional(string)
+      routes      = optional(list(object({ to = string, via = string })), [])
+      nameservers = optional(list(string))
     }))
   }))
 }

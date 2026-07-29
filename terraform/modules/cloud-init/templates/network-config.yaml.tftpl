@@ -18,7 +18,7 @@ ethernets:
 %{ endif ~}
 %{ if iface.gateway != null ~}
     nameservers:
-      addresses: [${iface.gateway}]
+      addresses: [${join(", ", coalesce(iface.nameservers, [iface.gateway]))}]
 %{ endif ~}
     dhcp4: false
 %{ else ~}

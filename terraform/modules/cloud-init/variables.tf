@@ -15,11 +15,12 @@ variable "ssh_public_key" {
 
 variable "interfaces" {
   type = list(object({
-    name    = string
-    address = optional(string)
-    prefix  = optional(number)
-    gateway = optional(string)
-    routes  = optional(list(object({ to = string, via = string })), [])
+    name        = string
+    address     = optional(string)
+    prefix      = optional(number)
+    gateway     = optional(string)
+    routes      = optional(list(object({ to = string, via = string })), [])
+    nameservers = optional(list(string))
   }))
   description = "Network interfaces to configure via cloud-init network-config v2. Set address=null for DHCP. Use routes for per-interface static routes."
 

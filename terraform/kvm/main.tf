@@ -34,7 +34,7 @@ locals {
     netsim     = "netsim", monitoring = "mon", elasticsearch = "es"
     sentinel   = "sentinel", mimir = "mimir", victoriametrics = "vm"
     clickhouse = "ch", akvorado = "akvorado", rrd = "rrd"
-    rustfs     = "rustfs"
+    rustfs     = "rustfs", riptide = "riptide"
   }
 
   subnet_cidr = {
@@ -65,7 +65,7 @@ locals {
   role_order = [
     "database", "core", "kafka", "minion", "monitoring", "netsim",
     "elasticsearch", "sentinel", "rrd", "mimir", "victoriametrics",
-    "clickhouse", "akvorado", "rustfs",
+    "clickhouse", "akvorado", "rustfs", "riptide",
   ]
   ip_offset = {
     for i, role in local.role_order : role => local.role_block_base + i * local.role_block_size
@@ -98,10 +98,22 @@ locals {
         for si, subnet in n.cfg.subnets : {
           subnet     = subnet
           iface_name = "enp${si + 1}s0"
-          address    = subnet == "external" ? null : cidrhost(local.subnet_cidr[subnet], local.ip_offset[n.prole] + n.index)
-          prefix     = subnet == "external" ? null : 26
-          gateway    = (subnet == "mgmt" && !try(n.cfg.public_ip, false)) ? local.gateway_mgmt : null
-          routes     = try(n.cfg.routes[subnet], null) != null ? [local.named_routes[n.cfg.routes[subnet]]] : []
+          # 'lab' is the physical bridge (same libvirt network as external) with a
+          # static, spec-supplied address — for VMs an off-hypervisor generator
+          # must reach. Specs may also pin addresses on internal subnets.
+          address = try(n.cfg.addresses[subnet][n.index],
+          contains(["external", "lab"], subnet) ? null : cidrhost(local.subnet_cidr[subnet], local.ip_offset[n.prole] + n.index))
+          prefix      = subnet == "external" ? null : (subnet == "lab" ? tonumber(split("/", var.subnet_lab)[1]) : 26)
+          gateway     = subnet == "lab" ? cidrhost(var.subnet_lab, 1) : ((subnet == "mgmt" && !try(n.cfg.public_ip, false)) ? local.gateway_mgmt : null)
+          nameservers = subnet == "lab" && length(var.lab_nameservers) > 0 ? var.lab_nameservers : null
+          # A route value is either the name of a shared route or an inline
+          # {to, via}. try() resolves the name first; an inline object fails that
+          # lookup and falls through to itself. A conditional cannot express this:
+          # both of its branches are type-checked, and for a named route the
+          # inline branch is a bare string, which is not a route object.
+          routes = try(n.cfg.routes[subnet], null) == null ? [] : [
+            try(local.named_routes[n.cfg.routes[subnet]], n.cfg.routes[subnet])
+          ]
         }
       ]
     }
@@ -114,8 +126,9 @@ locals {
     local.topology[key].vm_name => {
       # mgmt NIC address; "" if a role has no mgmt subnet (caught by the inventory
       # module precondition with a clear message rather than a cryptic index error).
-      ansible_host = try([for i in local.topology[key].interfaces : i.address if i.subnet == "mgmt"][0], "")
-      groups       = try(n.cfg.groups, [])
+      ansible_host = try([for i in local.topology[key].interfaces : i.address if i.subnet == "mgmt"][0],
+      try([for i in local.topology[key].interfaces : i.address if i.subnet == "lab"][0], ""))
+      groups = try(n.cfg.groups, [])
       # nl6 runs on the netsim host; expose its sim NIC name for the generator.
       host_vars = n.prole == "netsim" ? {
         nl6_net_interface = try([for i in local.topology[key].interfaces : i.iface_name if i.subnet == "sim"][0], "")

@@ -39,6 +39,20 @@ variable "storage_pool" { type = string }
 variable "ubuntu_cloud_image" { type = string }
 variable "ssh_key_path" { type = string }
 variable "bridge_name" { type = string }
+# CIDR of the physical LAN behind bridge_name, used by the 'lab' subnet type
+# ("" when no selected deployment uses it). Follows the subnet_<type> naming of
+# the internal subnets above. NOT the same as lab_cidr, which is the internal
+# supernet (192.0.2.0/24) those carve out of.
+variable "subnet_lab" {
+  type    = string
+  default = ""
+}
+# Resolvers for lab-subnet NICs; empty = fall back to the gateway (which some
+# physical LANs, unlike the libvirt NAT networks, do not run a resolver on).
+variable "lab_nameservers" {
+  type    = list(string)
+  default = []
+}
 variable "jump_host" {
   type    = string
   default = ""

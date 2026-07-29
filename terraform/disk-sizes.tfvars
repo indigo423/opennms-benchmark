@@ -10,4 +10,6 @@ disk_sizes_gb = {
   netsim        = 20
   monitoring    = 30
   elasticsearch = 50
+  clickhouse    = 100
+  riptide       = 40
 }
