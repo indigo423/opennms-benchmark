@@ -143,12 +143,34 @@ locals {
           address = local.node_address[key][subnet]
           # A named route resolving to nothing is dropped; the precondition
           # below fails the plan and a null next hop would only obscure it.
-          routes = [
-            for r in(try(n.cfg.routes[subnet], null) == null ? [] : [
-              try(local.named_routes[n.cfg.routes[subnet]], n.cfg.routes[subnet])
-            ]) : r
-            if !(contains(keys(local.named_routes), try(tostring(n.cfg.routes[subnet]), "")) && try(r.via, null) == null)
-          ]
+          # A public node also gets a default route out the public subnet.
+          # Without it the instance keeps two default routes -- mgmt at metric
+          # 100, public at 200 -- so traffic arriving on the Elastic IP is
+          # answered out the management NIC toward the NAT gateway, and the
+          # client never sees a matching reply.
+          #
+          # cloud-init already installs a policy rule for the public address,
+          # which is why SSH works: sshd's reply carries that source and the
+          # rule matches. Docker-published ports do not. Their reply is routed
+          # while its source is still the container's address, so no rule
+          # matches and it falls back to the mgmt default. Traefik on 443 was
+          # unreachable while port 22 was fine.
+          #
+          # `ip route replace 0.0.0.0/0 via <gw>` installs at metric 0, ahead of
+          # both, and the kernel picks the interface from the gateway's subnet.
+          # Attached to the first NIC only; the module flattens every
+          # interface's routes into one unit, so it runs once.
+          routes = concat(
+            [
+              for r in(try(n.cfg.routes[subnet], null) == null ? [] : [
+                try(local.named_routes[n.cfg.routes[subnet]], n.cfg.routes[subnet])
+              ]) : r
+              if !(contains(keys(local.named_routes), try(tostring(n.cfg.routes[subnet]), "")) && try(r.via, null) == null)
+            ],
+            try(n.cfg.public_ip, false) && si == 0 ? [
+              { to = "0.0.0.0/0", via = cidrhost(var.public_subnet_cidr, 1) }
+            ] : []
+          )
         } if !contains(["external", "lab"], subnet)
       ]
     }
