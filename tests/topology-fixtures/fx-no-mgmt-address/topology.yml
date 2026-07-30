@@ -1,0 +1,7 @@
+---
+# Expected to FAIL: a node with no management-capable subnet is a node Ansible
+# has no address to reach.
+name: fx-no-mgmt-address
+description: role attached only to the sim subnet
+roles:
+  minion: { count: 1, size: small, subnets: [sim], groups: [minion] }

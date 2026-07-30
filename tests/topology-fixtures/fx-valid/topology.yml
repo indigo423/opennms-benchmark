@@ -1,0 +1,8 @@
+---
+# Expected to PASS. Without it, a check that rejects everything would look
+# identical to one that works.
+name: fx-valid
+description: minimal well-formed spec
+roles:
+  loadgen: { count: 1, size: small, subnets: [mgmt, sim], groups: [net_sim] }
+  minion: { count: 1, size: small, subnets: [mgmt, sim], routes: { sim: net_sim }, groups: [minion] }

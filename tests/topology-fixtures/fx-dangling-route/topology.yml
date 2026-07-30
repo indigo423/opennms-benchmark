@@ -1,0 +1,8 @@
+---
+# Expected to FAIL: a named route whose target role the spec does not declare.
+# This is the shape es-nostore, rrd-minimal and vm-cluster-minion carried for
+# months while every gate stayed green.
+name: fx-dangling-route
+description: minion routes via net_sim with no generator declared
+roles:
+  minion: { count: 1, size: small, subnets: [mgmt, sim], routes: { sim: net_sim }, groups: [minion] }

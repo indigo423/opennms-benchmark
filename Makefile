@@ -152,7 +152,7 @@ lint-actions: ## Lint GitHub Actions workflows (actionlint + zizmor)
 	zizmor --no-online-audits .github/workflows/
 
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-topology ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 
@@ -174,6 +174,10 @@ deployment: guard-DEPLOYMENT ## Show + validate one deployment spec (DEPLOYMENT=
 	@f="$(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/topology.yml"; \
 	[ -f "$$f" ] || { echo "Error: no such deployment '$(DEPLOYMENT)' ($$f not found)" >&2; exit 1; }; \
 	$(DESCRIPTOR) --validate "$$f" && echo && cat "$$f"
+
+.PHONY: validate-topology
+validate-topology: ## Assert every deployment spec renders a provisionable topology
+	./validate-topology.sh
 
 .PHONY: validate-deployments
 validate-deployments: ## Validate every deployment spec against the schema

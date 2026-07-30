@@ -1,0 +1,9 @@
+---
+# Expected to FAIL: role_block_size is 4, so a role with more nodes than that
+# overflows into the next role's block. Before eea387e this happened silently
+# and Deployment A could never have been provisioned.
+name: fx-address-collision
+description: minion count exceeds its address block and collides with monitoring
+roles:
+  minion: { count: 6, size: small, subnets: [mgmt], groups: [minion] }
+  monitoring: { count: 1, size: small, subnets: [mgmt], groups: [mon_servers] }
