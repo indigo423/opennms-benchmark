@@ -28,8 +28,7 @@ roles:
   minion:
     count: 1
     size: small
-    subnets: [mgmt, kafka, sim]
-    routes: { sim: net_sim }
+    subnets: [mgmt, kafka]
     groups: [minion]
   monitoring:
     count: 1
