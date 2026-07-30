@@ -144,6 +144,37 @@ region         = us-east-1
 AWS_PROFILE=benchmark-lab make deploy PROVIDER=aws DEPLOYMENT=baseline
 ```
 
+### Re-authenticating
+
+`benchmark-lab` names a role, not a credential source. It holds no credentials of
+its own and assumes into the role using `source_profile`, so sign in against
+**that** profile, not this one:
+
+```bash
+AWS_PROFILE=default aws login          # or: unset AWS_PROFILE && aws login
+export AWS_PROFILE=benchmark-lab
+```
+
+Running `aws login` with `AWS_PROFILE=benchmark-lab` selected fails with:
+
+```
+Profile 'benchmark-lab' is already configured with Assume Role credentials.
+```
+
+which does not hint that `default` is the one to log into.
+
+Sessions are short — a few hours — so this comes up whenever one lapses
+mid-work. Confirm the whole chain afterwards, since it proves both the login and
+the role assumption:
+
+```bash
+aws sts get-caller-identity --query Arn --output text
+# arn:aws:sts::<ACCOUNT_ID>:assumed-role/benchmark-lab/benchmark-lab
+```
+
+If that returns a `user/...` ARN, `AWS_PROFILE` was not re-set and `deploy.sh`
+will refuse to deploy.
+
 `AWS_PROFILE` is **required** to deploy. Without it Terraform would use whichever
 credentials happen to be default, which on a shared account is usually the most
 privileged identity available — the one thing that should not be building a
