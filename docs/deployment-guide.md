@@ -109,7 +109,7 @@ These steps are one-time host configuration required before `terraform apply`. T
 
 #### Create the `br0` bridge
 
-The `lab-external` libvirt network uses `mode = "bridge"` and attaches to `br0` on the host. This bridge must exist before Terraform runs — libvirt does not create host bridges, it only attaches to them.
+The external libvirt network (`<environment>-<project_name>-external`, e.g. `dev-benchmark-external`) uses `mode = "bridge"` and attaches to `br0` on the host. This bridge must exist before Terraform runs — libvirt does not create host bridges, it only attaches to them.
 
 **Step 1 — identify your physical uplink:**
 
@@ -264,7 +264,7 @@ Simply run the new experiment's playbook. It reconfigures OpenNMS Core and Minio
 ./deploy.sh --provider kvm --destroy
 ```
 
-This runs `terraform destroy` with the correct tfvars and removes the generated `ansible-inventory.yml`. All VMs, NICs, disks, and network resources are deleted. The libvirt networks (`lab-mgmt`, `lab-db`, etc.) are also removed for KVM.
+This runs `terraform destroy` with the correct tfvars and removes the generated `ansible-inventory.yml`. All VMs, NICs, disks, and network resources are deleted. The libvirt networks (`dev-benchmark-mgmt`, `dev-benchmark-db`, etc. — named `<environment>-<project_name>-<subnet>`) are also removed for KVM.
 
 ## Post-Reboot Checklist
 

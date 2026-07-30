@@ -1,4 +1,9 @@
 locals {
+  # Resource name prefix, identical in form to terraform/aws. Guest hostnames
+  # deliberately do NOT use it: they stay <role>-benchmark-NN on every provider
+  # because deployment overlays reference them literally.
+  name_prefix = "${var.environment}-${var.project_name}"
+
   # /etc/hosts map (hostname -> mgmt IP) for cloud-init, derived from the topology
   # below so it matches whatever deployment is selected.
   hosts = { for h, v in local.inv_hosts : h => v.ansible_host }
@@ -239,6 +244,7 @@ module "network" {
   subnet_sim   = var.subnet_sim
   subnet_mgmt  = var.subnet_mgmt
   bridge_name  = var.bridge_name
+  name_prefix  = local.name_prefix
 }
 
 module "compute" {

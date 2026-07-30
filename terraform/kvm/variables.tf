@@ -26,6 +26,13 @@ variable "net_sim_cidr" { type = string }
 # tflint-ignore: terraform_unused_declarations
 variable "net_sim_gateway" { type = string }
 variable "admin_user" { type = string }
+
+# Together these form the resource name prefix, matching terraform/aws. libvirt
+# names are scoped to one hypervisor, so a prefix is not strictly needed here —
+# but a second lab on the same host would collide on lab-mgmt, and having both
+# providers name resources the same way is worth more than the brevity.
+variable "project_name" { type = string }
+variable "environment" { type = string }
 variable "vm_names" {
   type = map(string)
 }

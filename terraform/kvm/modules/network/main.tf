@@ -11,7 +11,7 @@ terraform {
 # KVM uses 4 isolated bridge networks and one external bridge-backed network.
 
 resource "libvirt_network" "db" {
-  name      = "lab-db"
+  name      = "${var.name_prefix}-db"
   autostart = true
 
   ips = [
@@ -23,7 +23,7 @@ resource "libvirt_network" "db" {
 }
 
 resource "libvirt_network" "kafka" {
-  name      = "lab-kafka"
+  name      = "${var.name_prefix}-kafka"
   autostart = true
 
   ips = [
@@ -35,7 +35,7 @@ resource "libvirt_network" "kafka" {
 }
 
 resource "libvirt_network" "sim" {
-  name      = "lab-sim"
+  name      = "${var.name_prefix}-sim"
   autostart = true
 
   ips = [
@@ -47,7 +47,7 @@ resource "libvirt_network" "sim" {
 }
 
 resource "libvirt_network" "mgmt" {
-  name      = "lab-mgmt"
+  name      = "${var.name_prefix}-mgmt"
   autostart = true
 
   forward = {
@@ -63,7 +63,7 @@ resource "libvirt_network" "mgmt" {
 }
 
 resource "libvirt_network" "external" {
-  name      = "lab-external"
+  name      = "${var.name_prefix}-external"
   autostart = true
 
   forward = {

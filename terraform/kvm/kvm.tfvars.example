@@ -1,5 +1,12 @@
 # KVM-specific variables
 libvirt_uri        = "qemu+ssh://root@your-kvm.host/system" # Remote: "qemu+ssh://user@host/system"
+# Resource name prefix is "<environment>-<project_name>", the same scheme
+# terraform/aws uses. These must differ or every name stutters. environment says
+# what the lab is for: "dev" verifies the deployment works, "benchmark" is a run
+# whose numbers are meant to be trusted. Guest hostnames are unaffected — they
+# stay <role>-benchmark-NN on every provider.
+project_name       = "benchmark"
+environment        = "dev"
 storage_pool       = "default"
 ubuntu_cloud_image = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
 ssh_key_path       = "~/.ssh/id_rsa"

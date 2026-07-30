@@ -3,3 +3,4 @@ variable "subnet_kafka" { type = string }
 variable "subnet_sim" { type = string }
 variable "subnet_mgmt" { type = string }
 variable "bridge_name" { type = string }
+variable "name_prefix" { type = string }
