@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 name: clickhouse-riptide
 description: >-
-  Deployment R — riptide flow-capacity benchmark: 1 ClickHouse, 1 riptide
+  Riptide flow-capacity benchmark: 1 ClickHouse, 1 riptide
   collector. No OpenNMS components. Both VMs sit directly on the physical
   lab bridge with static addresses so an off-hypervisor nl6 (monkey-head)
   can reach the collector's UDP ingest — required for absolute capacity

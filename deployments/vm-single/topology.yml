@@ -1,6 +1,6 @@
 ---
 name: vm-single
-description: Deployment F — single VictoriaMetrics, 1 PostgreSQL, 1 Core.
+description: Single VictoriaMetrics, 1 PostgreSQL, 1 Core.
 roles:
   victoriametrics:
     count: 1

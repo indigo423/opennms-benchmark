@@ -1,5 +1,5 @@
 ---
-nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.9.0"
+nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.21.0"
 nl6_auto_count: 0
 
 opennms_distribution: Horizon

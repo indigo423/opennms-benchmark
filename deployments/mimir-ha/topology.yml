@@ -1,7 +1,7 @@
 ---
 name: mimir-ha
 description: >-
-  Deployment A — full HA stack: 3 Elasticsearch, 3 Mimir, 3 Sentinel, 3 Kafka,
+  Full HA stack: 3 Elasticsearch, 3 Mimir, 3 Sentinel, 3 Kafka,
   1 PostgreSQL, 1 Core, 2 Minion, nl6 load generator.
 roles:
   elasticsearch:

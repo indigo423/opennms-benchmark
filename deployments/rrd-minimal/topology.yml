@@ -1,7 +1,7 @@
 ---
 name: rrd-minimal
 description: >-
-  Deployment B — RRDTool storage on Core, minimal: 1 PostgreSQL, 1 Kafka,
+  RRDTool storage on Core, minimal: 1 PostgreSQL, 1 Kafka,
   1 Minion. RRD is a Core storage strategy, so Core is included with the RRD
   strategy set at the Ansible layer.
 roles:

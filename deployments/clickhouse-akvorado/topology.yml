@@ -1,7 +1,7 @@
 ---
 name: clickhouse-akvorado
 description: >-
-  Deployment H — standalone flow-engine comparison: 1 ClickHouse, 1 Akvorado.
+  Standalone flow-engine comparison: 1 ClickHouse, 1 Akvorado.
   No OpenNMS components; Akvorado ships its own console/UI, so no separate
   monitoring VM.
 roles:

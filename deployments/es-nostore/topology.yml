@@ -1,7 +1,7 @@
 ---
 name: es-nostore
 description: >-
-  Deployment D — Elasticsearch for flows, no metrics TSDB persistence, 1
+  Elasticsearch for flows, no metrics TSDB persistence, 1
   PostgreSQL, 1 Core, 1 Kafka, 1 Minion.
 roles:
   elasticsearch:
