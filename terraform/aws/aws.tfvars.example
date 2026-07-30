@@ -1,0 +1,40 @@
+# AWS-specific variables. Copy to aws.tfvars and edit.
+#
+# Cost warning: unlike the hypervisor providers this bills by the hour.
+# mimir-ha-min is 19 instances. Run `make destroy PROVIDER=aws` when done.
+
+# Refuse to provision into any other account. Strongly recommended once the lab
+# has its own account: it is the difference between a wrong-profile mistake
+# being an error message and being a VPC in your production account.
+# allowed_account_ids = ["123456789012"]
+
+region       = "us-east-1"
+project_name = "benchmark"
+environment  = "dev"
+ssh_key_path = "~/.ssh/id_rsa"
+
+# Every subnet lives in one AZ, because an ENI cannot span availability zones
+# and lab nodes are multi-homed. Leave empty to take the region's first zone.
+# availability_zone = "eu-central-1a"
+
+# cost_profile defaults to "smoke": the cheapest shape that still boots the
+# stack, so cost is opted into rather than out of. smoke uses burstable
+# instances and CANNOT produce valid measurements — wiring tests only.
+# Set "benchmark" when you are measuring something.
+# cost_profile = "benchmark"
+# spot         = false         # ~70% cheaper; refused under the benchmark profile.
+
+# Instance types are deliberately not burstable: a t-class instance depletes
+# its CPU credits partway through a sustained run, which silently invalidates
+# the second half of a measurement.
+# instance_types = {
+#   tiny = "m6i.large", small = "m6i.large", medium = "m6i.xlarge"
+#   large = "m6i.xlarge", xlarge = "m6i.2xlarge"
+# }
+
+# gp3's 3000 IOPS baseline bottlenecks the database and clickhouse roles well
+# before CPU does. Raise it for disk-bound benchmarks.
+# root_volume_iops       = 3000
+# root_volume_throughput = 125
+
+# operator_cidr is supplied by deploy.sh from the caller's public address.
