@@ -62,8 +62,16 @@ variable "public_subnet_cidr" {
 }
 
 variable "operator_cidr" {
-  type        = string
-  description = "CIDR permitted to reach the jump host over SSH. deploy.sh supplies the caller's address; never leave this open to the world."
+  type = string
+  # Fail closed. deploy.sh detects the caller's address and passes it, and falls
+  # back to this same value when detection fails, so a real deploy is unaffected.
+  # The default exists so `make plan` works: it bypasses deploy.sh and therefore
+  # has nothing to detect with, which made planning the provider impossible.
+  #
+  # 0.0.0.0/32 is a single unroutable address, so an unset value yields a lab
+  # nobody can SSH to rather than one open to the world.
+  default     = "0.0.0.0/32"
+  description = "CIDR permitted to reach the jump host over SSH and HTTPS. deploy.sh supplies the caller's address; the default is deliberately unreachable."
 }
 
 variable "cost_profile" {

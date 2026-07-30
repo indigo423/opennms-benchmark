@@ -74,8 +74,14 @@ show: check-provider ## Show deployed resources for PROVIDER, and any leftovers
 	./show.sh --provider $(PROVIDER) $(_dep_flag)
 
 .PHONY: plan
+# aws only: terraform cannot read the token cache `aws login` writes, so without
+# this the target fails on credentials even when the CLI works. deploy.sh does
+# the same thing; `make plan` bypasses deploy.sh and so needs its own.
+_aws_creds = $(if $(filter aws,$(PROVIDER)),eval "$$(aws configure export-credentials --format env 2>/dev/null)"; unset AWS_PROFILE;,)
+
 plan: check-provider ## terraform plan for PROVIDER (kvm: DEPLOYMENT=<slug>)
 	terraform -chdir=terraform/$(PROVIDER) init -input=false $(if $(filter kvm,$(PROVIDER)),-upgrade) >/dev/null
+	$(_aws_creds) \
 	terraform -chdir=terraform/$(PROVIDER) plan -input=false \
 	  -var-file=../lab.tfvars \
 	  $(if $(filter-out aws,$(PROVIDER)),-var-file=../lab-addresses.tfvars) \
