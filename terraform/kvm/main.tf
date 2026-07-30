@@ -83,47 +83,108 @@ locals {
     }
   ]...)
 
-  # Provider roles the selected spec actually contains, used to validate that a
-  # named route has something to point at.
-  present_proles = distinct([for key, n in local.nodes : n.prole])
+  # ── address allocation ────────────────────────────────────────────────────
+  # The single source of truth for "what address does node N hold on subnet S".
+  # Keyed only by the subnets a node actually declares, so a lookup for a subnet
+  # the node is not attached to returns nothing rather than a plausible number.
+  # Both the rendered topology and the named-route next hops read this; two
+  # independent copies of the rule is exactly the drift that caused #171.
+  node_address = {
+    for key, n in local.nodes : key => {
+      for subnet in n.cfg.subnets :
+      subnet => try(n.cfg.addresses[subnet][n.index],
+      contains(["external", "lab"], subnet) ? null : cidrhost(local.subnet_cidr[subnet], local.ip_offset[n.prole] + n.index))
+    }
+  }
+
+  # Spec role -> provider role is many-to-one (loadgen -> netsim). Invert it so
+  # errors name the role the author actually writes in topology.yml.
+  spec_role_for = { for srole, prole in local.provider_role : prole => srole }
 
   # ── named routes ──────────────────────────────────────────────────────────
   # A named route's next hop is derived from the spec, never declared. The
   # previous hardcoded var.net_sim_gateway drifted the moment the allocation
-  # scheme changed: netsim moved to .152 while the constant stayed at .134, so
-  # the minion routed the whole simulated network at an address no node held,
-  # silently (#171). Deriving it means the two cannot disagree.
+  # scheme changed, leaving every minion routing the simulated network at an
+  # address no node held, silently (#171).
   #
-  # This resolves from local.nodes rather than local.topology, which would be a
-  # cycle — topology consumes named_routes. It mirrors topology's own address
-  # rule so a spec-pinned address still wins over the block offset.
-  netsim_sim_address = try([
-    for key, n in local.nodes :
-    try(n.cfg.addresses["sim"][n.index],
-    cidrhost(local.subnet_cidr["sim"], local.ip_offset[n.prole] + n.index))
-    if n.prole == "netsim"
-  ][0], null)
+  # Each entry declares the provider role and subnet its next hop comes from,
+  # so the address, the validation and the error message all derive from one
+  # place. Resolves via local.node_address rather than local.topology, which
+  # would be a cycle: topology consumes named_routes.
+  named_route_spec = {
+    net_sim = { to = var.net_sim_cidr, role = "netsim", subnet = "sim" }
+  }
+
+  # Node keys per provider role, sorted so selection is stable across plans.
+  nodes_by_prole = {
+    for prole in distinct([for key, n in local.nodes : n.prole]) :
+    prole => sort([for key, n in local.nodes : key if n.prole == prole])
+  }
 
   named_routes = {
-    net_sim = { to = var.net_sim_cidr, via = local.netsim_sim_address }
+    for name, r in local.named_route_spec :
+    name => {
+      to = r.to
+      # null when the role is absent, or present but not attached to the subnet
+      # the route needs. Both cases are caught by the preconditions below.
+      via = try(local.node_address[local.nodes_by_prole[r.role][0]][r.subnet], null)
+    }
   }
 
-  # Provider role each named route requires to be present in the spec.
-  named_route_requires = {
-    net_sim = "netsim"
-  }
-
-  # Named routes whose target role the spec does not contain. A named route
-  # points at a role inside the topology, so an absent target is always an
-  # error; an inline { to, via } deliberately points outside it and is exempt.
-  # A named route is a string, an inline route an object — hence tostring().
-  unsatisfied_named_routes = flatten([
+  # Every route a spec declares, classified. Kept as data so each failure mode
+  # gets its own message instead of collapsing into one misleading default.
+  declared_routes = flatten([
     for key, n in local.nodes : [
-      for subnet, r in try(n.cfg.routes, {}) :
-      "${key}.${subnet} route \"${r}\" needs role \"${lookup(local.named_route_requires, r, "?")}\""
-      if can(tostring(r)) && !contains(local.present_proles, lookup(local.named_route_requires, tostring(r), "?"))
+      # try() absorbs an absent `routes:` key; the null check absorbs a present
+      # but empty one (`routes:` with no mapping), which is legal YAML.
+      for subnet, r in(try(n.cfg.routes, null) == null ? {} : n.cfg.routes) : {
+        node   = key
+        srole  = lookup(local.spec_role_for, n.prole, n.prole)
+        subnet = subnet
+        value  = r
+        # An inline route is an object carrying its own next hop. A named route
+        # is a scalar naming an entry in named_route_spec. Anything else — a
+        # list, a null — is neither, and must not be silently forwarded.
+        kind = can(r.to) && can(r.via) ? "inline" : (r != null && can(tostring(r)) ? "named" : "invalid")
+        # Routes are only rendered for subnets the node is attached to.
+        attached = contains(n.cfg.subnets, subnet)
+      }
     ]
   ])
+
+  # Four distinct authoring errors, each with its own message.
+  route_errors = concat(
+    [
+      for r in local.declared_routes :
+      "${r.node}.${r.subnet}: route value is neither a named route nor an inline { to, via }"
+      if r.kind == "invalid"
+    ],
+    [
+      for r in local.declared_routes :
+      "${r.node}.${r.subnet}: unknown named route \"${tostring(r.value)}\" (known: ${join(", ", sort(keys(local.named_route_spec)))})"
+      if r.kind == "named" && !contains(keys(local.named_route_spec), tostring(r.value))
+    ],
+    [
+      for r in local.declared_routes :
+      "${r.node}.${r.subnet}: route \"${tostring(r.value)}\" needs a \"${lookup(local.spec_role_for, local.named_route_spec[tostring(r.value)].role, local.named_route_spec[tostring(r.value)].role)}\" role with a \"${local.named_route_spec[tostring(r.value)].subnet}\" NIC, which this deployment does not have"
+      if r.kind == "named" && contains(keys(local.named_route_spec), tostring(r.value)) && local.named_routes[tostring(r.value)].via == null
+    ],
+    [
+      for r in local.declared_routes :
+      "${r.node}.${r.subnet}: route declared on a subnet this role is not attached to (subnets: ${join(", ", r.attached ? [] : local.nodes[r.node].cfg.subnets)})"
+      if !r.attached
+    ],
+  )
+
+  # A named route's next hop is a single address, so exactly one node can serve
+  # it. The simulated network is one flat CIDR routed to one gateway, and nl6
+  # starts every generator at the same nl6_auto_start_ip, so a second generator
+  # would duplicate the first rather than extend it.
+  overprovisioned_route_roles = [
+    for name, r in local.named_route_spec :
+    "named route \"${name}\" resolves to role \"${lookup(local.spec_role_for, r.role, r.role)}\" but the spec declares ${length(local.nodes_by_prole[r.role])} of them"
+    if try(length(local.nodes_by_prole[r.role]), 0) > 1
+  ]
 
   topology = {
     for key, n in local.nodes :
@@ -139,8 +200,7 @@ locals {
           # 'lab' is the physical bridge (same libvirt network as external) with a
           # static, spec-supplied address — for VMs an off-hypervisor generator
           # must reach. Specs may also pin addresses on internal subnets.
-          address = try(n.cfg.addresses[subnet][n.index],
-          contains(["external", "lab"], subnet) ? null : cidrhost(local.subnet_cidr[subnet], local.ip_offset[n.prole] + n.index))
+          address     = local.node_address[key][subnet]
           prefix      = subnet == "external" ? null : (subnet == "lab" ? tonumber(split("/", var.subnet_lab)[1]) : 26)
           gateway     = subnet == "lab" ? cidrhost(var.subnet_lab, 1) : ((subnet == "mgmt" && !try(n.cfg.public_ip, false)) ? local.gateway_mgmt : null)
           nameservers = subnet == "lab" && length(var.lab_nameservers) > 0 ? var.lab_nameservers : null
@@ -149,8 +209,15 @@ locals {
           # lookup and falls through to itself. A conditional cannot express this:
           # both of its branches are type-checked, and for a named route the
           # inline branch is a bare string, which is not a route object.
-          routes = try(n.cfg.routes[subnet], null) == null ? [] : [
-            try(local.named_routes[n.cfg.routes[subnet]], n.cfg.routes[subnet])
+          #
+          # A named route with no resolvable next hop is dropped rather than
+          # rendered with via = null: the preconditions below already fail the
+          # plan, and a null here additionally breaks the shared cloud-init
+          # template with an error that names neither the spec nor the node.
+          routes = [
+            for r in(try(n.cfg.routes[subnet], null) == null ? [] : [
+              try(local.named_routes[n.cfg.routes[subnet]], n.cfg.routes[subnet])
+            ]) : r if try(r.via, null) != null
           ]
         }
       ]
@@ -273,18 +340,39 @@ resource "terraform_data" "address_uniqueness" {
   }
 }
 
-# Fails the plan if a spec declares a named route whose target role it does not
-# contain. es-nostore, rrd-minimal and vm-cluster-minion each carried a net_sim
-# route on their minion with no generator anywhere in the spec — copied from
-# baseline along with the rest of the block. That resolved to a plausible-looking
-# constant pointing at nobody, which is why it went unnoticed for months.
-resource "terraform_data" "named_route_targets" {
-  input = length(local.unsatisfied_named_routes)
+# Fails the plan if a spec declares a route that cannot be rendered. es-nostore,
+# rrd-minimal and vm-cluster-minion each carried a net_sim route on their minion
+# with no generator anywhere in the spec — copied from baseline along with the
+# rest of the block. That resolved to a plausible-looking constant pointing at
+# nobody, which is why it went unnoticed for months.
+#
+# Checking that the next hop resolves to an address a node actually holds, and
+# not merely that the role name appears, is the point: a generator declared
+# without the NIC the route needs reproduces the original bug exactly.
+resource "terraform_data" "route_targets" {
+  input = length(local.route_errors)
 
   lifecycle {
     precondition {
-      condition     = length(local.unsatisfied_named_routes) == 0
-      error_message = "Deployment \"${var.deployment}\" declares named routes whose target role is absent: ${join("; ", local.unsatisfied_named_routes)}. Add the role to the spec, or use an inline { to, via } route if the next hop is outside this topology."
+      condition     = length(local.route_errors) == 0
+      error_message = "Deployment \"${var.deployment}\" declares routes that cannot be rendered:\n  ${join("\n  ", local.route_errors)}\nUse an inline { to, via } route if the next hop is outside this topology."
+    }
+  }
+}
+
+# A named route's next hop is one address, so exactly one node can serve it.
+# Provisioning more does not share the load: the simulated network is a single
+# flat CIDR routed to a single gateway, and nl6 starts every generator at the
+# same nl6_auto_start_ip, so a second generator duplicates the first rather than
+# extending it. Supporting more needs per-generator CIDR slices and per-generator
+# routes, which is a design change rather than a choice of which node wins.
+resource "terraform_data" "route_role_cardinality" {
+  input = length(local.overprovisioned_route_roles)
+
+  lifecycle {
+    precondition {
+      condition     = length(local.overprovisioned_route_roles) == 0
+      error_message = "Deployment \"${var.deployment}\": ${join("; ", local.overprovisioned_route_roles)}. Exactly one node can serve a named route's next hop; set count to 1."
     }
   }
 }

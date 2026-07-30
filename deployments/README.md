@@ -63,7 +63,14 @@ Each role maps to a stable 2–3 char code used in the canonical descriptor:
 
 `monitoring` is always-present infrastructure (Grafana/Prometheus/Jaeger) and is
 **excluded** from the descriptor. `loadgen` is the nl6 generator — included by
-default; opt out by omitting the role or setting `count: 0`.
+default; opt out by omitting the role or setting `count: 0`. Opting out means
+also removing any `routes: { sim: net_sim }` from the spec, since that named
+route resolves to the generator (see below).
+
+`loadgen` is capped at `count: 1`. A named route's next hop is a single address,
+so only one node can serve it, and nl6 starts every generator at the same
+`nl6_auto_start_ip` — a second generator would duplicate the first rather than
+extend it.
 
 ### Size classes (provider translates to concrete resources)
 
@@ -99,6 +106,14 @@ roles:
   minion:
     routes: { sim: net_sim }                             # …or a named shared route
 ```
+
+The two forms are validated differently. A **named** route resolves its next hop
+from a role inside the same spec, so the provider fails the plan unless that role
+is present *and* attached to the subnet the route needs — `net_sim` requires a
+`loadgen` with a `sim` NIC. An **inline** `{ to, via }` deliberately points
+outside the topology and is not checked; use it when the next hop is a machine
+the spec does not provision. A route key naming a subnet the role is not
+attached to is also an error, since it would otherwise be silently dropped.
 
 A `lab` NIC needs the provider to know the bridge LAN: `subnet_lab` (CIDR, for
 the prefix and gateway) and `lab_nameservers` (a physical LAN, unlike the
