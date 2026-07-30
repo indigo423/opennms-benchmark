@@ -67,10 +67,10 @@ default; opt out by omitting the role or setting `count: 0`. Opting out means
 also removing any `routes: { sim: net_sim }` from the spec, since that named
 route resolves to the generator (see below).
 
-`loadgen` is capped at `count: 1`. A named route's next hop is a single address,
-so only one node can serve it, and nl6 starts every generator at the same
-`nl6_auto_start_ip` — a second generator would duplicate the first rather than
-extend it.
+Keep `loadgen` at `count: 1`. A named route's next hop is a single address, so
+only one node can serve it, and nl6 starts every generator at the same
+`nl6_auto_start_ip` — a second generator duplicates the first rather than
+extending it. Not currently enforced; see #173.
 
 ### Size classes (provider translates to concrete resources)
 
@@ -112,8 +112,11 @@ from a role inside the same spec, so the provider fails the plan unless that rol
 is present *and* attached to the subnet the route needs — `net_sim` requires a
 `loadgen` with a `sim` NIC. An **inline** `{ to, via }` deliberately points
 outside the topology and is not checked; use it when the next hop is a machine
-the spec does not provision. A route key naming a subnet the role is not
-attached to is also an error, since it would otherwise be silently dropped.
+the spec does not provision.
+
+Both checks are plan-time only. Nothing in CI renders a spec today, so a route
+mistake surfaces on the first `make deploy` rather than on the pull request —
+tracked in #173.
 
 A `lab` NIC needs the provider to know the bridge LAN: `subnet_lab` (CIDR, for
 the prefix and gateway) and `lab_nameservers` (a physical LAN, unlike the
