@@ -15,7 +15,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # Providers with a Terraform root under terraform/<provider>/.
-PROVIDERS := azure kvm proxmox vmware
+PROVIDERS := aws azure kvm proxmox vmware
 
 # Deployment library — provider-agnostic topology specs under deployments/<slug>/.
 DEPLOYMENTS_DIR := deployments
@@ -30,9 +30,9 @@ DEPLOYMENT ?= baseline
 
 # The deployment is passed to deploy.sh only for spec-driven providers (kvm),
 # which selects both the Terraform topology and the Ansible config overlay.
-_dep_flag  = $(if $(filter kvm,$(PROVIDER)),--deployment $(DEPLOYMENT))
+_dep_flag  = $(if $(filter kvm aws,$(PROVIDER)),--deployment $(DEPLOYMENT))
 # `make plan` still passes the Terraform var directly (it bypasses deploy.sh).
-_dep_tfarg = $(if $(filter kvm,$(PROVIDER)),-var deployment=$(DEPLOYMENT))
+_dep_tfarg = $(if $(filter kvm aws,$(PROVIDER)),-var deployment=$(DEPLOYMENT))
 
 # ── guards ────────────────────────────────────────────────────────────────────
 
@@ -69,12 +69,17 @@ deploy: check-provider ## Provision + configure the lab (PROVIDER=…, kvm: DEPL
 destroy: check-provider confirm ## Tear down all lab resources for PROVIDER
 	./deploy.sh --provider $(PROVIDER) $(_dep_flag) --destroy $(if $(TF_ARGS),--tf-args "$(TF_ARGS)") $(V)
 
+.PHONY: show
+show: check-provider ## Show deployed resources for PROVIDER, and any leftovers
+	./show.sh --provider $(PROVIDER) $(_dep_flag)
+
 .PHONY: plan
 plan: check-provider ## terraform plan for PROVIDER (kvm: DEPLOYMENT=<slug>)
 	terraform -chdir=terraform/$(PROVIDER) init -input=false $(if $(filter kvm,$(PROVIDER)),-upgrade) >/dev/null
 	terraform -chdir=terraform/$(PROVIDER) plan -input=false \
 	  -var-file=../lab.tfvars \
-	  $(if $(filter kvm proxmox vmware,$(PROVIDER)),-var-file=../disk-sizes.tfvars) \
+	  $(if $(filter-out aws,$(PROVIDER)),-var-file=../lab-addresses.tfvars) \
+	  $(if $(filter aws kvm proxmox vmware,$(PROVIDER)),-var-file=../disk-sizes.tfvars) \
 	  -var-file=$(PROVIDER).tfvars \
 	  $(_dep_tfarg)
 

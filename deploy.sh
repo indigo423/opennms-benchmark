@@ -17,10 +17,10 @@ set -euo pipefail
 
 usage() {
   cat <<EOF
-Usage: $0 --provider <azure|kvm|proxmox|vmware> [OPTIONS]
+Usage: $0 --provider <aws|azure|kvm|proxmox|vmware> [OPTIONS]
 
 Options:
-  --provider   <azure|kvm|proxmox|vmware>  Target infrastructure provider (required)
+  --provider   <aws|azure|kvm|proxmox|vmware>  Target infrastructure provider (required)
   --deployment <slug>               Deployment topology from deployments/<slug>/ (kvm; default baseline)
   --destroy                         Tear down all lab resources
   --tf-args    "<args>"             Extra arguments passed verbatim to terraform
@@ -69,8 +69,8 @@ done
 
 [[ -z "$PROVIDER" ]] && { echo "Error: --provider is required" >&2; error_usage; }
 case "$PROVIDER" in
-  azure|kvm|proxmox|vmware) ;;
-  *) echo "Error: provider must be 'azure', 'kvm', 'proxmox', or 'vmware'" >&2; error_usage ;;
+  aws|azure|kvm|proxmox|vmware) ;;
+  *) echo "Error: provider must be 'aws', 'azure', 'kvm', 'proxmox', or 'vmware'" >&2; error_usage ;;
 esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -84,9 +84,16 @@ export ANSIBLE_CONFIG="$REPO_ROOT/ansible.cfg"
 TF_DIR="$REPO_ROOT/terraform/$PROVIDER"
 TFVARS_FILE="$TF_DIR/${PROVIDER}.tfvars"
 
-# lab.tfvars is provider-agnostic; disk-sizes.tfvars applies to kvm, proxmox, and vmware only.
+# lab.tfvars is provider-agnostic. lab-addresses.tfvars carries the legacy
+# per-host address scheme (#161); aws derives every address from the deployment
+# spec and declares none of it, so passing the file would produce a screenful of
+# "Value for undeclared variable" on every run. disk-sizes.tfvars applies to
+# every provider except azure.
 COMMON_VAR_FILES=(-var-file="../lab.tfvars")
-if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" || "$PROVIDER" == "vmware" ]]; then
+if [[ "$PROVIDER" != "aws" ]]; then
+  COMMON_VAR_FILES+=(-var-file="../lab-addresses.tfvars")
+fi
+if [[ "$PROVIDER" == "aws" || "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" || "$PROVIDER" == "vmware" ]]; then
   [[ -f "$REPO_ROOT/terraform/disk-sizes.tfvars" ]] || { echo "Error: terraform/disk-sizes.tfvars not found" >&2; exit 1; }
   COMMON_VAR_FILES+=(-var-file="../disk-sizes.tfvars")
 fi
@@ -98,32 +105,120 @@ if [[ ! -f "$TFVARS_FILE" ]]; then
 fi
 
 # Deployment selection: the `deployment` Terraform variable is declared only on
-# spec-driven providers (kvm today). The matching Ansible config overlay
+# spec-driven providers (kvm and aws). The matching Ansible config overlay
 # (deployments/<slug>/opennms-lab-vars.yml) is layered onto the OpenNMS play.
 DEPLOYMENT_VARS=()
-if [[ -n "$DEPLOYMENT" && "$PROVIDER" == "kvm" ]]; then
+if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" ) ]]; then
   DEPLOYMENT_VARS=(-var "deployment=$DEPLOYMENT")
 fi
 DEPLOYMENT_VARS_FILE=""
-if [[ -n "$DEPLOYMENT" && "$PROVIDER" == "kvm" && -f "$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml" ]]; then
+if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" ) && -f "$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml" ]]; then
   DEPLOYMENT_VARS_FILE="--extra-vars=@$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml"
 fi
+
+# ── AWS credentials ───────────────────────────────────────────────────────────
+
+# Terraform resolves credentials from env vars, the shared credentials file,
+# `sso-session` profiles, process credentials and IMDS. It does NOT read the
+# token cache that `aws login` writes, so a perfectly working CLI can sit next
+# to a Terraform run that cannot authenticate at all -- and the symptom is a
+# two-minute IMDS probe followed by "No valid credential sources found", which
+# points nowhere useful.
+#
+# Export whatever the CLI has already resolved, and disable the IMDS fallback so
+# a genuine absence of credentials fails in a second rather than two minutes.
+ensure_aws_credentials() {
+  [[ "$PROVIDER" == "aws" ]] || return 0
+
+  export AWS_EC2_METADATA_DISABLED=true
+
+  # Requiring an explicit profile is the difference between choosing which
+  # identity builds the lab and inheriting whichever one happens to be default.
+  # On an account shared with anything else, the default is usually the most
+  # privileged identity available -- which is precisely what should not be
+  # creating a disposable benchmark bed.
+  #
+  # Not enforced when destroying: being unable to tear a lab down is worse than
+  # tearing it down with more authority than necessary, and a lab nobody can
+  # remove keeps billing.
+  if [[ -z "${AWS_PROFILE:-}" && "${AWS_ALLOW_DEFAULT_CREDENTIALS:-}" != "1" ]]; then
+    if [[ "$DESTROY" == true ]]; then
+      warn "AWS_PROFILE is not set; destroying with whatever credentials are default"
+    else
+      echo "Error: AWS_PROFILE is not set." >&2
+      echo "       Deploying would use whichever AWS credentials happen to be default." >&2
+      echo "       On a shared account that is usually your most privileged identity." >&2
+      echo "" >&2
+      echo "       Choose one explicitly:" >&2
+      echo "         AWS_PROFILE=benchmark-lab make deploy PROVIDER=aws DEPLOYMENT=<slug>" >&2
+      echo "" >&2
+      echo "       Available profiles:" >&2
+      aws configure list-profiles 2>/dev/null | sed 's/^/         /' >&2 || true
+      echo "" >&2
+      echo "       Set AWS_ALLOW_DEFAULT_CREDENTIALS=1 to bypass (CI, or static keys" >&2
+      echo "       supplied by the environment rather than a profile)." >&2
+      exit 1
+    fi
+  fi
+
+  if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]] && aws configure export-credentials --format env >/dev/null 2>&1; then
+    info "exporting AWS credentials resolved by the CLI${AWS_PROFILE:+ (profile: $AWS_PROFILE)}"
+    eval "$(aws configure export-credentials --format env)"
+    # The export already resolved whatever the profile pointed at, including an
+    # assumed role. Leaving AWS_PROFILE set makes the Terraform provider try to
+    # resolve it again from scratch, which fails when the source profile has no
+    # static credentials of its own -- the usual case when signing in with
+    # `aws login` or SSO.
+    unset AWS_PROFILE
+  fi
+
+  if ! aws sts get-caller-identity >/dev/null 2>&1; then
+    echo "Error: no usable AWS credentials." >&2
+    echo "       Sign in first, e.g.  aws login   (or  aws configure sso)." >&2
+    echo "       Verify with:         aws sts get-caller-identity" >&2
+    exit 1
+  fi
+
+  local ident
+  ident=$(aws sts get-caller-identity --query 'Arn' --output text 2>/dev/null || echo unknown)
+  info "aws identity: $ident"
+
+  # A set AWS_PROFILE is not by itself proof of anything -- AWS_PROFILE=default
+  # satisfies the check above while still being the unrestricted user. An
+  # assumed role is the shape a scoped identity takes, so say so when it is not
+  # one. A warning rather than an error: a properly scoped IAM user is a
+  # legitimate setup, just not the one this lab is built around.
+  case "$ident" in
+    *:assumed-role/*) ;;
+    unknown) ;;
+    *)
+      warn "this is an IAM user, not an assumed role."
+      warn "  If a scoped role exists, prefer it: AWS_PROFILE=benchmark-lab"
+      warn "  See terraform/aws/README.md, 'Running under a restricted role'."
+      ;;
+  esac
+}
 
 # ── provider-specific extra vars ──────────────────────────────────────────────
 
 # Populate PROVIDER_VARS array with extra -var flags needed for this provider.
-# Azure: detect the operator's public IP for the NSG SSH-allow rule.
+# Azure and AWS: detect the operator's public IP for the SSH-allow rule.
 PROVIDER_VARS=()
 
 set_provider_vars() {
   PROVIDER_VARS=()
-  if [[ "$PROVIDER" == "azure" ]]; then
+  if [[ "$PROVIDER" == "azure" || "$PROVIDER" == "aws" ]]; then
     local op_ip
     op_ip=$(host -4 myip.opendns.com resolver1.opendns.com 2>/dev/null \
             | awk '/has address/ {print $NF; exit}' || true)
     if [[ -n "$op_ip" ]]; then
       info "detected operator IP: $op_ip"
       PROVIDER_VARS=(-var "operator_cidr=${op_ip}/32")
+    elif [[ "$PROVIDER" == "aws" ]]; then
+      # aws declares operator_cidr with no default, so terraform would prompt.
+      # Fail closed: a lab nobody can reach beats a lab open to the internet.
+      warn "could not detect public IP; restricting operator SSH to 0.0.0.0/32 (unreachable)"
+      PROVIDER_VARS=(-var "operator_cidr=0.0.0.0/32")
     else
       warn "could not detect public IP; SSH access on monitoring VM will be open to *"
     fi
@@ -189,6 +284,7 @@ tf_output() {
 
 if $DESTROY; then
   step "Destroying infrastructure ($PROVIDER)..."
+  ensure_aws_credentials
   tf_init
   set_provider_vars
   tf_destroy "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}"
@@ -200,8 +296,41 @@ fi
 # ── deploy path ───────────────────────────────────────────────────────────────
 
 step "[1/3] Provisioning infrastructure ($PROVIDER)..."
+ensure_aws_credentials
 tf_init
 set_provider_vars
+
+# aws bills by the hour, so cost_profile defaults to the cheap tier and spend is
+# opted into. The trade is that a smoke lab looks exactly like a benchmark bed
+# and cannot produce valid numbers, so announce which one is being built before
+# it exists rather than after. console evaluates the variable without contacting
+# AWS, so this costs nothing and needs no credentials.
+COST_PROFILE=""
+if [[ "$PROVIDER" == "aws" ]]; then
+  COST_PROFILE=$(echo 'var.cost_profile' \
+    | terraform -chdir="$TF_DIR" console \
+        "${COMMON_VAR_FILES[@]}" \
+        -var-file="${PROVIDER}.tfvars" \
+        "${DEPLOYMENT_VARS[@]+"${DEPLOYMENT_VARS[@]}"}" \
+        "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}" 2>/dev/null \
+    | tr -d '"' | tail -n1 || true)
+  case "$COST_PROFILE" in
+    smoke)
+      warn "cost profile: SMOKE — burstable instances, capped disks."
+      warn "  Cheap enough to test the stack with. CPU credits deplete under"
+      warn "  sustained load, so any benchmark run on this lab is invalid."
+      warn "  Measuring? Re-run with: TF_ARGS=\"-var cost_profile=benchmark\""
+      ;;
+    benchmark)
+      info "cost profile: benchmark — fixed-performance instances, full disks."
+      info "  This is the expensive tier. Destroy the lab when you are done."
+      ;;
+    *)
+      [[ -n "$COST_PROFILE" ]] && info "cost profile: $COST_PROFILE"
+      ;;
+  esac
+fi
+
 tf_apply "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}"
 
 # KVM and Proxmox: the monitoring VM's external (jump host) IP is DHCP-assigned
@@ -268,11 +397,12 @@ ansible-galaxy collection install \
 # the shared one, which keeps its play order — the stack's dependency graph —
 # in exactly one place.
 # Gated on kvm for the same reason as the vars overlay above: only kvm is
-# spec-driven, so on other providers --deployment does not shape the infra and
+# spec-driven (kvm and aws), so on other providers --deployment does not shape
+# the infra and
 # a per-deployment playbook would target hosts that were never provisioned.
 DEPLOYMENT_PLAYBOOK="$REPO_ROOT/opennms-playbook.yml"
 STACK_LABEL="OpenNMS Horizon"
-if [[ -n "$DEPLOYMENT" && "$PROVIDER" == "kvm" && -f "$REPO_ROOT/deployments/$DEPLOYMENT/playbook.yml" ]]; then
+if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" ) && -f "$REPO_ROOT/deployments/$DEPLOYMENT/playbook.yml" ]]; then
   DEPLOYMENT_PLAYBOOK="$REPO_ROOT/deployments/$DEPLOYMENT/playbook.yml"
   STACK_LABEL="$DEPLOYMENT stack"
 fi
@@ -286,3 +416,21 @@ ansible-playbook \
   "$DEPLOYMENT_PLAYBOOK" \
   --extra-vars="@$REPO_ROOT/opennms-lab-vars.yml" \
   $DEPLOYMENT_VARS_FILE
+
+# Closing reminder. The pre-flight notice scrolls far off screen behind
+# Terraform and two Ansible runs, and this is the moment someone starts
+# measuring.
+if [[ "$COST_PROFILE" == "smoke" ]]; then
+  echo
+  warn "════════════════════════════════════════════════════════════════"
+  warn "  This lab was built with cost_profile=smoke."
+  warn "  Burstable instances: fine for testing the stack, invalid for"
+  warn "  benchmarking. Numbers from this lab will look plausible and"
+  warn "  will be wrong."
+  warn "  Every host carries lab_cost_profile=smoke in the inventory."
+  warn "════════════════════════════════════════════════════════════════"
+elif [[ "$COST_PROFILE" == "benchmark" ]]; then
+  echo
+  info "cost_profile=benchmark — this lab bills at the full rate."
+  info "Run 'make destroy PROVIDER=aws CONFIRM=yes' when you are finished."
+fi
