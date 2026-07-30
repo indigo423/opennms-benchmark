@@ -117,7 +117,7 @@ cleanup_fixture_links
 # hang here is not hypothetical: the first CI attempt sat on the very first spec
 # until the job was killed at ten minutes, reporting nothing useful. A bounded
 # run turns that into a named per-spec failure.
-SPEC_TIMEOUT="${SPEC_TIMEOUT:-90}"
+SPEC_TIMEOUT="${SPEC_TIMEOUT:-30}"
 
 run_bounded() {
   local out_f="$1" err_f="$2" slug="$3" i pid
@@ -192,7 +192,15 @@ for spec in "$DEPLOY_DIR"/*/topology.yml; do
   [[ -L "$(dirname "$spec")" ]] && continue
   slug="$(basename "$(dirname "$spec")")"
   checked=$((checked + 1))
-  check_spec "$slug" || fail=1
+  rc=0
+  check_spec "$slug" || rc=$?
+  if [[ $rc -eq 2 ]]; then
+    echo
+    echo "aborting: a spec could not be rendered at all, so the rest would only"
+    echo "repeat the same failure past the CI job limit."
+    exit 1
+  fi
+  [[ $rc -ne 0 ]] && fail=1
 done
 
 # Fixtures are specs that MUST fail. A check that only ever sees valid input
