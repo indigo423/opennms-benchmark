@@ -71,10 +71,6 @@ locals {
     for i, role in local.role_order : role => local.role_block_base + i * local.role_block_size
   }
 
-  named_routes = {
-    net_sim = { to = var.net_sim_cidr, via = var.net_sim_gateway }
-  }
-
   # Expand each spec role into `count` nodes, keyed by provider role (+ -N when >1).
   nodes = merge([
     for srole, cfg in local.spec.roles : {
@@ -86,6 +82,48 @@ locals {
       }
     }
   ]...)
+
+  # Provider roles the selected spec actually contains, used to validate that a
+  # named route has something to point at.
+  present_proles = distinct([for key, n in local.nodes : n.prole])
+
+  # ── named routes ──────────────────────────────────────────────────────────
+  # A named route's next hop is derived from the spec, never declared. The
+  # previous hardcoded var.net_sim_gateway drifted the moment the allocation
+  # scheme changed: netsim moved to .152 while the constant stayed at .134, so
+  # the minion routed the whole simulated network at an address no node held,
+  # silently (#171). Deriving it means the two cannot disagree.
+  #
+  # This resolves from local.nodes rather than local.topology, which would be a
+  # cycle — topology consumes named_routes. It mirrors topology's own address
+  # rule so a spec-pinned address still wins over the block offset.
+  netsim_sim_address = try([
+    for key, n in local.nodes :
+    try(n.cfg.addresses["sim"][n.index],
+    cidrhost(local.subnet_cidr["sim"], local.ip_offset[n.prole] + n.index))
+    if n.prole == "netsim"
+  ][0], null)
+
+  named_routes = {
+    net_sim = { to = var.net_sim_cidr, via = local.netsim_sim_address }
+  }
+
+  # Provider role each named route requires to be present in the spec.
+  named_route_requires = {
+    net_sim = "netsim"
+  }
+
+  # Named routes whose target role the spec does not contain. A named route
+  # points at a role inside the topology, so an absent target is always an
+  # error; an inline { to, via } deliberately points outside it and is exempt.
+  # A named route is a string, an inline route an object — hence tostring().
+  unsatisfied_named_routes = flatten([
+    for key, n in local.nodes : [
+      for subnet, r in try(n.cfg.routes, {}) :
+      "${key}.${subnet} route \"${r}\" needs role \"${lookup(local.named_route_requires, r, "?")}\""
+      if can(tostring(r)) && !contains(local.present_proles, lookup(local.named_route_requires, tostring(r), "?"))
+    ]
+  ])
 
   topology = {
     for key, n in local.nodes :
@@ -231,6 +269,22 @@ resource "terraform_data" "address_uniqueness" {
     precondition {
       condition     = length(distinct(local.all_addresses)) == length(local.all_addresses)
       error_message = "Duplicate IP addresses in the rendered topology: a role's node count exceeds its address block (role_block_size). Raise role_block_size or re-space local.role_order."
+    }
+  }
+}
+
+# Fails the plan if a spec declares a named route whose target role it does not
+# contain. es-nostore, rrd-minimal and vm-cluster-minion each carried a net_sim
+# route on their minion with no generator anywhere in the spec — copied from
+# baseline along with the rest of the block. That resolved to a plausible-looking
+# constant pointing at nobody, which is why it went unnoticed for months.
+resource "terraform_data" "named_route_targets" {
+  input = length(local.unsatisfied_named_routes)
+
+  lifecycle {
+    precondition {
+      condition     = length(local.unsatisfied_named_routes) == 0
+      error_message = "Deployment \"${var.deployment}\" declares named routes whose target role is absent: ${join("; ", local.unsatisfied_named_routes)}. Add the role to the spec, or use an inline { to, via } route if the next hop is outside this topology."
     }
   }
 }

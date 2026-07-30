@@ -18,6 +18,12 @@ variable "ip_minion_kafka" { type = string }
 variable "ip_minion_sim" { type = string }
 variable "ip_netsim_sim" { type = string }
 variable "net_sim_cidr" { type = string }
+# Declared but deliberately unused: kvm derives the simulated-network next hop
+# from the topology (#171), because a hardcoded value drifts as soon as the
+# address allocation changes. proxmox and vmware still consume it, so it stays
+# in lab.tfvars — and stays declared here so that shared file parses without an
+# undeclared-variable warning. Do not wire this back into a route.
+# tflint-ignore: terraform_unused_declarations
 variable "net_sim_gateway" { type = string }
 variable "admin_user" { type = string }
 variable "vm_names" {
