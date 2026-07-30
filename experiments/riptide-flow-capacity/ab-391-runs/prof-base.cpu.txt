@@ -1,0 +1,58 @@
+********************************************************************
+*                                                                  *
+* This system is for the use of authorized users only.  Usage of   *
+* this system may be monitored and recorded by system personnel.   *
+*                                                                  *
+* Anyone using this system expressly consents to such monitoring   *
+* and is advised that if such monitoring reveals possible          *
+* evidence of criminal activity, system personnel may provide the  *
+* evidence from such monitoring to law enforcement officials.      *
+*                                                                  *
+********************************************************************
+              __  ____  ____  __ _  __ _  _  _  ____
+             /  \(  _ \(  __)(  ( \(  ( \( \/ )/ ___)
+            (  O )) __/ ) _) /    //    // \/ \\___ \
+             \__/(__)  (____)\_)__)\_)__)\_)(_/(____/
+
+host_pid=66295 cores=4 clk_tck=100 window=100s
+jfr_started=yes
+
+--- per-thread CPU by NAME (%% of ONE core) — names truncated to 15 chars ---
+  udp-listener-ni            46.0%
+  ForkJoinPool.co            37.0%
+  GC                         23.3%
+  clickhouse-batc            23.2%
+  pool-5-thread-6            14.9%
+  pool-5-thread-2            14.8%
+  pool-5-thread-7            14.8%
+  pool-5-thread-1            14.7%
+  pool-5-thread-5            14.7%
+  pool-5-thread-4            14.7%
+  pool-5-thread-3            14.7%
+  pool-5-thread-8            14.6%
+  C2                          1.4%
+  C1                          0.2%
+  G1                          0.2%
+  Attach                      0.1%
+  VM                          0.1%
+  TOTAL                     249.5%  = 2.50 cores
+
+--- per-TID CPU (settles name-truncation ambiguity), >0.5% only ---
+  tid=66498    udp-listener-ni            46.0%
+  tid=66496    clickhouse-batc            23.2%
+  tid=66615    pool-5-thread-6            14.9%
+  tid=66611    pool-5-thread-2            14.8%
+  tid=66616    pool-5-thread-7            14.8%
+  tid=66614    pool-5-thread-5            14.7%
+  tid=66610    pool-5-thread-1            14.7%
+  tid=66613    pool-5-thread-4            14.7%
+  tid=66612    pool-5-thread-3            14.7%
+  tid=66617    pool-5-thread-8            14.6%
+  tid=66439    ForkJoinPool.co            12.4%
+  tid=66438    ForkJoinPool.co            12.3%
+  tid=66437    ForkJoinPool.co            12.3%
+  tid=66382    GC                          5.9%
+  tid=66381    GC                          5.8%
+  tid=66380    GC                          5.8%
+  tid=66308    GC                          5.8%
+  tid=66322    C2                          1.4%

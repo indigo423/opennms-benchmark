@@ -1,0 +1,46 @@
+
+=== CPU samples by thread (total 6608) ===
+    2450 ( 37.1%)  clickhouse-batch-flusher
+    1988 ( 30.1%)  udp-listener-nio-ipfix-1
+     267 (  4.0%)  pool-5-thread-1
+     265 (  4.0%)  pool-5-thread-2
+     261 (  3.9%)  pool-5-thread-5
+     259 (  3.9%)  pool-5-thread-4
+     250 (  3.8%)  pool-5-thread-3
+     247 (  3.7%)  pool-5-thread-6
+     225 (  3.4%)  pool-5-thread-7
+     223 (  3.4%)  pool-5-thread-8
+      58 (  0.9%)  ForkJoinPool.commonPool-worker-2
+      58 (  0.9%)  ForkJoinPool.commonPool-worker-3
+      53 (  0.8%)  ForkJoinPool.commonPool-worker-1
+       2 (  0.0%)  JFR Periodic Tasks
+       1 (  0.0%)  udp-listener-nio-ipfix-0
+
+=== hot leaf methods on 'clickhouse-batch-flusher' (2450 samples, 37.1% of all CPU) ===
+     575 ( 23.5%)  jdk.internal.reflect.DirectMethodHandleAccessor.invoke(Object, Object[])
+     301 ( 12.3%)  org.riptide.repository.clickhouse.ClickhouseRepository$FlowMapperImpl.flow(EnrichedFlow)
+     275 ( 11.2%)  com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream.write(byte[], int, int)
+     175 (  7.1%)  com.clickhouse.client.api.Client.lambda$insert$0(String, ClickHouseFormat, List, List, OutputStream)
+     166 (  6.8%)  java.lang.reflect.AccessibleObject.verifyAccess(Class, Class, Class, int)
+     135 (  5.5%)  com.clickhouse.client.api.data_formats.internal.SerializerUtils.serializePrimitiveData(OutputStream, Object, ClickHouseColumn)
+     118 (  4.8%)  net.jpountz.lz4.LZ4JavaSafeCompressor.compress64k(byte[], int, int, byte[], int, int)
+     116 (  4.7%)  net.jpountz.lz4.LZ4SafeUtils.commonBytes(byte[], int, int, int)
+      96 (  3.9%)  com.clickhouse.client.api.data_formats.internal.SerializerUtils.serializeData(OutputStream, Object, ClickHouseColumn)
+      89 (  3.6%)  com.clickhouse.data.ByteUtils.setInt64(byte[], int, long)
+      58 (  2.4%)  java.lang.Integer.valueOf(int)
+      37 (  1.5%)  java.util.ArrayList.grow(int)
+      34 (  1.4%)  java.util.ArrayList$Itr.next()
+      34 (  1.4%)  net.jpountz.lz4.LZ4SafeUtils.wildArraycopy(byte[], int, byte[], int, int)
+      26 (  1.1%)  java.lang.String.valueOf(Object)
+
+=== stack containment on 'clickhouse-batch-flusher' (first match per sample) ===
+  Template                 1019 ( 41.6%)
+  Repository                306 ( 12.5%)
+  Pipeline                   14 (  0.6%)
+  parse                       5 (  0.2%)
+
+Reading guide: a single thread holding a large share of total samples with
+its leaves in collection/equality methods means O(n) work on that thread —
+adding downstream parallelism will not help. Compare against the per-thread
+CPU table: workers idle + one hot thread is the signature.
+

@@ -1,0 +1,23 @@
+  total parks: 318 in 3s  =  106/s
+  thread                              parks/s   share
+    udp-listener-nio-ipfix-1               42   39.6%
+    pool-5-thread-2                        17   16.0%
+    pool-5-thread-3                        16   15.4%
+    pool-5-thread-1                        16   15.1%
+    pool-5-thread-4                        15   13.8%
+
+  === udp-listener-nio-ipfix-1 — where it parks ===
+     100.0%  java.util.concurrent.ArrayBlockingQueue.offer(Object, long, TimeUnit)
+
+  === pool-5-thread-2 — where it parks ===
+      74.5%  java.util.concurrent.LinkedBlockingQueue.offer(Object, long, TimeUnit)
+      21.6%  java.util.concurrent.locks.ReentrantLock$Sync.lockInterruptibly()
+       3.9%  jdk.internal.misc.Unsafe.park(boolean, long)
+
+  === pool-5-thread-3 — where it parks ===
+      75.5%  java.util.concurrent.LinkedBlockingQueue.offer(Object, long, TimeUnit)
+      20.4%  java.util.concurrent.locks.ReentrantLock$Sync.lockInterruptibly()
+       4.1%  jdk.internal.misc.Unsafe.park(boolean, long)
+
+  Divide parks/s by rows/s: >1 park per row means the pipeline is paying a 
+  context switch per record, and no amount of CPU headroom will help.

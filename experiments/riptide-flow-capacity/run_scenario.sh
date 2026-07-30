@@ -15,7 +15,17 @@ mine.sort(key=lambda s: tuple(int(p) for p in s.split('.')))
 print(','.join('\"%s\"' % ip for ip in mine[:$COUNT]))")
 
 BODY="{\"participants\":[$PARTS],\"protocol\":\"ipfix\",\"rate\":1,\"window\":\"$WINDOW\",\"drain\":\"5s\",\"seed\":7}"
-ID=$(curl -sf -X POST $NL6/api/v1/scenarios -H 'Content-Type: application/json' -d "$BODY" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+# Fail loudly. nl6 caps the request body at 64 KiB (~4,369 participants at 10.100.x.y address
+# lengths) and permits one active scenario; `curl -sf` turns both into an empty string, which then
+# renders downstream as a tidy window of zeroes. That has cost two bogus results already.
+HTTP=$(curl -s -o /tmp/create-resp.json -w '%{http_code}' -X POST $NL6/api/v1/scenarios \
+  -H 'Content-Type: application/json' -d "$BODY")
+case "$HTTP" in 2??) ;; *)
+  echo "ERROR: scenario create failed http=$HTTP body_bytes=${#BODY}" >&2
+  head -c 300 /tmp/create-resp.json >&2; echo >&2
+  exit 4 ;;
+esac
+ID=$(python3 -c 'import json;print(json.load(open("/tmp/create-resp.json"))["id"])')
 curl -sf -X POST "$NL6/api/v1/scenarios/$ID/arm" > "/tmp/arm-$ID.json"
 EXCL=$(python3 -c "import json;d=json.load(open('/tmp/arm-$ID.json'));print(len(d.get('excluded',[])))" 2>/dev/null || echo "?")
 curl -sf -X POST "$NL6/api/v1/scenarios/$ID/start" > /dev/null
