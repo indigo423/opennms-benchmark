@@ -112,9 +112,20 @@ kafka_server_properties:
 # opennms_properties_timeseries:
 #   org.opennms.timeseries.strategy: osgi
 
+# Heap follows the machine, not the spec's nominal size. A fixed 8192 was sized
+# for an xlarge core (16 GB) and is exactly the whole machine on anything
+# smaller, so the JVM cannot commit it and OpenNMS dies at startup with
+#   Native memory allocation (mmap) failed to map 8589934592 bytes
+# That has now happened twice: on mimir-ha-min, whose core is medium, and on the
+# AWS smoke tier, where xlarge maps to an 8 GB instance. Both were the same
+# assumption — that a t-shirt size implies a memory size — being true on one
+# provider and silently false on another.
+#
+# Half of physical memory, capped at the previous 8192 so a 16 GB core renders
+# exactly what it did before and existing benchmark numbers stay comparable.
 opennms_jvm_conf:
-  JAVA_HEAP_SIZE: 8192
-  JAVA_INITIAL_HEAP_SIZE: 8192
+  JAVA_HEAP_SIZE: "{{ [ansible_memtotal_mb | int // 2, 8192] | min }}"
+  JAVA_INITIAL_HEAP_SIZE: "{{ [ansible_memtotal_mb | int // 2, 8192] | min }}"
   # Raw value only — opennms.conf.j2 wraps each opennms_jvm_conf value in shell
   # quotes itself. Pre-quoting here produced ADDITIONAL_MANAGER_OPTIONS=""..."",
   # so `install -dis` passed the literal token "-XX:+UseG1GC to java as a class.
