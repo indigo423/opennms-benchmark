@@ -114,9 +114,9 @@ is present *and* attached to the subnet the route needs — `net_sim` requires a
 outside the topology and is not checked; use it when the next hop is a machine
 the spec does not provision.
 
-Both checks are plan-time only. Nothing in CI renders a spec today, so a route
-mistake surfaces on the first `make deploy` rather than on the pull request —
-tracked in #173.
+Both preconditions are plan-time only. `make validate-topology` renders every
+spec and asserts the same invariants without a hypervisor, so run it before
+pushing; it is not yet a CI gate (#173).
 
 A `lab` NIC needs the provider to know the bridge LAN: `subnet_lab` (CIDR, for
 the prefix and gateway) and `lab_nameservers` (a physical LAN, unlike the

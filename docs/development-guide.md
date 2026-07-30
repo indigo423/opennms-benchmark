@@ -95,6 +95,33 @@ cd terraform/kvm  && tflint --init && tflint --recursive
 
 CI runs these checks automatically on pull requests that touch `terraform/**`.
 
+### Validating a rendered topology
+
+```bash
+make validate-topology
+```
+
+Renders every spec in `deployments/` through `terraform console` and asserts the
+result could actually be provisioned: no address assigned twice, no named route
+whose target role is absent or lacks the required NIC, no node without a
+management address, and no next hop that is not an address some node in that
+spec holds.
+
+That last one is the check that did not exist when a hardcoded `net_sim_gateway`
+pointed at nothing for two days with every gate green (#171). `terraform
+validate` checks types, not relationships between values, and preconditions only
+run at plan time.
+
+It reads no host-specific config and needs no hypervisor, credentials or state.
+`tests/topology-fixtures/` holds specs that must be *rejected*, one per failure
+mode, so a regression in the check itself is caught rather than reported as a
+clean run.
+
+> [!NOTE]
+> This runs in `make lint` but is **not** a CI gate yet — the job stalls on a
+> GitHub runner for reasons not yet diagnosed. Tracked in #173. Until that is
+> resolved it only protects people who run `make lint` before pushing.
+
 ## Working with Ansible
 
 ### Bootstrap VMs
