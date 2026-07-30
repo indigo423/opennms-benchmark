@@ -3,7 +3,7 @@
 # now penalises the baseline instead of the variant. If pr still loses here, the effect
 # is real; if it wins, the first pass was measuring drift.
 set -uo pipefail
-cd /Users/indigo/workbench/opennms-forge/opennms-benchmark/experiments/riptide-flow-capacity
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 OUT=ab-391-runs
 SUT=labuser@192.168.11.33
 udp() { ssh -q -o BatchMode=yes "$SUT" "awk '/^Udp:/{l=\$0} END{}  /^Udp: [0-9]/{print \$2, \$4, \$5}' /proc/net/snmp" 2>/dev/null; }

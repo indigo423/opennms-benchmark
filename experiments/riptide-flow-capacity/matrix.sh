@@ -1,6 +1,6 @@
 #!/bin/bash
 set -uo pipefail
-cd /Users/indigo/workbench/opennms-forge/opennms-benchmark/experiments/riptide-flow-capacity
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 OUT=ab-391-runs
 for r in 1 2 3; do
   echo "=========== replicate $r ==========="
