@@ -155,7 +155,7 @@ check_spec() {
 
   if [[ -n "$violations" ]]; then
     printf '  %-24s FAIL\n' "$slug"
-    echo "$violations" | sed 's/^/      /'
+    printf '      %s\n' "$violations"
     return 1
   fi
   printf '  %-24s ok\n' "$slug"
