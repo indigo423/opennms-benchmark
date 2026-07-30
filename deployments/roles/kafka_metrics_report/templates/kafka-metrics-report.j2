@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# DO NOT EDIT — managed by Ansible (deployments/roles/kafka_metrics_report).
+#
+# Thin wrapper so the broker address and topic do not have to be retyped. Every
+# default below is overridable: anything passed on the command line wins,
+# because argparse takes the last occurrence of a repeated option.
+set -euo pipefail
+
+HOME_DIR="{{ kafka_metrics_report_home }}"
+
+exec "${HOME_DIR}/venv/bin/python" "${HOME_DIR}/kafka_metrics_report.py" \
+  --bootstrap "{{ kafka_metrics_report_bootstrap }}" \
+  --topic "{{ kafka_metrics_report_topic }}" \
+  --bucket-seconds "{{ kafka_metrics_report_bucket_seconds }}" \
+  "$@"

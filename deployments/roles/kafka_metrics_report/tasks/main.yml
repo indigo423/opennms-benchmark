@@ -1,0 +1,98 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# An empty broker address satisfies argparse's required=True and fails later as
+# a librdkafka resolution error, which reads as a broken lab rather than an
+# unset variable. Say so here instead.
+- name: Assert the broker address is known
+  ansible.builtin.assert:
+    that:
+      - kafka_metrics_report_bootstrap is defined
+      - kafka_metrics_report_bootstrap | length > 0
+    fail_msg: >-
+      kafka_metrics_report_bootstrap is empty. It defaults to
+      kafka_bootstrap_servers, which this play does not define — set one of them.
+    quiet: true
+  tags: ["kafka_metrics_report"]
+
+- name: Install the Python virtualenv builder
+  ansible.builtin.apt:
+    name: python3-venv
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: ["kafka_metrics_report"]
+
+- name: Create the tool directory
+  ansible.builtin.file:
+    path: "{{ kafka_metrics_report_home }}"
+    state: directory
+    owner: "{{ kafka_metrics_report_owner }}"
+    group: "{{ kafka_metrics_report_owner }}"
+    mode: "0755"
+  tags: ["kafka_metrics_report"]
+
+- name: Install the consumer and its schema
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ kafka_metrics_report_home }}/{{ item.src }}"
+    owner: "{{ kafka_metrics_report_owner }}"
+    group: "{{ kafka_metrics_report_owner }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: kafka_metrics_report.py, mode: "0755" }
+    - { src: collectionset.proto, mode: "0644" }
+  tags: ["kafka_metrics_report"]
+
+- name: Create the virtualenv
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ kafka_metrics_report_home }}/venv
+    creates: "{{ kafka_metrics_report_home }}/venv/bin/python"
+  tags: ["kafka_metrics_report"]
+
+- name: Install the pinned Python dependencies
+  ansible.builtin.pip:
+    name: "{{ kafka_metrics_report_pip }}"
+    virtualenv: "{{ kafka_metrics_report_home }}/venv"
+    state: present
+  tags: ["kafka_metrics_report"]
+
+# Idempotency is driven off file state rather than off the copy task's changed
+# status, so a missing or stale binding regenerates even when the vendored
+# .proto itself did not change in this run. A handler would not: it only fires
+# on notification, leaving a deleted collectionset_pb2.py unrepaired.
+- name: Stat the vendored schema and its bindings
+  ansible.builtin.stat:
+    path: "{{ kafka_metrics_report_home }}/{{ item }}"
+  loop:
+    - collectionset.proto
+    - collectionset_pb2.py
+  register: kafka_metrics_report_stat
+  tags: ["kafka_metrics_report"]
+
+- name: Generate the protobuf bindings
+  ansible.builtin.command:
+    cmd: >-
+      {{ kafka_metrics_report_home }}/venv/bin/python -m grpc_tools.protoc
+      -I{{ kafka_metrics_report_home }}
+      --python_out={{ kafka_metrics_report_home }}
+      collectionset.proto
+    chdir: "{{ kafka_metrics_report_home }}"
+  vars:
+    kafka_metrics_report_proto: "{{ kafka_metrics_report_stat.results[0].stat }}"
+    kafka_metrics_report_pb2: "{{ kafka_metrics_report_stat.results[1].stat }}"
+  when: >-
+    not kafka_metrics_report_pb2.exists
+    or kafka_metrics_report_pb2.mtime < kafka_metrics_report_proto.mtime
+  changed_when: true
+  tags: ["kafka_metrics_report"]
+
+- name: Install the wrapper
+  ansible.builtin.template:
+    src: kafka-metrics-report.j2
+    dest: /usr/local/bin/kafka-metrics-report
+    owner: "{{ kafka_metrics_report_owner }}"
+    group: "{{ kafka_metrics_report_owner }}"
+    mode: "0755"
+  tags: ["kafka_metrics_report"]

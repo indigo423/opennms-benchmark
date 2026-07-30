@@ -1,0 +1,26 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Where the tool and its virtualenv live on the monitoring node.
+kafka_metrics_report_home: /opt/kafka-metrics-report
+kafka_metrics_report_owner: root
+
+# Pinned for reproducibility, like every other version in this lab. grpcio-tools
+# carries its own protoc, so the generated code and the protobuf runtime come
+# from one pinned set — an apt protoc would drift against the pip runtime and
+# fail at import with a generated-code version error.
+kafka_metrics_report_pip:
+  - "confluent-kafka==2.6.1"
+  - "protobuf==5.28.3"
+  - "grpcio-tools==1.68.1"
+
+# Defaults for the wrapper; every one is overridable on the command line.
+#
+# Both of these inherit rather than restate. A deployment that renames the
+# metric topic in the producer role would otherwise leave the reader pointed at
+# a topic that does not exist — or, with auto-creation on, at an empty one it
+# just made, which reports zero rather than failing.
+kafka_metrics_report_topic: "{{ opennms_kafka_producer_metric_topic | default('metrics') }}"
+kafka_metrics_report_bootstrap: "{{ kafka_bootstrap_servers }}"
+kafka_metrics_report_bucket_seconds: 10

@@ -35,3 +35,13 @@
   become: true
   roles:
     - opennms_kafka_producer
+
+# With metrics leaving only via Kafka and EmptyResourceStorageDao in the OSGi
+# context, the OpenNMS UI shows no graphs — the topic is the sole measurement
+# point a performance-management benchmark has. This installs the consumer that
+# reads it.
+- name: Install the metrics report consumer on the monitoring node
+  hosts: mon_servers
+  become: true
+  roles:
+    - kafka_metrics_report
