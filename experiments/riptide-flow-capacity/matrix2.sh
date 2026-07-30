@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
 # Counter-balanced pass: pr runs FIRST in each pair, so that any monotonic lab drift
 # now penalises the baseline instead of the variant. If pr still loses here, the effect
 # is real; if it wins, the first pass was measuring drift.

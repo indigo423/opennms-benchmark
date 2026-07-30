@@ -1,4 +1,8 @@
 #!/bin/bash
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Three base/pr replicate pairs for the riptide#391 A/B, base first in each pair.
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 OUT=ab-391-runs
