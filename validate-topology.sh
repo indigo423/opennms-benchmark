@@ -113,6 +113,29 @@ cleanup_fixture_links
 # Renders one spec and prints any violations. Returns 1 if the spec is bad, 2 if
 # the check itself could not run -- a distinction that matters, because a broken
 # harness reporting "no violations" is worse than no harness.
+# `timeout(1)` is GNU-only and absent on macOS, so bound the run by hand. A
+# hang here is not hypothetical: the first CI attempt sat on the very first spec
+# until the job was killed at ten minutes, reporting nothing useful. A bounded
+# run turns that into a named per-spec failure.
+SPEC_TIMEOUT="${SPEC_TIMEOUT:-90}"
+
+run_bounded() {
+  local out_f="$1" err_f="$2" slug="$3" i pid
+  ( cd "$TF_DIR" && printf '%s\n' "$EXPR" \
+      | terraform console "${VAR_FILES[@]}" -var "deployment=$slug" ) >"$out_f" 2>"$err_f" &
+  pid=$!
+  for ((i = 0; i < SPEC_TIMEOUT; i++)); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    return 124
+  fi
+  wait "$pid"
+}
+
 check_spec() {
   local slug="$1" out rc tmp err
   tmp="$(mktemp)"; err="$(mktemp)"
