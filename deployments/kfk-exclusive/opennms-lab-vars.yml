@@ -1,0 +1,102 @@
+---
+# Deployment overlay for kfk-exclusive. Layered by deploy.sh after the root
+# opennms-lab-vars.yml, for the kvm and aws providers only.
+#
+# IMPORTANT: Ansible's default hash behaviour is `replace`, not `merge`, and
+# both files arrive as --extra-vars, so every dict below replaces rather than
+# extends whatever it shadows.
+#
+# For opennms_properties_timeseries that shadowed value is the *collection's*
+# default (roles/opennms_core/defaults/main.yml), which carries the RRDTool
+# keys — root opennms-lab-vars.yml leaves the variable commented out. Replacing
+# it is how RRD is removed.
+#
+# kafka_server_properties is different: root does define it, so a partial
+# override here would drop the KRaft settings and the broker would not start.
+# That is why it is restated in full below.
+
+# ── metrics leave via Kafka, and only via Kafka ───────────────────────────────
+# Replaces the root's RRDTool strategy keys. The value is substituted straight
+# into a Spring import path (applicationContext-timeseries-<strategy>.xml), so
+# it is never validated: a typo resolves to a missing context rather than an
+# error. Pairs with forward.metrics=true in the opennms_kafka_producer role —
+# setting this alone makes Collectd block forever instead of failing.
+opennms_properties_timeseries:
+  org.opennms.timeseries.strategy: osgi
+
+# ── Core daemon set ───────────────────────────────────────────────────────────
+# Each key is a CORE_SERVICE_<NAME>_ENABLED env var that the shipped
+# service-configuration.xml resolves at JVM startup. The collection renders and
+# exports these into opennms.conf.
+#
+# Left at their upstream defaults because the benchmarks need them: COLLECTD,
+# POLLERD, TRAPD, EVENTD, ALARMD, PROVISIOND, VACUUMD, KARAF, JETTYSERVER.
+# TELEMETRYD is also left enabled — OpenConfig collection is planned and
+# persists through PersisterFactory to Kafka, needing no Elasticsearch.
+opennms_services:
+  CORE_SERVICE_BSMD_ENABLED: false
+  CORE_SERVICE_TICKETER_ENABLED: false
+  CORE_SERVICE_CORRELATOR_ENABLED: false        # already the upstream default
+  CORE_SERVICE_QUEUED_ENABLED: false
+  CORE_SERVICE_ACTIOND_ENABLED: false
+  CORE_SERVICE_NOTIFD_ENABLED: false
+  CORE_SERVICE_SCRIPTD_ENABLED: false
+  CORE_SERVICE_RTCD_ENABLED: false
+  CORE_SERVICE_SNMPPOLLER_ENABLED: false        # already the upstream default
+  CORE_SERVICE_ENHANCEDLINKD_ENABLED: false     # ENHANCEDLINKD, not ENLINKD
+  CORE_SERVICE_STATSD_ENABLED: false
+  CORE_SERVICE_ACKD_ENABLED: false
+  CORE_SERVICE_SYSLOGD_ENABLED: true            # the only genuine enablement
+  CORE_SERVICE_PERSPECTIVEPOLLER_ENABLED: false
+
+# ── broker ────────────────────────────────────────────────────────────────────
+# Restated in full (see the replace-not-merge note above). Only the two marked
+# values differ from the root defaults; both are controlled variables of this
+# SUT and belong on every result.
+kafka_server_properties:
+  "process.roles": broker,controller
+  "node.id": 1
+  "controller.quorum.voters": 1@localhost:9093
+  listeners: PLAINTEXT://:9092,CONTROLLER://:9093
+  "inter.broker.listener.name": PLAINTEXT
+  "advertised.listeners": "PLAINTEXT://{{ kafka_bootstrap_servers }}"
+  "controller.listener.names": CONTROLLER
+  "listener.security.protocol.map": CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,SSL:SSL,SASL_PLAINTEXT:SASL_PLAINTEXT,SASL_SSL:SASL_SSL
+  "num.network.threads": 3
+  "num.io.threads": 8
+  "socket.send.buffer.bytes": 102400
+  "socket.receive.buffer.bytes": 102400
+  "socket.request.max.bytes": 104857600
+  # CHANGED from 1. Consumer parallelism is capped at one consumer per
+  # partition, so a single partition serialises Sink.Trap, Sink.Syslog and
+  # metrics — the three streams this deployment exists to saturate. Topics are
+  # auto-created (auto.create.topics.enable defaults true), so this value is
+  # what they get. Raising it later is possible; lowering it is not.
+  "num.partitions": 6
+  "num.recovery.threads.per.data.dir": 1
+  "offsets.topic.replication.factor": 1
+  "transaction.state.log.replication.factor": 1
+  "transaction.state.log.min.isr": 1
+  # CHANGED from 1. A one-hour retention expires the earliest samples of a long
+  # run before a consumer can reconcile delivered against accepted.
+  #
+  # Time alone is not a safe bound here. This deployment pushes the entire
+  # metric stream through Kafka as its only persistence target, log.dirs sits
+  # on the root filesystem, and terraform/disk-sizes.tfvars gives the broker
+  # 50 GB. A full log dir takes Kafka offline mid-run, which reads as a
+  # benchmark that simply stopped recording — the same silent-zero class of
+  # failure the producer role asserts against.
+  #
+  # log.retention.bytes is PER PARTITION, so the real ceiling is
+  # bytes x partitions x topics. At 512 MiB and 6 partitions the metrics topic
+  # caps at ~3 GiB, and a realistic topic set (metrics, events, alarms, nodes,
+  # the Sink.* and rpc-* IPC topics) stays well inside the disk.
+  #
+  # CALIBRATE: 512 MiB may bound the metrics topic below 24 h, in which case
+  # bytes and not hours is the effective retention. Measure per-hour volume on
+  # a first run and raise it if the disk allows.
+  "log.retention.hours": 24
+  "log.retention.bytes": 536870912
+  "log.segment.bytes": 1073741824
+  "log.retention.check.interval.ms": 300000
+  "log.dirs": /var/log/kafka/combined-logs

@@ -1,0 +1,37 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# deploy.sh replaces opennms-playbook.yml with this file when
+# DEPLOYMENT=kfk-exclusive, so the stock stack is imported rather than
+# duplicated — the plays stay in one place and cannot drift.
+#
+# The Kafka Producer has no variable in the pinned indigo423.opennms
+# collection, so enabling it needs the extra play at the bottom. Everything
+# else in this deployment is expressed as variables in opennms-lab-vars.yml.
+
+# Runs before anything is installed or configured. The role's own assert would
+# otherwise fire only after the imported core play had already applied
+# strategy=osgi and restarted OpenNMS, aborting onto a lab with a blocked
+# Collectd instead of refusing to build one.
+- name: Refuse a half-configured exclusive-forwarding lab
+  hosts: core
+  gather_facts: false
+  tasks:
+    - name: Validate the forwarding configuration
+      ansible.builtin.import_role:
+        name: opennms_kafka_producer
+        tasks_from: validate
+
+- name: Deploy the stock OpenNMS stack
+  ansible.builtin.import_playbook: ../../opennms-playbook.yml
+
+# Core's first boot happens inside the imported playbook, with strategy=osgi
+# already set but the producer feature not yet installed, so Collectd blocks
+# until this play's handler restarts it. Transient and self-correcting; it is
+# the reason a deploy must not be judged before this play has run.
+- name: Enable the Kafka Producer on Core
+  hosts: core
+  become: true
+  roles:
+    - opennms_kafka_producer

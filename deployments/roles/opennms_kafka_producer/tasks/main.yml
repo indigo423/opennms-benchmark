@@ -1,0 +1,32 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Kept here so the role validates its own contract when used standalone. The
+# deployment playbook additionally runs this file on its own, before the stock
+# stack is imported, so the guard fires before anything is configured.
+- name: Validate the forwarding configuration
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Enable the Kafka Producer feature at boot
+  ansible.builtin.copy:
+    content: "opennms-kafka-producer\n"
+    dest: "{{ opennms_home | default('/opt/opennms') }}/etc/featuresBoot.d/kafka-producer.boot"
+    owner: opennms
+    group: opennms
+    mode: "0640"
+  notify: Restart opennms core
+  tags: ["kafka_producer"]
+
+- name: Configure the Kafka Producer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ opennms_home | default('/opt/opennms') }}/etc/{{ item }}"
+    owner: opennms
+    group: opennms
+    mode: "0640"
+  loop:
+    - org.opennms.features.kafka.producer.cfg
+    - org.opennms.features.kafka.producer.client.cfg
+  notify: Restart opennms core
+  tags: ["kafka_producer"]

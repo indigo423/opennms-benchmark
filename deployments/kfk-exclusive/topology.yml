@@ -1,0 +1,45 @@
+---
+name: kfk-exclusive
+description: >-
+  Kafka-exclusive metric forwarding. Collectd/SNMP performance-management
+  benchmarking with metrics leaving Core only via the Kafka Producer, plus
+  Pollerd/Trapd/Syslogd fault-management load. No local time-series store —
+  the measurement point is the Kafka metrics topic, not the OpenNMS UI.
+  Subnet wiring matches baseline; Elasticsearch is omitted. kvm/aws only.
+roles:
+  database:
+    count: 1
+    size: small
+    subnets: [mgmt, db]
+    groups: [database]
+  core:
+    count: 1
+    size: xlarge
+    subnets: [mgmt, db, kafka]
+    groups: [core]
+  kafka:
+    # medium, not baseline's small: this broker carries the IPC sink/RPC/twin
+    # traffic *and* the entire metric stream, because Kafka is the only
+    # persistence target. A saturated broker would make the benchmark measure
+    # Kafka rather than OpenNMS. Revert to small only with headroom evidence.
+    count: 1
+    size: medium
+    subnets: [mgmt, kafka]
+    groups: [message_broker, docker_engine, kafka_ui]
+  minion:
+    count: 1
+    size: small
+    subnets: [mgmt, kafka, sim]
+    routes: { sim: net_sim }
+    groups: [minion]
+  loadgen:
+    count: 1
+    size: small
+    subnets: [mgmt, sim]
+    groups: [net_sim, docker_engine]
+  monitoring:
+    count: 1
+    size: small
+    subnets: [mgmt, external]
+    public_ip: true
+    groups: [mon_servers, docker_engine, grafana]

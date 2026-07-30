@@ -1,0 +1,36 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Northbound Kafka Producer on the OpenNMS Core.
+#
+# forward.metrics MUST be true whenever
+# opennms_properties_timeseries.org.opennms.timeseries.strategy is `osgi`.
+# The osgi persister blocks waiting for the factory this feature registers, so
+# the combination "strategy=osgi, forward.metrics=false" hangs collection
+# silently instead of erroring.
+opennms_kafka_producer_forward_metrics: true
+
+# Broker endpoint. Inherited from the root opennms-lab-vars.yml rather than
+# restated, so there is one literal in the repo instead of two. See #161 — this
+# should ultimately derive from a per-subnet address exported by Terraform.
+opennms_kafka_producer_bootstrap_servers: "{{ kafka_bootstrap_servers }}"
+
+# Topics. Producer topics are not namespaced by instanceId, unlike the IPC
+# topics, so these are bare names alongside the OpenNMS.* sink/RPC topics.
+# An empty string disables that stream.
+opennms_kafka_producer_metric_topic: metrics
+opennms_kafka_producer_event_topic: events
+opennms_kafka_producer_alarm_topic: alarms
+opennms_kafka_producer_node_topic: nodes
+
+# Optional SpEL filter applied to metrics before forwarding. Left unset. Useful
+# once OpenConfig sources exist, since their samples land on the same topic as
+# Collectd's and a Collectd-only benchmark needs them separated.
+opennms_kafka_producer_metric_filter: ""
+
+# The persister splits large collection sets across several Kafka messages to
+# stay under the broker's message size limit. Disabling that raises the per
+# message size and changes the message count per collection interval — a
+# benchmark-relevant knob, and undocumented upstream.
+opennms_kafka_producer_disable_metrics_splitting: false

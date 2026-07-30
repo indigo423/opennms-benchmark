@@ -1,0 +1,28 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Split out of main.yml so the deployment playbook can run it *before*
+# importing the stock stack. Run only as part of main.yml, the assert would
+# fire after the core role had already applied strategy=osgi and restarted
+# OpenNMS — aborting onto a hung lab rather than refusing to build one.
+
+- name: Fail fast when exclusive forwarding is half-configured
+  # strategy=osgi installs a persister that blocks waiting for the factory this
+  # role registers. Without forward.metrics the lab comes up, collects nothing,
+  # and reports zero — indistinguishable from a real benchmark result. Refuse
+  # to deploy that combination rather than let it be measured.
+  ansible.builtin.assert:
+    that:
+      - opennms_kafka_producer_forward_metrics | bool
+    fail_msg: >-
+      opennms_properties_timeseries sets org.opennms.timeseries.strategy=osgi,
+      which makes Kafka the exclusive metric store, but
+      opennms_kafka_producer_forward_metrics is false. Collectd would block
+      forever. Set forward.metrics true, or choose another timeseries strategy.
+    quiet: true
+  when: >-
+    opennms_properties_timeseries is defined
+    and opennms_properties_timeseries['org.opennms.timeseries.strategy']
+        | default('') == 'osgi'
+  tags: ["kafka_producer", "always"]
