@@ -1,0 +1,91 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LabNeedsTheseServices",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:*",
+        "resource-groups:*",
+        "tag:GetResources",
+        "tag:TagResources",
+        "tag:UntagResources",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "NothingInsideTheProductionVpc",
+      "Effect": "Deny",
+      "Action": "ec2:*",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:Vpc": "arn:aws:ec2:us-east-1:519827938511:vpc/vpc-11dd7777"
+        }
+      }
+    },
+    {
+      "Sid": "NoDestructionOfAnythingNotTaggedAsTheLab",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:TerminateInstances",
+        "ec2:StopInstances",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:DeleteVpc",
+        "ec2:DeleteSubnet",
+        "ec2:DeleteSecurityGroup",
+        "ec2:DeleteNatGateway",
+        "ec2:DeleteVolume",
+        "ec2:DetachVolume",
+        "ec2:DeleteNetworkInterface",
+        "ec2:DeleteInternetGateway",
+        "ec2:DeleteRouteTable",
+        "ec2:DeleteRoute",
+        "ec2:DeleteKeyPair",
+        "ec2:DeletePlacementGroup",
+        "ec2:CreateSnapshot",
+        "ec2:DeleteSnapshot"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/project": "benchmark"
+        }
+      }
+    },
+    {
+      "Sid": "NoSelfEscalation",
+      "Effect": "Deny",
+      "Action": [
+        "iam:*",
+        "organizations:*",
+        "account:*",
+        "sts:AssumeRole"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "HandsOffProductionElasticIps",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:DisassociateAddress",
+        "ec2:ReleaseAddress",
+        "ec2:AssociateAddress"
+      ],
+      "Resource": [
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-0c82de5dc30d34611",
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-0445c46a03d243582",
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-08282be41c456e594",
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-0cf1b3f4252ce1c1f",
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-0c91a4e2d92ff239f",
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-8f17fcb1",
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-fb766ef2",
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-0225cbdd88221a1b8",
+        "arn:aws:ec2:us-east-1:519827938511:elastic-ip/eipalloc-0f753e3ecc97ad2dc"
+      ]
+    }
+  ]
+}

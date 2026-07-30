@@ -1,0 +1,11 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OnlyRonnyMayAssume",
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::519827938511:user/rtrommer" },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
