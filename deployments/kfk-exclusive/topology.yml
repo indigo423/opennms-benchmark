@@ -38,8 +38,13 @@ roles:
     subnets: [mgmt, sim]
     groups: [net_sim, docker_engine]
   monitoring:
+    # baseline gives monitoring [mgmt, external]. This profile adds kafka,
+    # because the metrics topic is the only measurement point the deployment
+    # has and kafka_metrics_report runs here. Without the NIC the consumer
+    # resolves the broker's address, routes it out the external gateway and
+    # fails with a transport error that reads like a broken broker.
     count: 1
     size: small
-    subnets: [mgmt, external]
+    subnets: [mgmt, kafka, external]
     public_ip: true
     groups: [mon_servers, docker_engine, grafana]
