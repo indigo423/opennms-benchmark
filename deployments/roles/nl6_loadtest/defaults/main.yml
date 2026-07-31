@@ -10,10 +10,14 @@ nl6_loadtest_owner: root
 # sim network the generator is measuring on.
 nl6_loadtest_url: "http://{{ hostvars[groups['net_sim'][0]].ansible_host }}:{{ nl6_web_port | default(8080) }}"
 
-# Participants are derived the same way the nl6 role creates them, so the
-# driver stays in step with the fleet that actually exists.
-nl6_loadtest_start_ip: "{{ nl6_auto_start_ip | default('10.42.0.1') }}"
-nl6_loadtest_count: "{{ nl6_auto_count | default(1) }}"
+# Run parameters, not deployment facts. The generator no longer seeds a fleet,
+# so there is nothing on the nl6 side to stay in step with: an experiment
+# creates the devices it needs through the API and drives exactly those.
+#
+# start_ip must fall inside the deployment's sim_network, which the driver
+# reads from the manifest and asserts. These are only defaults for a probe run.
+nl6_loadtest_start_ip: "10.42.0.1"
+nl6_loadtest_count: 1
 
 # Defaults for a run; all overridable on the command line.
 nl6_loadtest_protocol: syslog

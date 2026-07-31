@@ -14,14 +14,7 @@ ExecStart=/usr/bin/docker run \
   --network host \
   --device /dev/net/tun:/dev/net/tun \
   {{ nl6_image }} \
-  -auto-start-ip {{ nl6_auto_start_ip }} \
-  -auto-count {{ nl6_auto_count }} \
-  -auto-netmask {{ nl6_auto_netmask }} \
-  -port {{ nl6_web_port }} \
-  -flow-collector {{ nl6_flow_collector }} \
-  -flow-protocol {{ nl6_flow_protocol }} \
-  -trap-collector {{ nl6_trap_collector }} \
-  -syslog-collector {{ nl6_syslog_collector }}
+  -port {{ nl6_web_port }}
 ExecStop=/usr/bin/docker stop nl6
 
 [Install]

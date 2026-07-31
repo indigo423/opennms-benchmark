@@ -122,15 +122,30 @@ def api(url, path, method="GET", body=None, timeout=30):
         raise SystemExit(f"nl6 {method} {path} unreachable at {url}: {e.reason}") from e
 
 
-def participants(start_ip, count):
+def participants(start_ip, count, sim_network=None):
     """Expand a start address and a count into consecutive addresses.
 
-    The lab configures nl6 with -auto-start-ip and -auto-count, so deriving the
-    participant list the same way keeps the driver in step with the fleet the
-    role actually created, without querying an endpoint for it.
+    Asserts the whole range falls inside the deployment's simulated network.
+    Outside it the Minion has no route and the generator host has no matching
+    DOCKER-USER rule, so nl6 sends happily and nothing arrives: the sent-ledger
+    shows a clean run while the system under test appears to have dropped every
+    record. That is the most misleading failure this driver can produce, and it
+    is cheap to refuse.
     """
     first = ipaddress.ip_address(start_ip)
-    return [str(first + i) for i in range(count)]
+    addresses = [first + i for i in range(count)]
+    if sim_network:
+        net = ipaddress.ip_network(sim_network, strict=False)
+        outside = [a for a in (addresses[0], addresses[-1]) if a not in net]
+        if outside:
+            raise SystemExit(
+                f"device range {addresses[0]}..{addresses[-1]} is not inside the "
+                f"deployment's simulated network {net}. "
+                f"{', '.join(str(a) for a in outside)} would have no route from the "
+                f"Minion and no forwarding rule on the generator, so the load would "
+                f"be sent and silently discarded. Choose a range inside {net}."
+            )
+    return [str(a) for a in addresses]
 
 
 def go_seconds(duration):
@@ -161,7 +176,7 @@ def go_seconds(duration):
 
 def run_scenario(args):
     body = {
-        "participants": participants(args.start_ip, args.count),
+        "participants": participants(args.start_ip, args.count, args.sim_network),
         "protocol": args.protocol,
         "rate": args.rate,
         "window": args.window,

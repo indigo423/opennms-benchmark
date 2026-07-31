@@ -1,18 +1,25 @@
 ---
+# The generator's bootstrap role installs nl6, exposes its API and makes its
+# simulated network reachable. It has no opinion about telemetry.
+#
+# What is exported, to which collectors, and how many devices exist are
+# properties of the experiment, not of the deployment: the experiment creates
+# its fleet through the nl6 API and supplies the protocols and collectors in the
+# device payload. Configuration seeded at container start would apply to
+# nothing, because no devices are auto-created.
+
 # Standalone fallback only. The lab pins the version in
 # group_vars/net_sim/vars.yml, which overrides this.
 nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.9.0"
-nl6_auto_start_ip: "10.42.0.1"
-# Permanently 0, and deliberately so. Devices are created through the nl6 API
-# by the experiment that needs them, because how many devices exist is a
-# property of the workload and has to be recorded on the result. An empty fleet
-# after deployment is the intended state, not a defect.
-nl6_auto_count: 0
-nl6_auto_netmask: "16"
+
 nl6_web_port: 8080
+
+# The contract between the layers, published in lab-endpoints.yml. The Minion's
+# net_sim route and the DOCKER-USER forwarding rules both cover this CIDR, so
+# device addresses an experiment creates must fall inside it. Outside it there
+# is no route and no matching rule, and telemetry is discarded without a trace.
 nl6_sim_network: "10.42.0.0/16"
+
+# Overridden per host by the inventory (nl6_net_interface is a host var derived
+# from the sim NIC's position in the spec's subnet list).
 nl6_net_interface: "enp2s0"
-nl6_flow_collector: "192.0.2.144:9999"
-nl6_flow_protocol: "ipfix"
-nl6_trap_collector: "192.0.2.144:10162"
-nl6_syslog_collector: "192.0.2.144:10514"
