@@ -45,3 +45,12 @@
   become: true
   roles:
     - kafka_metrics_report
+
+# The generator's rate lives in nl6's scenario API, not in its systemd unit, so
+# driving load at all needs this. It also supplies the delivered half of a
+# delivered-vs-accepted reconciliation, which kafka_metrics_report cannot see.
+- name: Install the nl6 load-test driver on the monitoring node
+  hosts: mon_servers
+  become: true
+  roles:
+    - nl6_loadtest

@@ -1,0 +1,48 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# The URL default resolves through groups['net_sim'], which is empty in a
+# topology with no loadgen. Failing here names the cause; leaving it produces a
+# wrapper that curls "http://:8080".
+- name: Assert the nl6 endpoint is known
+  ansible.builtin.assert:
+    that:
+      - nl6_loadtest_url is defined
+      - nl6_loadtest_url is search('://[^:/]+')
+    fail_msg: >-
+      nl6_loadtest_url does not name a host. It derives from the net_sim
+      inventory group, which this topology has not populated. Add a loadgen
+      role to the spec, or set nl6_loadtest_url explicitly.
+    quiet: true
+  tags: ["nl6_loadtest"]
+
+- name: Create the tool directory
+  ansible.builtin.file:
+    path: "{{ nl6_loadtest_home }}"
+    state: directory
+    owner: "{{ nl6_loadtest_owner }}"
+    group: "{{ nl6_loadtest_owner }}"
+    mode: "0755"
+  tags: ["nl6_loadtest"]
+
+# Standard library only: urllib for the API, no venv and no pinned wheels to
+# drift. The one dependency worth having would be a nicer HTTP client, and it
+# is not worth a virtualenv on a jump host.
+- name: Install the load-test driver
+  ansible.builtin.copy:
+    src: nl6_loadtest.py
+    dest: "{{ nl6_loadtest_home }}/nl6_loadtest.py"
+    owner: "{{ nl6_loadtest_owner }}"
+    group: "{{ nl6_loadtest_owner }}"
+    mode: "0755"
+  tags: ["nl6_loadtest"]
+
+- name: Install the wrapper
+  ansible.builtin.template:
+    src: nl6-loadtest.j2
+    dest: /usr/local/bin/nl6-loadtest
+    owner: "{{ nl6_loadtest_owner }}"
+    group: "{{ nl6_loadtest_owner }}"
+    mode: "0755"
+  tags: ["nl6_loadtest"]

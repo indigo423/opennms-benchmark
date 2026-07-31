@@ -1,0 +1,23 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+nl6_loadtest_home: /opt/nl6-loadtest
+nl6_loadtest_owner: root
+
+# The nl6 API lives on the loadgen host. Reaching it over mgmt is deliberate:
+# this is a control-plane call, not a data path, so it cannot contaminate the
+# sim network the generator is measuring on.
+nl6_loadtest_url: "http://{{ hostvars[groups['net_sim'][0]].ansible_host }}:{{ nl6_web_port | default(8080) }}"
+
+# Participants are derived the same way the nl6 role creates them, so the
+# driver stays in step with the fleet that actually exists.
+nl6_loadtest_start_ip: "{{ nl6_auto_start_ip | default('10.42.0.1') }}"
+nl6_loadtest_count: "{{ nl6_auto_count | default(1) }}"
+
+# Defaults for a run; all overridable on the command line.
+nl6_loadtest_protocol: syslog
+nl6_loadtest_rate: 10
+nl6_loadtest_window: 30s
+nl6_loadtest_drain: 2s
+nl6_loadtest_seed: 42

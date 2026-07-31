@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# DO NOT EDIT — managed by Ansible (deployments/roles/nl6_loadtest).
+#
+# Supplies the endpoint and the fleet from the inventory so a run only has to
+# name what varies. Anything passed on the command line wins, since argparse
+# takes the last occurrence of a repeated option.
+#
+#   nl6-loadtest --protocol snmp-trap --rate 200 --window 5m --label "trap sweep"
+set -euo pipefail
+
+HOME_DIR="{{ nl6_loadtest_home }}"
+
+exec python3 "${HOME_DIR}/nl6_loadtest.py" \
+  --url "{{ nl6_loadtest_url }}" \
+  --start-ip "{{ nl6_loadtest_start_ip }}" \
+  --count "{{ nl6_loadtest_count }}" \
+  --protocol "{{ nl6_loadtest_protocol }}" \
+  --rate "{{ nl6_loadtest_rate }}" \
+  --window "{{ nl6_loadtest_window }}" \
+  --drain "{{ nl6_loadtest_drain }}" \
+  --seed "{{ nl6_loadtest_seed }}" \
+  "$@"
