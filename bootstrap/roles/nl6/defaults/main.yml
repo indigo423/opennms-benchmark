@@ -1,6 +1,12 @@
 ---
+# Standalone fallback only. The lab pins the version in
+# group_vars/net_sim/vars.yml, which overrides this.
 nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.9.0"
 nl6_auto_start_ip: "10.42.0.1"
+# Permanently 0, and deliberately so. Devices are created through the nl6 API
+# by the experiment that needs them, because how many devices exist is a
+# property of the workload and has to be recorded on the result. An empty fleet
+# after deployment is the intended state, not a defect.
 nl6_auto_count: 0
 nl6_auto_netmask: "16"
 nl6_web_port: 8080

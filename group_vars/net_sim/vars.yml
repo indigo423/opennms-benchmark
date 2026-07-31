@@ -1,0 +1,12 @@
+---
+# Lab pin for the network simulator.
+#
+# Kept in group_vars, not in opennms-lab-vars.yml, because deploy.sh runs the
+# bootstrap play with no --extra-vars at all. A pin in that file never reaches
+# the nl6 role, so the role default wins silently: the lab ran v0.9.0 for as
+# long as the root file claimed v0.21.0 (#197).
+#
+# group_vars sits beside ansible-inventory.yml, so Ansible loads it for every
+# play that uses the inventory, bootstrap included. It also stays below
+# extra_vars in precedence, which leaves roles free to merge against it.
+nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.21.0"
