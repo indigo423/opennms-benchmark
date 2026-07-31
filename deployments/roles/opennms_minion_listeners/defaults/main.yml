@@ -1,0 +1,11 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Where the Minion binds its fault-management listeners. The ports come from
+# lab_syslog_port and lab_trap_port (group_vars/all), which are the same values
+# lab-endpoints.yml publishes as this deployment's ingress and the same values
+# endpoints-playbook.yml asserts against the collection's firewall rules. One
+# definition, three consumers.
+opennms_minion_listeners_home: /opt/minion
+opennms_minion_listeners_interface: "0.0.0.0"

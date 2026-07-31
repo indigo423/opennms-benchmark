@@ -36,6 +36,16 @@
   roles:
     - opennms_kafka_producer
 
+# The deployment publishes syslog and trap ingress in lab-endpoints.yml, so it
+# has to bind them. The pinned collection's opennms_minion role configures Kafka
+# IPC and the firewall and nothing else, so without this the ports are open, the
+# Core-side consumer runs, and nothing listens (#206).
+- name: Bind the Minion's fault-management listeners
+  hosts: minion
+  become: true
+  roles:
+    - opennms_minion_listeners
+
 # With metrics leaving only via Kafka and EmptyResourceStorageDao in the OSGi
 # context, the OpenNMS UI shows no graphs — the topic is the sole measurement
 # point a performance-management benchmark has. This installs the consumer that

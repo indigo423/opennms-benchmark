@@ -1,0 +1,20 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# A deployment that publishes a syslog or trap endpoint must actually bind it.
+# Without these the port is open in the firewall, the Core-side consumer is
+# running and the manifest advertises the address, while nothing listens: the
+# generator reports a clean send and the sink never moves.
+- name: Configure the Minion's fault-management listeners
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ opennms_minion_listeners_home }}/etc/{{ item }}"
+    owner: minion
+    group: minion
+    mode: "0640"
+  loop:
+    - org.opennms.netmgt.syslog.cfg
+    - org.opennms.netmgt.trapd.cfg
+  notify: Restart minion
+  tags: ["minion_listeners"]
