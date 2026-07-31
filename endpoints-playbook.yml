@@ -1,0 +1,117 @@
+---
+# Publishes lab-endpoints.yml: what an experiment must target on this
+# deployment, derived from the deployment as provisioned.
+#
+# Runs on localhost and reads the generated inventory. Every value comes from
+# inventory host vars or from variables, so nothing connects to a lab host and
+# nothing is changed. That is what lets `make endpoints` regenerate the manifest
+# against a running lab without a redeploy.
+#
+# Kept out of opennms-playbook.yml deliberately: a deployment may replace that
+# playbook outright (deploy.sh:405), and generation living inside it would mean
+# such a deployment silently stopped producing a manifest.
+
+- name: Publish the deployment's endpoints
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    endpoints_file: "{{ playbook_dir }}/lab-endpoints.yml"
+    # Rendered by the template as the generation time. Taken from gathered facts
+    # so it is a real clock reading rather than a shell-out, and forced to UTC
+    # there: strftime defaults to local time, which would label a CEST reading
+    # with a Z and put anyone correlating the manifest against Kafka or
+    # Prometheus timestamps two hours out.
+    endpoints_now: "{{ ansible_date_time.epoch }}"
+    # A deployment claims the Kafka Producer by installing the role that
+    # configures it. A broker carrying only Minion IPC produces no metrics, and
+    # the manifest must not assert a metric format for a topic nobody writes to.
+    endpoints_producer_enabled: >-
+      {{ (lab_deployment | default('', true) | length > 0)
+         and (lookup('file', playbook_dir ~ '/deployments/' ~ lab_deployment ~ '/playbook.yml',
+                     errors='ignore') | default('', true)
+              is search('opennms_kafka_producer')) }}
+  tasks:
+    # The ports are published as constants because the collection writes them
+    # inline. Assert the constant still matches what it opens, so a drift is a
+    # failed play rather than a benchmark that silently receives nothing.
+    - name: Locate the pinned collection
+      ansible.builtin.set_fact:
+        endpoints_collection: >-
+          {{ lookup('first_found',
+                    files=['roles/opennms_minion/tasks/50-firewall.yml'],
+                    paths=collection_paths, errors='ignore') | default('', true) }}
+      vars:
+        collection_paths: >-
+          {{ (lookup('config', 'COLLECTIONS_PATHS') | default([], true))
+             | map('regex_replace', '$', '/ansible_collections/indigo423/opennms')
+             | list }}
+      tags: ["endpoints"]
+
+    # Not failed_when: false. A guard that silently disappears when it cannot
+    # find what it guards is worse than no guard, because its absence reads as
+    # a pass.
+    - name: Assert the collection was found
+      ansible.builtin.assert:
+        that:
+          - endpoints_collection | length > 0
+        fail_msg: >-
+          Could not locate indigo423.opennms on any configured collections path,
+          so the published syslog and trap ports cannot be checked against the
+          ports the collection opens. Install the collection
+          (make deploy runs ansible-galaxy) or set ANSIBLE_COLLECTIONS_PATH.
+        quiet: true
+      tags: ["endpoints"]
+
+    - name: Read the collection's firewall tasks
+      ansible.builtin.slurp:
+        src: "{{ endpoints_collection | dirname | dirname | dirname }}/{{ item }}/tasks/50-firewall.yml"
+      loop:
+        - opennms_minion
+        - opennms_core
+      register: endpoints_firewall
+      tags: ["endpoints"]
+
+    # Matched as "port: '10514'", not as a bare number. A substring test passes
+    # on any prefix: 1051 is contained in 10514, so the manifest would publish
+    # 1051, load would be sent there, and traffic would be dropped silently —
+    # exactly the failure this assertion claims to prevent.
+    - name: Assert the published ports match the ports the collection opens
+      ansible.builtin.assert:
+        that:
+          - minion_firewall is search(syslog_pattern)
+          - minion_firewall is search(trap_pattern)
+          - core_firewall is search(trap_pattern)
+        fail_msg: >-
+          lab_syslog_port={{ lab_syslog_port }} / lab_trap_port={{ lab_trap_port }}
+          do not match the ports opened by the pinned collection. The firewall
+          would open one port while the listener binds another, which drops
+          traffic without logging a rejection. Change both, or neither.
+        quiet: true
+      vars:
+        minion_firewall: "{{ endpoints_firewall.results[0].content | b64decode }}"
+        core_firewall: "{{ endpoints_firewall.results[1].content | b64decode }}"
+        syslog_pattern: "port: '{{ lab_syslog_port }}'"
+        trap_pattern: "port: '{{ lab_trap_port }}'"
+      tags: ["endpoints"]
+
+    - name: Derive the canonical descriptor
+      ansible.builtin.command:
+        cmd: python3 deployments/bin/topology-descriptor.py deployments/{{ lab_deployment }}/topology.yml
+        chdir: "{{ playbook_dir }}"
+      register: endpoints_descriptor
+      changed_when: false
+      when: lab_deployment | default('', true) | length > 0
+      tags: ["endpoints"]
+
+    - name: Render the endpoints manifest
+      ansible.builtin.template:
+        src: templates/lab-endpoints.yml.j2
+        dest: "{{ endpoints_file }}"
+        mode: "0644"
+      tags: ["endpoints"]
+
+    - name: Report where it landed
+      ansible.builtin.debug:
+        msg: "endpoints published to {{ endpoints_file }}"
+      tags: ["endpoints"]

@@ -6,6 +6,8 @@
 #   2. ansible-playbook bootstrap  — installs base tooling
 #   3. ansible-galaxy collection install — pulls indigo423.opennms and friends
 #   4. ansible-playbook opennms    — deploys OpenNMS stack
+#   5. ansible-playbook endpoints — writes lab-endpoints.yml, the manifest
+#                                    of what listens where on this deployment
 #
 # For KVM and Proxmox the monitoring VM gets a DHCP address on an external
 # bridge.  The script SSH-probes that address after the first apply, then
@@ -295,7 +297,7 @@ fi
 
 # ── deploy path ───────────────────────────────────────────────────────────────
 
-step "[1/3] Provisioning infrastructure ($PROVIDER)..."
+step "[1/5] Provisioning infrastructure ($PROVIDER)..."
 ensure_aws_credentials
 tf_init
 set_provider_vars
@@ -377,7 +379,7 @@ if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" || "$PROVIDER" == "vmware
   fi
 fi
 
-step "[2/4] Bootstrapping VMs..."
+step "[2/5] Bootstrapping VMs..."
 # shellcheck disable=SC2086
 ansible-playbook \
   --become \
@@ -385,7 +387,7 @@ ansible-playbook \
   $ANSIBLE_VERBOSITY \
   "$REPO_ROOT/bootstrap/site.yml"
 
-step "[3/4] Installing Ansible Galaxy collections..."
+step "[3/5] Installing Ansible Galaxy collections..."
 ansible-galaxy collection install \
   -r "$REPO_ROOT/requirements.yml" \
   --force-with-deps
@@ -407,7 +409,7 @@ if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" ) && -f
   STACK_LABEL="$DEPLOYMENT stack"
 fi
 
-step "[4/4] Deploying $STACK_LABEL..."
+step "[4/5] Deploying $STACK_LABEL..."
 # shellcheck disable=SC2086
 ansible-playbook \
   --become \
@@ -415,6 +417,22 @@ ansible-playbook \
   $ANSIBLE_VERBOSITY \
   "$DEPLOYMENT_PLAYBOOK" \
   --extra-vars="@$REPO_ROOT/opennms-lab-vars.yml" \
+  $DEPLOYMENT_VARS_FILE
+
+# Deliberately its own step rather than a play inside the stack playbook: a
+# deployment may replace that playbook outright (see DEPLOYMENT_PLAYBOOK above),
+# and generation living inside it would mean such a deployment silently stopped
+# producing a manifest. Runs on localhost against the inventory, so it contacts
+# no lab host and changes nothing.
+step "[5/5] Publishing endpoints..."
+# shellcheck disable=SC2086
+ansible-playbook \
+  -i "$REPO_ROOT/ansible-inventory.yml" \
+  $ANSIBLE_VERBOSITY \
+  "$REPO_ROOT/endpoints-playbook.yml" \
+  --extra-vars="@$REPO_ROOT/opennms-lab-vars.yml" \
+  --extra-vars="lab_deployment=${DEPLOYMENT}" \
+  --extra-vars="lab_provider=${PROVIDER}" \
   $DEPLOYMENT_VARS_FILE
 
 # Closing reminder. The pre-flight notice scrolls far off screen behind

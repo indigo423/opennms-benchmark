@@ -15,6 +15,7 @@ kafka_ui_cluster_name: opennms-benchmark
 # address on whichever node carries public_ip.
 kafka_ui_bootstrap_servers: >-
   {{ (hostvars[groups['message_broker'][0]].lab_kafka_ip
-      | default(hostvars[groups['message_broker'][0]].lab_mgmt_ip, true)) ~ ':9092'
+      | default(hostvars[groups['message_broker'][0]].lab_mgmt_ip
+                 | default(hostvars[groups['message_broker'][0]].ansible_host, true), true)) ~ ':9092'
      if groups.get('message_broker') else '' }}
 kafka_ui_context_path: /kafka

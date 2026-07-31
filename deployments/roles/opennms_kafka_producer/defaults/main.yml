@@ -19,10 +19,12 @@ opennms_kafka_producer_bootstrap_servers: "{{ kafka_bootstrap_servers }}"
 # Topics. Producer topics are not namespaced by instanceId, unlike the IPC
 # topics, so these are bare names alongside the OpenNMS.* sink/RPC topics.
 # An empty string disables that stream.
-opennms_kafka_producer_metric_topic: metrics
-opennms_kafka_producer_event_topic: events
-opennms_kafka_producer_alarm_topic: alarms
-opennms_kafka_producer_node_topic: nodes
+# Read from lab_kafka_topics (group_vars/all) so the manifest and the producer
+# cannot diverge; see that file for why it does not live here.
+opennms_kafka_producer_metric_topic: "{{ lab_kafka_topics.metrics | default('metrics') }}"
+opennms_kafka_producer_event_topic: "{{ lab_kafka_topics.events | default('events') }}"
+opennms_kafka_producer_alarm_topic: "{{ lab_kafka_topics.alarms | default('alarms') }}"
+opennms_kafka_producer_node_topic: "{{ lab_kafka_topics.nodes | default('nodes') }}"
 
 # Optional SpEL filter applied to metrics before forwarding. Left unset. Useful
 # once OpenConfig sources exist, since their samples land on the same topic as

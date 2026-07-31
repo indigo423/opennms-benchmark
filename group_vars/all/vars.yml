@@ -1,0 +1,32 @@
+---
+# Ingestion ports, published rather than collapsed.
+#
+# The pinned indigo423.opennms collection opens both with the number written
+# inline in its firewall tasks, not as a variable:
+#
+#   roles/opennms_minion/tasks/50-firewall.yml   port: '10514'
+#   roles/opennms_minion/tasks/50-firewall.yml   port: '10162'
+#   roles/opennms_core/tasks/50-firewall.yml     port: '10162'
+#
+# A single definition therefore needs a collection change and a pin bump, which
+# is a deliberate decision rather than an incidental edit. Until then these are
+# constants, published in lab-endpoints.yml and asserted against what the
+# collection actually opens by endpoints-playbook.yml.
+#
+# Changing a value here without changing the collection would open one port and
+# listen on another. That failure is silent: traffic is dropped before anything
+# logs a rejection, and a benchmark reports a clean zero. The assertion exists
+# to make it loud.
+lab_syslog_port: 10514
+lab_trap_port: 10162
+
+# Kafka Producer topic names. Defined here rather than in the producer role's
+# defaults because role defaults are not in scope for the localhost play that
+# renders lab-endpoints.yml: the manifest would have had to carry its own copy,
+# and a copy the role could diverge from is the fifth definition this whole
+# change exists to remove. The role reads these.
+lab_kafka_topics:
+  metrics: metrics
+  events: events
+  alarms: alarms
+  nodes: nodes

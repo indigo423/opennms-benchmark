@@ -181,6 +181,16 @@ deployment: guard-DEPLOYMENT ## Show + validate one deployment spec (DEPLOYMENT=
 	[ -f "$$f" ] || { echo "Error: no such deployment '$(DEPLOYMENT)' ($$f not found)" >&2; exit 1; }; \
 	$(DESCRIPTOR) --validate "$$f" && echo && cat "$$f"
 
+.PHONY: endpoints
+endpoints: ## Publish lab-endpoints.yml for a running lab (PROVIDER=…, DEPLOYMENT=<slug>)
+	@[ -f ansible-inventory.yml ] || { echo "Error: ansible-inventory.yml not found; deploy first" >&2; exit 1; }
+	@[ -n "$(PROVIDER)" ] && [ -n "$(DEPLOYMENT)" ] || { echo "Error: set PROVIDER and DEPLOYMENT, or the manifest records neither" >&2; exit 1; }
+	ansible-playbook -i ansible-inventory.yml endpoints-playbook.yml \
+	  --extra-vars="@opennms-lab-vars.yml" \
+	  $(if $(DEPLOYMENT),--extra-vars="lab_deployment=$(DEPLOYMENT)") \
+	  $(if $(PROVIDER),--extra-vars="lab_provider=$(PROVIDER)") \
+	  $(if $(wildcard $(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml),--extra-vars="@$(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml")
+
 .PHONY: validate-topology
 validate-topology: ## Assert every deployment spec renders a provisionable topology
 	./validate-topology.sh

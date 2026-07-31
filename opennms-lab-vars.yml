@@ -16,11 +16,15 @@ opennms_pkg_version: "{{ opennms_version }}*"
 # Safe to move: postgres_listen_addresses is "*" and postgres_hba_permissions_v4
 # covers 192.0.2.0/24, which spans both subnets.
 #
-# Guarded and falling back to lab_mgmt_ip for the same reasons as
+# Guarded, and falling back through lab_mgmt_ip to ansible_host. Only the
+# spec-driven providers' inventory module emits lab_mgmt_ip; azure, vmware and
+# proxmox use terraform/modules/inventory, which does not, so a bare reference
+# fails on those providers. Same reasoning as
 # kafka_bootstrap_servers below.
 opennms_datasource_db_host: >-
   {{ (hostvars[groups['database'][0]].lab_db_ip
-      | default(hostvars[groups['database'][0]].lab_mgmt_ip, true))
+      | default(hostvars[groups['database'][0]].lab_mgmt_ip
+                 | default(hostvars[groups['database'][0]].ansible_host, true), true))
      if groups.get('database') else '' }}
 opennms_datasource_db_port: 5432
 opennms_datasource_db_name: onms_benchmark
@@ -102,7 +106,8 @@ postgres_hba_permissions_v4: "192.0.2.0/24"
 # list from the per-host advertised address is a separate change.
 kafka_bootstrap_servers: >-
   {{ (hostvars[groups['message_broker'][0]].lab_kafka_ip
-      | default(hostvars[groups['message_broker'][0]].lab_mgmt_ip, true)) ~ ':9092'
+      | default(hostvars[groups['message_broker'][0]].lab_mgmt_ip
+                 | default(hostvars[groups['message_broker'][0]].ansible_host, true), true)) ~ ':9092'
      if groups.get('message_broker') else '' }}
 
 opennms_properties_webapp:
