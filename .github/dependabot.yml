@@ -1,11 +1,20 @@
 ---
 version: 2
 updates:
-  # Glob covers every Terraform root under terraform/ (azure, kvm, proxmox,
-  # vmware) and self-heals when a new platform directory is added.
+  # Terraform declares required_providers in the provider root *and* again in
+  # every module it calls, and `terraform init` intersects all of them. Update
+  # only the root and the intersection can empty out: aws went to "~> 5.0,
+  # ~> 6.56" and init failed before validate ran (#188). Within one major the
+  # same drift is silent rather than fatal, which is worse — azure sat at root
+  # ~> 4.65 against modules ~> 4.0 for some time.
+  #
+  # So all three globs are needed, not just the first. They self-heal when a
+  # new platform directory or module is added.
   - package-ecosystem: "terraform"
     directories:
-      - "/terraform/*"
+      - "/terraform/*"             # provider roots: aws, azure, kvm, proxmox, vmware
+      - "/terraform/*/modules/*"   # each provider's own modules
+      - "/terraform/modules/*"     # modules shared across providers
     schedule:
       interval: "weekly"
 
