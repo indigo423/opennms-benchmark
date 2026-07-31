@@ -112,26 +112,26 @@ experiments/
 │   ├── provisioning.sh       # POSTs batch XML to OpenNMS REST API to import nodes
 │   └── 1k-batch*.xml         # Pre-generated 1,000-node requisition batches (10 batches)
 │
-├── c1km1_4c16g_kfk_pm_snmp/ # Kafka broker + SNMP polling (performance metrics)
+├── legacy/c1km1_4c16g_kfk_pm_snmp/ # Kafka broker + SNMP polling (performance metrics)
 │   ├── experiment.yml        # Playbook: configure core + minion roles
 │   ├── opennms-lab-inventory.yml
 │   ├── roles/core/           # Deploys kafka-producer, Jaeger, collectd config
 │   └── roles/minion/         # Configures Minion for SNMP collection
 │
-├── c1km1_4c16g_kfk_snmptraps/ # Kafka broker + SNMP traps + PostgreSQL tuning
+├── legacy/c1km1_4c16g_kfk_snmptraps/ # Kafka broker + SNMP traps + PostgreSQL tuning
 │   ├── experiment.yml        # Playbook: configure core + minion + postgresql roles
 │   ├── opennms-lab-vars.yml  # Uses OpenNMS 33.1.8
 │   ├── roles/core/           # Deploys syslogd, kafka-producer, Jaeger
 │   ├── roles/minion/         # Configures Minion for trap collection
 │   └── roles/postgresql/     # PostgreSQL performance tuning
 │
-├── c1km1_4c16g_kfk_syslog/  # Kafka broker + syslog ingestion + PostgreSQL tuning
+├── legacy/c1km1_4c16g_kfk_syslog/  # Kafka broker + syslog ingestion + PostgreSQL tuning
 │   ├── experiment.yml        # Playbook: configure core + minion + postgresql roles
 │   ├── roles/core/           # Deploys syslogd-configuration.xml, kafka-producer
 │   ├── roles/minion/         # Configures Minion for syslog collection
 │   └── roles/postgresql/     # PostgreSQL performance tuning
 │
-└── c1km1_4c16g_rrd_pm_snmp/ # RRD timeseries strategy + SNMP polling (baseline comparison)
+└── legacy/c1km1_4c16g_rrd_pm_snmp/ # RRD timeseries strategy + SNMP polling (baseline comparison)
     ├── experiment.yml        # Playbook: configure core + minion roles
     ├── opennms-lab-vars.yml  # Overrides timeseries to RRD (jrrd2 strategy)
     └── roles/

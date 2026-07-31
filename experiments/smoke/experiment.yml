@@ -1,0 +1,163 @@
+---
+# A minimal experiment that exercises the whole measurement chain: create a
+# fleet, drive a bounded scenario at it, and check that what was sent actually
+# arrived.
+#
+# It is not a benchmark. The rates are trivial and the window is short; the
+# point is to prove a deployment is measurable before anyone spends an hour
+# measuring it. A lab that cannot pass this will produce numbers that look
+# plausible and mean nothing.
+#
+#   make experiment EXPERIMENT=smoke DEPLOYMENT=<slug>
+#
+# Requires a deployment that installs nl6-loadtest and kafka-metrics-report on
+# the monitoring node, and that provisions a Minion able to receive syslog. The
+# first two are asserted below; the third is what the reconciliation catches.
+
+- name: Create the simulated fleet
+  hosts: net_sim
+  gather_facts: false
+  vars:
+    # The manifest is the deployment's own account of where things are. Reading
+    # it here rather than restating addresses is the whole reason it exists.
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    sim_network: "{{ endpoints.generators.nl6.sim_network }}"
+  tasks:
+    - name: Create the devices, with the collectors the manifest names
+      ansible.builtin.uri:
+        url: "{{ endpoints.generators.nl6.url }}/api/v1/devices"
+        method: POST
+        body_format: json
+        status_code: [200, 201, 202]
+        body:
+          start_ip: "{{ smoke_start_ip }}"
+          device_count: "{{ smoke_device_count | int }}"
+          # nl6 takes a prefix length as a string here, per its API reference
+          # ("optional; defaults to 16"). Split rather than ipaddr() so this
+          # needs neither the ansible.utils collection nor netaddr.
+          netmask: "{{ sim_network.split('/')[1] }}"
+          syslog:
+            collector: "{{ endpoints.ingestion.syslog.host }}:{{ endpoints.ingestion.syslog.port }}"
+          traps:
+            collector: "{{ endpoints.ingestion.traps.host }}:{{ endpoints.ingestion.traps.port }}"
+            mode: trap
+      register: smoke_fleet
+      changed_when: true
+      # A 2xx is not success. nl6 wraps its replies in {"success": …}, and a
+      # rejected batch comes back 200 with success false. Accepting the status
+      # alone would report a fleet as created, drive load at devices that do
+      # not exist, and produce the clean zero this experiment exists to prevent.
+      failed_when: >-
+        smoke_fleet.status not in [200, 201, 202]
+        or not (smoke_fleet.json.success | default(false))
+
+    - name: Report the fleet
+      ansible.builtin.debug:
+        msg: >-
+          {{ smoke_device_count }} device(s) from {{ smoke_start_ip }},
+          syslog to {{ endpoints.ingestion.syslog.host }}:{{ endpoints.ingestion.syslog.port }},
+          traps to {{ endpoints.ingestion.traps.host }}:{{ endpoints.ingestion.traps.port }}
+
+- name: Drive a bounded scenario and reconcile what arrived
+  hosts: mon_servers
+  gather_facts: false
+  vars:
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    broker: "{{ groups['message_broker'][0] }}"
+    sink_topic: OpenNMS.Sink.Syslog
+  tasks:
+    # Both tools are installed by a deployment, not by this experiment. Saying
+    # so here beats "command not found" from a shell task.
+    - name: Assert the deployment installed the tools this needs
+      ansible.builtin.stat:
+        path: "/usr/local/bin/{{ item }}"
+      loop: [nl6-loadtest, kafka-metrics-report]
+      register: smoke_tools
+      failed_when: not smoke_tools.stat.exists
+      changed_when: false
+
+    # Located rather than hardcoded: the Kafka directory carries its version,
+    # and pinning the path here would be one more copy of a value the lab
+    # already knows.
+    - name: Locate the Kafka offsets tool on the broker
+      ansible.builtin.find:
+        paths: /opt
+        patterns: kafka-get-offsets.sh
+        recurse: true
+      delegate_to: "{{ broker }}"
+      register: smoke_kafka_bin
+      failed_when: smoke_kafka_bin.files | length == 0
+
+    # The accepted side. nl6's ledger says what left the generator; this says
+    # what the Minion took. Comparing them is the only way to tell a working
+    # chain from a generator talking to nothing.
+    - name: Read the sink offset before the run
+      ansible.builtin.command:
+        cmd: >-
+          {{ smoke_kafka_bin.files[0].path }}
+          --bootstrap-server localhost:9092 --topic {{ sink_topic }}
+      delegate_to: "{{ broker }}"
+      register: smoke_sink_before
+      changed_when: false
+
+    - name: Run the load scenario
+      ansible.builtin.command:
+        cmd: >-
+          nl6-loadtest --protocol syslog
+          --rate {{ smoke_rate }} --window {{ smoke_window }}
+          --start-ip {{ smoke_start_ip }} --count {{ smoke_device_count }}
+          --label "smoke" --html /tmp/smoke-load.html --json /tmp/smoke-load.json
+      register: smoke_load
+      changed_when: true
+      # Any non-zero status. Exit 1 means the generator did not deliver the
+      # requested load, which for a smoke test is the finding, not a nuance.
+      failed_when: smoke_load.rc != 0
+
+    - name: Let the sink settle
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Read the sink offset after the run
+      ansible.builtin.command:
+        cmd: >-
+          {{ smoke_kafka_bin.files[0].path }}
+          --bootstrap-server localhost:9092 --topic {{ sink_topic }}
+      delegate_to: "{{ broker }}"
+      register: smoke_sink_after
+      changed_when: false
+
+    - name: Read the metrics the deployment accepted
+      ansible.builtin.command:
+        cmd: kafka-metrics-report --label "smoke" --html /tmp/smoke-metrics.html --json /tmp/smoke-metrics.json
+      register: smoke_metrics
+      changed_when: false
+      # Exit 1 means the read was not clean; the report names which records
+      # were excluded and why.
+      failed_when: smoke_metrics.rc != 0
+
+    # The whole point. nl6 reporting a clean send proves only that the
+    # generator worked. If nothing reached the sink, the deployment cannot
+    # receive what it publishes an endpoint for, and every fault-management
+    # number taken from it would be a confident zero.
+    - name: Assert what was sent actually arrived
+      ansible.builtin.assert:
+        that:
+          - (after | int) - (before | int) > 0
+        fail_msg: >-
+          The generator sent its load and {{ sink_topic }} did not move
+          ({{ before }} -> {{ after }}). Nothing reached
+          {{ endpoints.ingestion.syslog.host }}:{{ endpoints.ingestion.syslog.port }},
+          which the manifest publishes as this deployment's syslog ingress.
+          Check that the Minion actually binds that port: a deployment can
+          publish an endpoint, open its firewall and enable the Core-side
+          consumer while nothing listens, and every symptom of that is a
+          clean zero.
+        success_msg: "{{ (after | int) - (before | int) }} record(s) reached {{ sink_topic }}"
+        quiet: true
+      vars:
+        before: "{{ smoke_sink_before.stdout_lines | map('regex_replace', '^.*:', '') | map('int') | sum }}"
+        after: "{{ smoke_sink_after.stdout_lines | map('regex_replace', '^.*:', '') | map('int') | sum }}"
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "{{ (smoke_load.stdout_lines | default([])) + (smoke_metrics.stdout_lines | default([])) }}"

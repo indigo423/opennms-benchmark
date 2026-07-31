@@ -1,0 +1,8 @@
+---
+# Fleet and load for the smoke experiment. Small on purpose: this proves the
+# chain works, it does not measure anything. Device count is a run parameter
+# and is recorded in both tools' reports.
+smoke_start_ip: "10.42.0.1"
+smoke_device_count: 3
+smoke_rate: 5
+smoke_window: 10s

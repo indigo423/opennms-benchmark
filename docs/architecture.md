@@ -142,10 +142,10 @@ Each experiment directory is a self-contained Ansible playbook that reconfigures
 
 | Experiment | Broker | Timeseries | Load Type |
 |---|---|---|---|
-| `c1km1_4c16g_kfk_pm_snmp` | Kafka | OSGI (default) | SNMP polling |
-| `c1km1_4c16g_kfk_snmptraps` | Kafka | OSGI (default) | SNMP traps |
-| `c1km1_4c16g_kfk_syslog` | Kafka | OSGI (default) | Syslog ingestion |
-| `c1km1_4c16g_rrd_pm_snmp` | Kafka | RRD (jrrd2) | SNMP polling |
+| `legacy/c1km1_4c16g_kfk_pm_snmp` | Kafka | OSGI (default) | SNMP polling |
+| `legacy/c1km1_4c16g_kfk_snmptraps` | Kafka | OSGI (default) | SNMP traps |
+| `legacy/c1km1_4c16g_kfk_syslog` | Kafka | OSGI (default) | Syslog ingestion |
+| `legacy/c1km1_4c16g_rrd_pm_snmp` | Kafka | RRD (jrrd2) | SNMP polling |
 
 **Naming convention:** `c<cores>km<minions>_<cpu>c<ram>g_<broker>_<load-type>`
 

@@ -181,6 +181,28 @@ deployment: guard-DEPLOYMENT ## Show + validate one deployment spec (DEPLOYMENT=
 	[ -f "$$f" ] || { echo "Error: no such deployment '$(DEPLOYMENT)' ($$f not found)" >&2; exit 1; }; \
 	$(DESCRIPTOR) --validate "$$f" && echo && cat "$$f"
 
+.PHONY: experiment
+experiment: guard-EXPERIMENT ## Run an experiment (EXPERIMENT=<name>, DEPLOYMENT=<slug> to layer its vars)
+	@d="experiments/$(EXPERIMENT)"; \
+	[ -f "$$d/experiment.yml" ] || { echo "Error: no such experiment '$(EXPERIMENT)' ($$d/experiment.yml not found)" >&2; exit 1; }; \
+	[ -f ansible-inventory.yml ] || { echo "Error: ansible-inventory.yml not found; deploy first" >&2; exit 1; }; \
+	[ -f lab-endpoints.json ] || { echo "Error: lab-endpoints.json not found; run 'make endpoints PROVIDER=... DEPLOYMENT=...'" >&2; exit 1; }
+	ansible-playbook --become -i ansible-inventory.yml \
+	  experiments/$(EXPERIMENT)/experiment.yml \
+	  --extra-vars="@opennms-lab-vars.yml" \
+	  $(if $(wildcard $(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml),--extra-vars="@$(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml") \
+	  $(if $(wildcard experiments/$(EXPERIMENT)/opennms-lab-vars.yml),--extra-vars="@experiments/$(EXPERIMENT)/opennms-lab-vars.yml")
+
+.PHONY: experiments
+experiments: ## List runnable experiments
+	@for f in experiments/*/experiment.yml; do \
+	  [ -f "$$f" ] || continue; \
+	  printf "  \033[36m%s\033[0m\n" "$$(basename $$(dirname $$f))"; \
+	done; \
+	echo "  (playbook-driven only; experiments/legacy/ is reference, and"; \
+	echo "   nms-20027-painless-flows / riptide-flow-capacity are standalone"; \
+	echo "   harnesses with their own runners — see experiments/README.md)"
+
 .PHONY: endpoints
 endpoints: ## Publish lab-endpoints.yml for a running lab (PROVIDER=…, DEPLOYMENT=<slug>)
 	@[ -f ansible-inventory.yml ] || { echo "Error: ansible-inventory.yml not found; deploy first" >&2; exit 1; }

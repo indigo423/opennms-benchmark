@@ -217,7 +217,7 @@ The Ansible and OpenNMS steps are identical. Use `ubuntu` as the admin user inst
 After the stack is deployed, select an experiment and run it:
 
 ```bash
-cd experiments/c1km1_4c16g_kfk_pm_snmp
+make experiment EXPERIMENT=smoke DEPLOYMENT=<slug>
 
 ansible-playbook -i opennms-lab-inventory.yml experiment.yml \
   --extra-vars="@../../opennms-lab-vars.yml"

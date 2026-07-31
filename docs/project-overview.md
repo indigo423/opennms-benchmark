@@ -57,10 +57,10 @@ opennms-benchmark/
 
 | Experiment | Load Type | Timeseries |
 |---|---|---|
-| `c1km1_4c16g_kfk_pm_snmp` | SNMP polling | Kafka/OSGI |
-| `c1km1_4c16g_kfk_snmptraps` | SNMP traps | Kafka/OSGI |
-| `c1km1_4c16g_kfk_syslog` | Syslog ingestion | Kafka/OSGI |
-| `c1km1_4c16g_rrd_pm_snmp` | SNMP polling | RRD (jrrd2) |
+| `legacy/c1km1_4c16g_kfk_pm_snmp` | SNMP polling | Kafka/OSGI |
+| `legacy/c1km1_4c16g_kfk_snmptraps` | SNMP traps | Kafka/OSGI |
+| `legacy/c1km1_4c16g_kfk_syslog` | Syslog ingestion | Kafka/OSGI |
+| `legacy/c1km1_4c16g_rrd_pm_snmp` | SNMP polling | RRD (jrrd2) |
 
 ## Service URLs
 

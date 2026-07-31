@@ -63,7 +63,7 @@ ansible-playbook --user labuser --become \
   --extra-vars="@opennms-lab-vars.yml"
 
 # 5. Run an experiment
-cd experiments/c1km1_4c16g_kfk_pm_snmp
+make experiment EXPERIMENT=smoke DEPLOYMENT=<slug>
 ansible-playbook -i opennms-lab-inventory.yml experiment.yml \
   --extra-vars="@../../opennms-lab-vars.yml"
 ```

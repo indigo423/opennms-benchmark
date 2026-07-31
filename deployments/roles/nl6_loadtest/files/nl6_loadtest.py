@@ -193,24 +193,64 @@ def run_scenario(args):
     sid = submitted["id"]
     print(f"scenario  {sid}  config_sha256={submitted.get('config_sha256', '')[:16]}")
 
-    armed = api(args.url, f"/api/v1/scenarios/{sid}/arm", "POST")
-    n_armed = armed.get("participants_armed", 0)
-    if not n_armed:
-        raise SystemExit(f"no participants armed; excluded_by_reason={armed.get('excluded_by_reason')}")
-    if armed.get("excluded_total"):
-        print(f"WARNING   {armed['excluded_total']} excluded: {armed.get('excluded_by_reason')}", file=sys.stderr)
-    print(f"armed     {n_armed} device(s)")
+    # nl6 permits one active scenario fleet-wide, so a run that gives up after
+    # submitting leaves the lab unusable until someone deletes the scenario by
+    # hand: every later run fails with 409. Clean up whatever we created unless
+    # it reached a terminal state.
+    try:
+        armed = api(args.url, f"/api/v1/scenarios/{sid}/arm", "POST")
+        n_armed = armed.get("participants_armed", 0)
+        if not n_armed:
+            raise SystemExit(f"no participants armed; excluded_by_reason={armed.get('excluded_by_reason')}")
+        if armed.get("excluded_total"):
+            print(f"WARNING   {armed['excluded_total']} excluded: {armed.get('excluded_by_reason')}", file=sys.stderr)
+        print(f"armed     {n_armed} device(s)")
 
-    api(args.url, f"/api/v1/scenarios/{sid}/start", "POST")
-    window_s = go_seconds(args.window)
-    drain_s = go_seconds(args.drain)
-    print(f"running   {args.window} window + {args.drain} drain")
-    time.sleep(window_s + drain_s + 1)
+        api(args.url, f"/api/v1/scenarios/{sid}/start", "POST")
+        window_s = go_seconds(args.window)
+        drain_s = go_seconds(args.drain)
+        print(f"running   {args.window} window + {args.drain} drain")
+        time.sleep(window_s + drain_s + 1)
 
-    # stop is idempotent and returns the finalized report, so it is safe even
-    # when the window has already auto-closed.
-    api(args.url, f"/api/v1/scenarios/{sid}/stop", "POST")
+        # stop is idempotent and returns the finalized report, so it is safe even
+        # when the window has already auto-closed.
+        api(args.url, f"/api/v1/scenarios/{sid}/stop", "POST")
+    except BaseException:
+        discard_scenario(args.url, sid)
+        raise
+
+    # Deliberately outside the cleanup scope. The scenario has reached a
+    # terminal state, so its ledger is final; deleting it because a report
+    # fetch timed out would destroy the only record of a completed run, and
+    # nl6 keeps that record in memory only.
     return sid, api(args.url, f"/api/v1/scenarios/{sid}/report"), armed
+
+
+def discard_scenario(url, sid):
+    """Best effort: leave nl6 able to accept the next run.
+
+    A running scenario cannot be deleted, so stop it first. Failures here are
+    reported and swallowed — the original error is what the operator needs, and
+    losing it behind a cleanup failure would be worse than a stale scenario.
+    """
+    discarded = False
+    for path, method in ((f"/api/v1/scenarios/{sid}/stop", "POST"), (f"/api/v1/scenarios/{sid}", "DELETE")):
+        try:
+            api(url, path, method, timeout=10)
+            discarded = True
+        except BaseException:  # noqa: BLE001 - the original error must survive this
+            continue
+    if discarded:
+        print(f"cleanup   discarded {sid} so the next run can start", file=sys.stderr)
+    else:
+        # Usually means nl6 is unreachable, in which case the scenario is still
+        # there. Saying otherwise would have the operator discover it as a 409
+        # on their next run.
+        print(
+            f"cleanup   could NOT discard {sid}; nl6 may refuse the next run with 409. "
+            f"Clear it with: curl -X DELETE {url.rstrip('/')}/api/v1/scenarios/{sid}",
+            file=sys.stderr,
+        )
 
 
 def check_ledger(summary):
