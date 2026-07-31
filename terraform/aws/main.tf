@@ -190,6 +190,16 @@ locals {
         # an experiment ledger — can tell that a run happened on infrastructure
         # that cannot produce valid numbers.
         { lab_cost_profile = var.cost_profile },
+        # Every address the node holds, not just the mgmt one, so a consumer
+        # needing a peer on the kafka or sim network can derive it instead of
+        # hardcoding it (#161). mgmt is excluded because the inventory template
+        # already emits it as lab_mgmt_ip. Nulls are dropped rather than
+        # rendered empty, since "" reads as an answer.
+        {
+          for subnet, addr in local.node_address[key] :
+          "lab_${subnet}_ip" => addr
+          if addr != null && subnet != "mgmt"
+        },
         n.prole == "netsim" ? {
           nl6_net_interface = try("ens${index([for i in local.topology[key].interfaces : i.subnet], "sim") + 5}", "")
         } : {}

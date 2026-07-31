@@ -210,10 +210,29 @@ locals {
       ansible_host = try([for i in local.topology[key].interfaces : i.address if i.subnet == "mgmt"][0],
       try([for i in local.topology[key].interfaces : i.address if i.subnet == "lab"][0], ""))
       groups = try(n.cfg.groups, [])
-      # nl6 runs on the netsim host; expose its sim NIC name for the generator.
-      host_vars = n.prole == "netsim" ? {
-        nl6_net_interface = try([for i in local.topology[key].interfaces : i.iface_name if i.subnet == "sim"][0], "")
-      } : {}
+      host_vars = merge(
+        # Every address the node holds, not just the mgmt one. Without this,
+        # Ansible can see a host but not which address it answers on for any
+        # given subnet, so anything needing a peer on the kafka or sim network
+        # has to hardcode it and be right by coincidence of the allocation rule
+        # below. Three consumers already do: kafka_bootstrap_servers, the nl6
+        # collector endpoints, and the device payload an experiment builds
+        # (#161).
+        #
+        # mgmt is excluded because the inventory template already emits it as
+        # lab_mgmt_ip; emitting it here too would duplicate the YAML key.
+        # Null addresses are dropped rather than rendered empty: external and
+        # lab subnets are DHCP or unpinned, and "" reads as an answer.
+        {
+          for subnet, addr in local.node_address[key] :
+          "lab_${subnet}_ip" => addr
+          if addr != null && subnet != "mgmt"
+        },
+        # nl6 runs on the netsim host; expose its sim NIC name for the generator.
+        n.prole == "netsim" ? {
+          nl6_net_interface = try([for i in local.topology[key].interfaces : i.iface_name if i.subnet == "sim"][0], "")
+        } : {}
+      )
     }
   }
 
