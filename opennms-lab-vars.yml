@@ -7,7 +7,21 @@ opennms_distribution: Horizon
 opennms_version: "36.0.2"
 opennms_pkg_version: "{{ opennms_version }}*"
 
-opennms_datasource_db_host: 192.0.2.196
+# The db subnet exists precisely so database traffic does not share the
+# management path a benchmark also uses. This pointed at the database node's
+# *mgmt* address, so the dedicated network was provisioned and idle while
+# OpenNMS talked to PostgreSQL over mgmt. Two experiments already used the
+# db-subnet address, so the tree disagreed with itself.
+#
+# Safe to move: postgres_listen_addresses is "*" and postgres_hba_permissions_v4
+# covers 192.0.2.0/24, which spans both subnets.
+#
+# Guarded and falling back to lab_mgmt_ip for the same reasons as
+# kafka_bootstrap_servers below.
+opennms_datasource_db_host: >-
+  {{ (hostvars[groups['database'][0]].lab_db_ip
+      | default(hostvars[groups['database'][0]].lab_mgmt_ip, true))
+     if groups.get('database') else '' }}
 opennms_datasource_db_port: 5432
 opennms_datasource_db_name: onms_benchmark
 opennms_datasource_db_user: opennms
@@ -62,7 +76,34 @@ postgres_user: postgres
 postgres_listen_addresses: "*"
 postgres_hba_permissions_v4: "192.0.2.0/24"
 
-kafka_bootstrap_servers: "192.0.2.76:9092"
+# Derived from the inventory, not hardcoded. The literal that stood here was
+# correct only by coincidence of the kvm allocation rule: kafka sits at index 2
+# of local.role_order, so the offset is 4 + 2*4 and cidrhost("192.0.2.64/26", 12)
+# lands on .76. Re-space role_order and the literal was silently wrong (#161).
+#
+# lab_kafka_ip is exported by the spec-driven providers. The fallback is
+# lab_mgmt_ip rather than ansible_host: the inventory sets ansible_host to the
+# jump host's *public* address on whichever node carries public_ip, so a spec
+# giving public_ip to the broker would otherwise hand OpenNMS a public address.
+# lab_mgmt_ip is unconditionally the in-lab address, which is what the fallback
+# means. Legacy providers lose the subnet separation, which is acceptable
+# because only kvm and aws consume deployment specs.
+#
+# Guarded on the group existing. mimir-single, vm-single and vm-cluster-es
+# declare a core and no broker, and the group is simply absent there; an
+# unguarded subscript turns a deployment that used to complete into a fatal
+# template error. Those specs should really set opennms_message_broker: none,
+# since an empty broker address is not a working configuration either — but
+# failing the deploy is a regression and rendering nothing is not.
+#
+# Only the first broker is listed. kafka-cluster-min provisions three, and
+# kafka_server_properties builds advertised.listeners from this value, which
+# has to be the local broker rather than a list. Splitting the client-facing
+# list from the per-host advertised address is a separate change.
+kafka_bootstrap_servers: >-
+  {{ (hostvars[groups['message_broker'][0]].lab_kafka_ip
+      | default(hostvars[groups['message_broker'][0]].lab_mgmt_ip, true)) ~ ':9092'
+     if groups.get('message_broker') else '' }}
 
 opennms_properties_webapp:
   opennms.web.base-url: https://%x%c/

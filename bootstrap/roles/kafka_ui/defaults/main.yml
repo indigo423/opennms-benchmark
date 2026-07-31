@@ -5,5 +5,16 @@ kafka_ui_cpus: "0.5"
 kafka_ui_memory: 512m
 kafka_ui_tz: UTC
 kafka_ui_cluster_name: opennms-benchmark
-kafka_ui_bootstrap_servers: 192.0.2.76:9092
+# Derived, not hardcoded. This was a second copy of the broker address,
+# independent of kafka_bootstrap_servers and never noticed by #161. It lives in
+# a bootstrap role, which cannot read opennms-lab-vars.yml at all (#197), so it
+# could not simply reference that variable. hostvars comes from the inventory
+# and is available to every play, bootstrap included.
+# Guarded on the group existing, and falling back to lab_mgmt_ip rather than
+# ansible_host: the inventory sets ansible_host to the jump host's public
+# address on whichever node carries public_ip.
+kafka_ui_bootstrap_servers: >-
+  {{ (hostvars[groups['message_broker'][0]].lab_kafka_ip
+      | default(hostvars[groups['message_broker'][0]].lab_mgmt_ip, true)) ~ ':9092'
+     if groups.get('message_broker') else '' }}
 kafka_ui_context_path: /kafka
