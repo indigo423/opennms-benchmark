@@ -1,0 +1,7 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Reuses the virtualenv kafka_metrics_report already installs, rather than
+# building a second one for a thirty-line script.
+kafka_offsets_home: /opt/kafka-metrics-report

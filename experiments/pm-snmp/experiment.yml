@@ -1,0 +1,61 @@
+---
+# Performance management: how many nodes can this deployment collect from
+# before collection stops completing within its interval.
+#
+#   make experiment EXPERIMENT=pm-snmp DEPLOYMENT=kfk-exclusive
+#
+# Sweeps fleet size. At each rung the fleet grows, is provisioned, and a full
+# collection interval is measured on the Kafka metrics topic. The column to read
+# is samples per device per cycle: it should hold steady as the fleet grows, and
+# when it falls the deployment is no longer keeping up.
+#
+# The measurement point is the topic, not the OpenNMS UI. Under exclusive
+# forwarding the OSGi persister installs EmptyResourceStorageDao, so there are
+# no graphs to read by design.
+#
+# Each rung costs a full collection interval, so the sweep is slow by
+# construction: a shorter window measures where the window fell rather than what
+# the system did.
+
+- name: Sweep the fleet size
+  hosts: mon_servers
+  gather_facts: false
+  vars:
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    pm_opennms_base: >-
+      http://{{ endpoints.measurement.opennms.host }}:{{ endpoints.measurement.opennms.port }}/opennms
+  tasks:
+    - name: Assert the deployment installed the measurement tool
+      ansible.builtin.stat:
+        path: /usr/local/bin/kafka-metrics-report
+      register: pm_tool
+      failed_when: not pm_tool.stat.exists
+      changed_when: false
+
+    - name: Run the sweep
+      ansible.builtin.include_tasks: rung.yml
+      loop: "{{ pm_device_increments }}"
+      loop_control:
+        loop_var: pm_rung_increment
+        index_var: pm_rung_index
+      vars:
+        pm_rung_devices: "{{ pm_device_increments[: pm_rung_index + 1] | map('int') | sum }}"
+
+    - name: Report the sweep
+      ansible.builtin.debug:
+        msg: "{{ ['devices  samples  mean/s    per-dev/cyc  kafka msgs'] + pm_rows }}"
+
+    # A sweep that collected nothing at any size is a blocked Collectd, not a
+    # result. Under exclusive forwarding that is what a missing Kafka Producer
+    # looks like: the OSGi persister waits rather than failing.
+    - name: Assert the deployment collected at some fleet size
+      ansible.builtin.assert:
+        that:
+          - pm_results | map(attribute='samples') | map('int') | sum > 0
+        fail_msg: >-
+          No metrics reached {{ endpoints.measurement.kafka.topics.metrics }} at
+          any fleet size. Check that the Kafka Producer feature is installed and
+          forward.metrics is true: the OSGi persister blocks rather than
+          failing, so a half-configured deployment collects nothing and says
+          nothing.
+        quiet: true

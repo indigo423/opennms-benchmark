@@ -1,0 +1,25 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Install the offsets probe
+  ansible.builtin.copy:
+    src: kafka_offsets.py
+    dest: "{{ kafka_offsets_home }}/kafka_offsets.py"
+    owner: root
+    group: root
+    mode: "0755"
+  tags: ["kafka_offsets"]
+
+- name: Install the wrapper
+  ansible.builtin.copy:
+    content: |
+      #!/usr/bin/env bash
+      # DO NOT EDIT — managed by Ansible (experiments/roles/kafka_offsets).
+      set -euo pipefail
+      exec {{ kafka_offsets_home }}/venv/bin/python {{ kafka_offsets_home }}/kafka_offsets.py "$@"
+    dest: /usr/local/bin/kafka-offsets
+    owner: root
+    group: root
+    mode: "0755"
+  tags: ["kafka_offsets"]

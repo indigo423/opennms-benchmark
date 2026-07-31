@@ -1,0 +1,10 @@
+---
+# Fault-management sweep parameters. rate is per device, so the fleet-wide rate
+# is rate x fm_device_count.
+fm_start_ip: "10.42.0.1"
+fm_device_count: 10
+fm_rates: [5, 25, 100, 250]
+fm_window: 30s
+# Long enough for the Minion to flush its sink batch and for Eventd to drain,
+# or a rung's records land in the next rung's count.
+fm_settle_seconds: 30

@@ -1,0 +1,78 @@
+---
+# One rung of the sweep. Included per rate so each is measured the same way.
+- name: "Read the sink offset before rate {{ fm_rate }}"
+  ansible.builtin.command:
+    cmd: kafka-offsets OpenNMS.Sink.Syslog
+  register: fm_sink_before
+  changed_when: false
+
+- name: "Count events before rate {{ fm_rate }}"
+  ansible.builtin.command:
+    cmd: >-
+      sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }}
+      -c "select count(*) from events where eventsource = 'syslogd'"
+  delegate_to: "{{ db }}"
+  become: true
+  register: fm_events_before
+  changed_when: false
+
+- name: "Drive the load at rate {{ fm_rate }}"
+  ansible.builtin.command:
+    cmd: >-
+      nl6-loadtest --protocol syslog --rate {{ fm_rate }} --window {{ fm_window }}
+      --start-ip {{ fm_start_ip }} --count {{ fm_device_count }}
+      --label "fm-syslog {{ fm_rate }}/s" --html /tmp/fm-{{ fm_rate }}.html
+      --json /tmp/fm-{{ fm_rate }}.json
+  register: fm_load
+  changed_when: true
+  # Exit 1 means the generator itself fell short. That is a finding about the
+  # generator, not the system under test, so the rung is recorded and the sweep
+  # continues rather than failing.
+  failed_when: fm_load.rc > 1
+
+- name: "Let the pipeline drain after rate {{ fm_rate }}"
+  ansible.builtin.pause:
+    seconds: "{{ fm_settle_seconds }}"
+
+- name: "Read the sink offset after rate {{ fm_rate }}"
+  ansible.builtin.command:
+    cmd: kafka-offsets OpenNMS.Sink.Syslog
+  register: fm_sink_after
+  changed_when: false
+
+- name: "Count events after rate {{ fm_rate }}"
+  ansible.builtin.command:
+    cmd: >-
+      sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }}
+      -c "select count(*) from events where eventsource = 'syslogd'"
+  delegate_to: "{{ db }}"
+  become: true
+  register: fm_events_after
+  changed_when: false
+
+- name: "Read the sent-ledger for rate {{ fm_rate }}"
+  ansible.builtin.slurp:
+    src: "/tmp/fm-{{ fm_rate }}.json"
+  register: fm_ledger
+
+- name: "Record the rung for rate {{ fm_rate }}"
+  ansible.builtin.set_fact:
+    fm_results: "{{ (fm_results | default([])) + [rung] }}"
+    fm_rows: >-
+      {{ (fm_rows | default([]))
+         + ['%-9s %-6s %-11s %-8s %-7s %s' | format(
+              fm_rate, rung.sent, rung.sink, rung.events,
+              (rung.sent | int / ([window_s | int, 1] | max)) | round(1),
+              (rung.events | int / ([window_s | int, 1] | max)) | round(1)) ] }}
+  vars:
+    ledger: "{{ fm_ledger.content | b64decode | from_json }}"
+    window_s: "{{ ledger.request.window | regex_replace('[^0-9]', '') | int }}"
+    sink_before: "{{ fm_sink_before.stdout | trim | int }}"
+    sink_after: "{{ fm_sink_after.stdout | trim | int }}"
+    rung:
+      rate: "{{ fm_rate }}"
+      sent: "{{ ledger.delivered.sent }}"
+      expected: "{{ ledger.delivered.expected }}"
+      send_failures: "{{ ledger.delivered.send_failures }}"
+      sink: "{{ sink_after | int - sink_before | int }}"
+      events: "{{ fm_events_after.stdout | trim | int - fm_events_before.stdout | trim | int }}"

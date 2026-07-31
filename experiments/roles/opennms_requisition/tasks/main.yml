@@ -1,0 +1,76 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Create the tool directory
+  ansible.builtin.file:
+    path: "{{ opennms_requisition_home }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: ["requisition"]
+
+- name: Install nl6's provisioning script
+  ansible.builtin.copy:
+    src: onms-provision.sh
+    dest: "{{ opennms_requisition_home }}/onms-provision.sh"
+    owner: root
+    group: root
+    mode: "0755"
+  tags: ["requisition"]
+
+# Every endpoint comes from the manifest. Nodes are pinned to the Minion's
+# location because the simulated network is reachable from the Minion and
+# nowhere else: a node polled from the Core would simply never answer.
+- name: Generate and import the requisition
+  ansible.builtin.command:
+    cmd: "{{ opennms_requisition_home }}/onms-provision.sh --import"
+  environment:
+    NL6_URL: "{{ opennms_requisition_endpoints.generators.nl6.url }}"
+    OPENNMS_BASE_URL: >-
+      http://{{ opennms_requisition_endpoints.measurement.opennms.host }}:{{ opennms_requisition_endpoints.measurement.opennms.port }}/opennms
+    OPENNMS_USER: "{{ opennms_requisition_user }}"
+    OPENNMS_PASS: "{{ opennms_requisition_password }}"
+    FOREIGN_SOURCE: "{{ opennms_requisition_foreign_source }}"
+    MINION_LOCATION: "{{ opennms_requisition_location }}"
+  register: opennms_requisition_import
+  changed_when: true
+  tags: ["requisition"]
+
+- name: Count the fleet nl6 holds
+  ansible.builtin.uri:
+    url: "{{ opennms_requisition_endpoints.generators.nl6.url }}/api/v1/devices"
+    method: GET
+    return_content: true
+  register: opennms_requisition_fleet
+  changed_when: false
+  tags: ["requisition"]
+
+- name: Wait for provisiond to finish importing
+  ansible.builtin.uri:
+    url: >-
+      {{ opennms_requisition_base }}/rest/nodes?foreignSource={{ opennms_requisition_foreign_source }}&limit=1
+    method: GET
+    user: "{{ opennms_requisition_user }}"
+    password: "{{ opennms_requisition_password }}"
+    force_basic_auth: true
+    headers:
+      Accept: application/json
+    return_content: true
+  register: opennms_requisition_nodes
+  until: >-
+    (opennms_requisition_nodes.json.totalCount | default(0) | int)
+    >= (opennms_requisition_fleet.json.data | default([]) | length)
+  retries: "{{ (opennms_requisition_timeout | int // (opennms_requisition_poll_interval | int)) | int }}"
+  delay: "{{ opennms_requisition_poll_interval }}"
+  changed_when: false
+  tags: ["requisition"]
+
+- name: Report the requisition
+  ansible.builtin.debug:
+    msg: >-
+      {{ opennms_requisition_nodes.json.totalCount }} node(s) in foreign-source
+      {{ opennms_requisition_foreign_source }} at location
+      {{ opennms_requisition_location }}
+  tags: ["requisition"]

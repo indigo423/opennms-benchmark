@@ -1,0 +1,94 @@
+---
+# One rung of the device sweep: grow the fleet, provision it, and measure a
+# collection window.
+#
+# Each rung places its devices in their own third octet (10.42.<index>.1), which
+# keeps every address inside the published /16 while needing no IP arithmetic
+# and so no ansible.utils collection on the controller.
+#
+# Runs on the monitoring node rather than the generator: the fleet role only
+# calls nl6's HTTP API at the address the manifest publishes, which mon reaches
+# over mgmt, so there is nothing host-specific to delegate.
+
+- name: "Grow the fleet for rung {{ pm_rung_index }}"
+  ansible.builtin.include_role:
+    name: nl6_fleet
+  vars:
+    nl6_fleet_endpoints: "{{ endpoints }}"
+    nl6_fleet_sim_network: "{{ endpoints.generators.nl6.sim_network }}"
+    nl6_fleet_start_ip: "10.42.{{ pm_rung_index }}.1"
+    nl6_fleet_count: "{{ pm_rung_increment }}"
+
+- name: "Provision the fleet for rung {{ pm_rung_index }}"
+  ansible.builtin.include_role:
+    name: opennms_requisition
+  vars:
+    opennms_requisition_endpoints: "{{ endpoints }}"
+    opennms_requisition_base: "{{ pm_opennms_base }}"
+    opennms_requisition_location: "{{ endpoints.ingestion.syslog.location }}"
+    opennms_requisition_foreign_source: "{{ pm_foreign_source }}"
+
+- name: "Mark the measurement start for rung {{ pm_rung_index }}"
+  ansible.builtin.command:
+    cmd: kafka-metrics-report --label "pm baseline" --html /tmp/pm-base.html --json /tmp/pm-base.json
+  register: pm_base
+  changed_when: false
+  failed_when: pm_base.rc > 1
+
+- name: "Read the baseline offsets for rung {{ pm_rung_index }}"
+  ansible.builtin.slurp:
+    src: /tmp/pm-base.json
+  register: pm_base_json
+
+- name: "Capture the offsets to measure from for rung {{ pm_rung_index }}"
+  ansible.builtin.copy:
+    content: "{{ dict(pm_off.keys() | zip(pm_off.values() | map(attribute='end'))) | to_json }}"
+    dest: /tmp/pm-start-offsets.json
+    mode: "0644"
+  vars:
+    pm_off: "{{ (pm_base_json.content | b64decode | from_json).offsets }}"
+
+# Collectd staggers nodes across the interval rather than bursting, so a window
+# spanning a whole interval sees every node exactly once. A shorter window
+# measures where the window fell.
+- name: "Collect for a full interval at rung {{ pm_rung_index }}"
+  ansible.builtin.pause:
+    seconds: "{{ pm_window_seconds }}"
+
+- name: "Measure what arrived at rung {{ pm_rung_index }}"
+  ansible.builtin.command:
+    cmd: >-
+      kafka-metrics-report --start-offsets /tmp/pm-start-offsets.json
+      --label "pm-snmp {{ pm_rung_devices }} devices"
+      --bucket-seconds {{ pm_bucket_seconds }}
+      --html /tmp/pm-{{ pm_rung_devices }}.html --json /tmp/pm-{{ pm_rung_devices }}.json
+  register: pm_measure
+  changed_when: false
+  failed_when: pm_measure.rc > 1
+
+- name: "Read the result for rung {{ pm_rung_index }}"
+  ansible.builtin.slurp:
+    src: "/tmp/pm-{{ pm_rung_devices }}.json"
+  register: pm_result
+
+- name: "Record the rung at {{ pm_rung_devices }}"
+  ansible.builtin.set_fact:
+    pm_results: "{{ (pm_results | default([])) + [rung] }}"
+    pm_rows: >-
+      {{ (pm_rows | default([]))
+         + ['%-8s %-8s %-9s %-11s %s' | format(
+              pm_rung_devices, rung.samples, rung.mean, rung.per_device_cycle, rung.records) ] }}
+  vars:
+    pm: "{{ pm_result.content | b64decode | from_json }}"
+    cycles: "{{ (pm_window_seconds | int / pm_collection_interval | int) }}"
+    rung:
+      devices: "{{ pm_rung_devices }}"
+      samples: "{{ pm.totals.samples }}"
+      records: "{{ pm.totals.records }}"
+      mean: "{{ pm.rate.mean_per_second | default(0) }}"
+      # The column that matters. Samples per device per collection cycle should
+      # hold steady as the fleet grows; when it falls, collection is no longer
+      # completing within the interval and the deployment has given way.
+      per_device_cycle: >-
+        {{ (pm.totals.samples | int / ([pm_rung_devices | int, 1] | max) / ([cycles | float, 0.01] | max))
+           | round(1) }}

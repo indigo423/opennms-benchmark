@@ -1,0 +1,17 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Provisions the nl6 fleet into OpenNMS using nl6's own onms-provision.sh,
+# vendored from labmonkeys-space/nl6 examples/. Upstream owns the mapping from
+# a simulated device to a requisition node, including the gNMI metadata the
+# OpenConfigConnector reads; re-deriving it here would be a second encoding that
+# drifts every time nl6 grows a field.
+opennms_requisition_home: /opt/nl6-provision
+opennms_requisition_foreign_source: nl6-inventory
+opennms_requisition_user: admin
+opennms_requisition_password: admin
+# Provisiond imports asynchronously. A benchmark that starts measuring before
+# the nodes exist measures nothing and reports it as a slow system.
+opennms_requisition_timeout: 300
+opennms_requisition_poll_interval: 10

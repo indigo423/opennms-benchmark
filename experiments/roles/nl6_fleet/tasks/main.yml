@@ -1,0 +1,61 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Creates the simulated devices an experiment drives, with the collectors this
+# deployment publishes. Shared by every experiment so the fleet is built one
+# way, and so a change to how devices are created does not have to be repeated.
+- name: Assert the device range lies inside the published simulated network
+  ansible.builtin.assert:
+    that:
+      - nl6_fleet_start_ip | split('.') | map('int') | list is iterable
+      - nl6_fleet_prefix | int >= 8
+    fail_msg: "cannot parse {{ nl6_fleet_start_ip }} against {{ nl6_fleet_sim_network }}"
+    quiet: true
+  vars:
+    nl6_fleet_prefix: "{{ nl6_fleet_sim_network.split('/')[1] }}"
+  tags: ["fleet"]
+
+- name: Create the fleet
+  ansible.builtin.uri:
+    url: "{{ nl6_fleet_endpoints.generators.nl6.url }}/api/v1/devices"
+    method: POST
+    body_format: json
+    status_code: [200, 201, 202]
+    body:
+      start_ip: "{{ nl6_fleet_start_ip }}"
+      device_count: "{{ nl6_fleet_count | int }}"
+      netmask: "{{ nl6_fleet_sim_network.split('/')[1] }}"
+      syslog:
+        collector: "{{ nl6_fleet_syslog_collector | trim }}"
+      traps:
+        collector: "{{ nl6_fleet_trap_collector | trim }}"
+        mode: trap
+  register: nl6_fleet_result
+  changed_when: true
+  # A 2xx is not success: nl6 wraps replies in {"success": …} and rejects a
+  # batch with 200. Trusting the status would drive load at devices that do not
+  # exist and report a clean zero.
+  failed_when: >-
+    nl6_fleet_result.status not in [200, 201, 202]
+    or not (nl6_fleet_result.json.success | default(false))
+  tags: ["fleet"]
+
+- name: Confirm nl6 holds the fleet it was asked for
+  ansible.builtin.uri:
+    url: "{{ nl6_fleet_endpoints.generators.nl6.url }}/api/v1/devices"
+    method: GET
+    return_content: true
+  register: nl6_fleet_check
+  changed_when: false
+  failed_when: >-
+    (nl6_fleet_check.json.data | default([]) | length) < (nl6_fleet_count | int)
+  tags: ["fleet"]
+
+- name: Report the fleet
+  ansible.builtin.debug:
+    msg: >-
+      {{ nl6_fleet_check.json.data | length }} device(s) live from
+      {{ nl6_fleet_start_ip }}, syslog to {{ nl6_fleet_syslog_collector | trim }},
+      traps to {{ nl6_fleet_trap_collector | trim }}
+  tags: ["fleet"]

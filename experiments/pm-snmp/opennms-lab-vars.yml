@@ -1,0 +1,13 @@
+---
+# Performance-management sweep parameters. Fleet size is the independent
+# variable; raise the increments until samples per device per cycle falls.
+#
+# Increments, not totals: each rung adds this many devices in its own third
+# octet, so cumulative fleet size here is 25, 50, 100.
+pm_device_increments: [25, 25, 50]
+pm_foreign_source: nl6-pm
+# One full collection interval plus margin, so every node is collected exactly
+# once inside the window. Each rung costs this much wall clock.
+pm_collection_interval: 300
+pm_window_seconds: 330
+pm_bucket_seconds: 30

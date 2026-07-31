@@ -1,0 +1,78 @@
+---
+# Fault management: how many syslog messages a second can this deployment
+# accept before it stops keeping up.
+#
+#   make experiment EXPERIMENT=fm-syslog DEPLOYMENT=kfk-exclusive
+#
+# Sweeps a list of rates and, for each, reconciles three independently-derived
+# numbers:
+#
+#   sent      nl6's immutable sent-ledger — what left the generator
+#   sink      OpenNMS.Sink.Syslog offset delta — what the Minion took
+#   events    rows in the OpenNMS events table — what the Core turned into events
+#
+# A rate where sent stops tracking sink is the ingress giving way. A rate where
+# sink stops tracking events is the Core. Measuring only one of the three cannot
+# tell those apart, and measuring only what was requested cannot see either.
+#
+# The sink batches, so its delta counts Kafka messages rather than records. It
+# is a floor on what arrived, not an exact count; the events delta is the
+# record-accurate figure.
+
+- name: Build the fleet
+  hosts: net_sim
+  gather_facts: false
+  vars:
+    nl6_fleet_endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    nl6_fleet_sim_network: "{{ nl6_fleet_endpoints.generators.nl6.sim_network }}"
+    nl6_fleet_start_ip: "{{ fm_start_ip }}"
+    nl6_fleet_count: "{{ fm_device_count }}"
+  roles:
+    - nl6_fleet
+
+- name: Sweep the syslog rate
+  hosts: mon_servers
+  gather_facts: false
+  vars:
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    broker: "{{ groups['message_broker'][0] }}"
+    db: "{{ groups['database'][0] }}"
+  roles:
+    # Reads the accepted side locally rather than over SSH to the broker: a
+    # sweep makes that call often enough that one dropped control connection
+    # would discard every rung already measured.
+    - kafka_offsets
+  tasks:
+    - name: Assert the deployment installed the tools this needs
+      ansible.builtin.stat:
+        path: "/usr/local/bin/{{ item }}"
+      loop: [nl6-loadtest, kafka-metrics-report]
+      register: fm_tools
+      failed_when: not fm_tools.stat.exists
+      changed_when: false
+
+    - name: Run the sweep
+      ansible.builtin.include_tasks: rate.yml
+      loop: "{{ fm_rates }}"
+      loop_control:
+        loop_var: fm_rate
+
+    # The whole point of the sweep. Reported as a table so the rate at which
+    # accepted stops tracking sent is visible rather than inferred.
+    - name: Report the sweep
+      ansible.builtin.debug:
+        msg: "{{ ['rate/dev  sent   sink(msgs)  events   sent/s  events/s'] + fm_rows }}"
+
+    # A sweep where nothing arrived at any rate is a broken deployment, not a
+    # result. Say so rather than publishing a table of zeros.
+    - name: Assert the deployment accepted something at some rate
+      ansible.builtin.assert:
+        that:
+          - fm_results | map(attribute='events') | map('int') | sum > 0
+        fail_msg: >-
+          No syslog reached OpenNMS at any rate in the sweep. Check that the
+          Minion binds {{ endpoints.ingestion.syslog.host }}:{{ endpoints.ingestion.syslog.port }}
+          — a deployment can publish that endpoint, open its firewall and run
+          the Core-side consumer while nothing listens, and every symptom is a
+          clean zero.
+        quiet: true

@@ -1,0 +1,16 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# The fleet an experiment drives. Device count is a run parameter, not a
+# deployment fact: it is the independent variable of most benchmarks and has to
+# be recorded on the result to mean anything.
+nl6_fleet_start_ip: "10.42.0.1"
+nl6_fleet_count: 10
+# Collectors are taken from the manifest by default, so an experiment names
+# where telemetry goes only if it wants something other than this deployment's
+# published ingress.
+nl6_fleet_syslog_collector: >-
+  {{ nl6_fleet_endpoints.ingestion.syslog.host }}:{{ nl6_fleet_endpoints.ingestion.syslog.port }}
+nl6_fleet_trap_collector: >-
+  {{ nl6_fleet_endpoints.ingestion.traps.host }}:{{ nl6_fleet_endpoints.ingestion.traps.port }}

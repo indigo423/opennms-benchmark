@@ -169,6 +169,15 @@ kafka_server_properties:
 # Integer arithmetic (* 6 // 10) rather than a float multiply: the value is
 # quoted straight into a shell config file, where a rounding artefact has no
 # business appearing.
+# The pinned collection builds this URL with a "v" prefix for versions >= 1.6.0
+# (roles/opennms_core/defaults/main.yml). Upstream tags 1.6.0 without one, so
+# the generated URL 404s and the Core play fails at "Installing JMX Prometheus
+# Exporter". Verified: .../download/v1.6.0/... is 404, .../download/1.6.0/... is
+# 200. Overridden here rather than bumping the SHA-pinned collection, which the
+# project reserves for a deliberate PR.
+prom_jmx_exporter_url: >-
+  https://github.com/prometheus/jmx_exporter/releases/download/{{ prom_jmx_exporter_version }}/jmx_prometheus_javaagent-{{ prom_jmx_exporter_version }}.jar
+
 opennms_jvm_conf:
   JAVA_HEAP_SIZE: "{{ [ansible_memtotal_mb | int * 6 // 10, 8192] | min }}"
   JAVA_INITIAL_HEAP_SIZE: "{{ [ansible_memtotal_mb | int * 6 // 10, 8192] | min }}"
