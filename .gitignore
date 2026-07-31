@@ -79,6 +79,7 @@ ansible-inventory.yml
 # what machines exist, ansible writes what listens where. Same lifecycle, so
 # same treatment.
 lab-endpoints.yml
+lab-endpoints.json
 
 # Repo-local Ansible Vault master key — minted by init_secrets, NEVER commit
 vault_pass.secret

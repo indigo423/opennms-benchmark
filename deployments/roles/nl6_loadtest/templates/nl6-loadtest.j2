@@ -13,8 +13,12 @@ set -euo pipefail
 
 HOME_DIR="{{ nl6_loadtest_home }}"
 
+# The manifest is the source when it exists; the templated URL remains as a
+# fallback for a lab deployed before `make endpoints` existed.
+MANIFEST=/etc/lab-endpoints.json
+[ -f "$MANIFEST" ] || set -- --url "{{ nl6_loadtest_url }}" "$@"
+
 exec python3 "${HOME_DIR}/nl6_loadtest.py" \
-  --url "{{ nl6_loadtest_url }}" \
   --start-ip "{{ nl6_loadtest_start_ip }}" \
   --count "{{ nl6_loadtest_count }}" \
   --protocol "{{ nl6_loadtest_protocol }}" \

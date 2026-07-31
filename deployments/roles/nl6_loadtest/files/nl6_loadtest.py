@@ -47,7 +47,13 @@ def parse_args(argv=None):
         description="Run one nl6 load-test scenario and report its sent-ledger.",
         epilog="One scenario runs at a time, fleet-wide. nl6 state is in memory and does not survive a restart.",
     )
-    p.add_argument("--url", required=True, help="nl6 base URL, e.g. http://192.0.2.144:8080")
+    p.add_argument("--url", help="nl6 base URL, e.g. http://192.0.2.144:8080; overrides --endpoints")
+    p.add_argument(
+        "--endpoints",
+        type=Path,
+        default=Path("/etc/lab-endpoints.json"),
+        help="deployment manifest to take the nl6 URL and simulated network from",
+    )
     p.add_argument("--protocol", required=True, choices=PROTOCOLS)
     p.add_argument("--rate", type=int, required=True, help=f"events/second per device (1-{MAX_RATE})")
     p.add_argument("--window", required=True, help="measurement window as a Go duration, e.g. 30s, 5m")
@@ -65,6 +71,36 @@ def parse_args(argv=None):
         p.error(f"--rate must be 1..{MAX_RATE} (nl6 limit), got {args.rate}")
     if args.count < 1:
         p.error("--count must be at least 1")
+    resolve_endpoints(args, p)
+    return args
+
+
+def resolve_endpoints(args, parser):
+    """Fill the nl6 URL from the deployment manifest, and read the sim network.
+
+    An explicit --url always wins, so a run can target an nl6 the manifest does
+    not describe. sim_network has no flag: it is the deployment's contract, not
+    a run parameter, and a run that disagrees with it is wrong rather than
+    unusual.
+    """
+    manifest = {}
+    if args.endpoints and args.endpoints.exists():
+        try:
+            manifest = json.loads(args.endpoints.read_text())
+        except (OSError, ValueError) as e:
+            parser.error(f"could not read {args.endpoints}: {e}")
+
+    nl6 = manifest.get("generators", {}).get("nl6", {})
+    args.url = args.url or nl6.get("url")
+    args.sim_network = nl6.get("sim_network")
+    args.deployment = manifest.get("deployment")
+
+    if not args.url:
+        parser.error(
+            f"no nl6 endpoint: pass --url, or point --endpoints at a manifest "
+            f"that names one ({args.endpoints} is absent or has no "
+            f"generators.nl6.url). Generate one with `make endpoints`."
+        )
     return args
 
 
@@ -190,6 +226,7 @@ def summarise(sid, report, armed, args):
     return {
         "scenario_id": sid,
         "label": args.label,
+        "deployment": args.deployment,
         "protocol": summary.get("protocol", args.protocol),
         "phase": summary.get("phase", "unknown"),
         "generated": datetime.now(UTC).isoformat(timespec="seconds"),

@@ -111,7 +111,39 @@
         mode: "0644"
       tags: ["endpoints"]
 
+    # A JSON sibling so tools can read the manifest with the standard library.
+    # nl6_loadtest deliberately has no third-party dependencies, and requiring a
+    # YAML parser on a lab node to answer "where do I send traps" would be a
+    # dependency bought for nothing. Same content, rendered once.
+    - name: Publish the machine-readable sibling
+      ansible.builtin.copy:
+        content: "{{ lookup('file', endpoints_file) | from_yaml | to_nice_json }}\n"
+        dest: "{{ endpoints_file | splitext | first }}.json"
+        mode: "0644"
+      tags: ["endpoints"]
+
     - name: Report where it landed
       ansible.builtin.debug:
-        msg: "endpoints published to {{ endpoints_file }}"
+        msg: "endpoints published to {{ endpoints_file }} (+ .json)"
+      tags: ["endpoints"]
+
+# Distribution, not generation. The tools that consume the manifest run on the
+# monitoring node, while generation happens on the control machine, so the file
+# has to travel. Kept as its own play so the generation play above stays
+# localhost-only and can be reasoned about as read-only.
+- name: Distribute the manifest to the hosts that consume it
+  hosts: mon_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Install the endpoints manifest
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "/etc/lab-endpoints{{ item | splitext | last }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - "{{ playbook_dir }}/lab-endpoints.yml"
+        - "{{ playbook_dir }}/lab-endpoints.json"
       tags: ["endpoints"]

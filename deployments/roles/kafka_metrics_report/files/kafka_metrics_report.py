@@ -54,8 +54,14 @@ def parse_args(argv=None):
         description="Count OpenNMS metric samples on a Kafka topic and render a report.",
         epilog="Reads a bounded slice and exits; it never tails.",
     )
-    p.add_argument("--bootstrap", required=True, help="Kafka bootstrap servers, host:port")
-    p.add_argument("--topic", default="metrics", help="metric topic (default: metrics)")
+    p.add_argument("--bootstrap", help="Kafka bootstrap servers, host:port; overrides --endpoints")
+    p.add_argument("--topic", help="metric topic; overrides --endpoints (default: metrics)")
+    p.add_argument(
+        "--endpoints",
+        type=Path,
+        default=Path("/etc/lab-endpoints.json"),
+        help="deployment manifest to take the broker and topic from (default: /etc/lab-endpoints.json)",
+    )
     p.add_argument("--group", default="kafka-metrics-report", help="consumer group id")
     p.add_argument("--bucket-seconds", type=int, default=10, help="timeline bucket width (default: 10)")
     p.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for a poll before giving up")
@@ -68,7 +74,37 @@ def parse_args(argv=None):
     )
     p.add_argument("--html", type=Path, default=Path("metrics-report.html"), help="HTML report path")
     p.add_argument("--json", dest="json_out", type=Path, default=Path("metrics-report.json"), help="JSON sidecar path")
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    resolve_endpoints(args, p)
+    return args
+
+
+def resolve_endpoints(args, parser):
+    """Fill unset broker and topic from the deployment manifest.
+
+    An explicit flag always wins, so a run can point at something the manifest
+    does not describe. The manifest is only consulted for what was not given,
+    which is also what keeps a wrapper that still passes --bootstrap working
+    unchanged.
+    """
+    manifest = {}
+    if args.endpoints and args.endpoints.exists():
+        try:
+            manifest = json.loads(args.endpoints.read_text())
+        except (OSError, ValueError) as e:
+            parser.error(f"could not read {args.endpoints}: {e}")
+
+    kafka = manifest.get("measurement", {}).get("kafka", {})
+    args.bootstrap = args.bootstrap or kafka.get("bootstrap")
+    args.topic = args.topic or kafka.get("topics", {}).get("metrics") or "metrics"
+    args.deployment = manifest.get("deployment")
+
+    if not args.bootstrap:
+        parser.error(
+            f"no broker: pass --bootstrap, or point --endpoints at a manifest "
+            f"that names one ({args.endpoints} is absent or has no "
+            f"measurement.kafka.bootstrap). Generate one with `make endpoints`."
+        )
 
 
 def bounded_slice(consumer, topic, start_offsets=None, replay_bounds=None):
@@ -203,6 +239,7 @@ def summarise(samples, records, resources_total, errors, args, bounds):
     span = spans["accepted"]
     return {
         "label": args.label,
+        "deployment": args.deployment,
         "topic": args.topic,
         "generated": datetime.now(UTC).isoformat(timespec="seconds"),
         "bucket_seconds": args.bucket_seconds,
