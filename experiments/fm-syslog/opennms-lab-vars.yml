@@ -7,4 +7,8 @@ fm_rates: [5, 25, 100, 250]
 fm_window: 30s
 # Long enough for the Minion to flush its sink batch and for Eventd to drain,
 # or a rung's records land in the next rung's count.
-fm_settle_seconds: 30
+fm_settle_seconds: 60
+
+# Long enough that the count is not dominated by rounding, short enough
+# not to add a rung to the sweep.
+fm_baseline_seconds: 30

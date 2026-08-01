@@ -10,4 +10,8 @@ ft_start_ip: "10.42.0.1"
 ft_device_count: 10
 ft_rates: [5, 25, 100, 250]
 ft_window: 30s
-ft_settle_seconds: 30
+ft_settle_seconds: 60
+
+# Long enough that the count is not dominated by rounding, short enough
+# not to add a rung to the sweep.
+ft_baseline_seconds: 30

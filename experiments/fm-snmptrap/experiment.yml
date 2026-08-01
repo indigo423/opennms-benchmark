@@ -41,6 +41,10 @@
   vars:
     endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
     db: "{{ groups['database'][0] }}"
+    # Published by the deployment, not retyped here. A topic name typed into an
+    # experiment reads as zero arrivals when it is wrong, which is
+    # indistinguishable from an ingress that accepted nothing.
+    sink_topic: "{{ endpoints.ingestion.traps.sink_topic }}"
   roles:
     # Reads the accepted side locally rather than over SSH to the broker: a
     # sweep makes that call often enough that one dropped control connection
@@ -55,6 +59,32 @@
       failed_when: not ft_tools.stat.exists
       changed_when: false
 
+    # The simulated fleet emits syslog continuously, not only during a
+    # scenario. Measured at ~10/s for 10 devices, that is ~950 events across a
+    # rung's bracket: larger than the low rungs' entire offered load, and
+    # constant rather than rate-dependent, so it reads as every rung receiving
+    # more than was sent to it. It is not in nl6's ledger, so the two sides
+    # cannot reconcile until it is measured here and taken back out per rung.
+    - name: Measure the idle background event rate
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          q="select count(*) from events where eventsource = 'trapd'"
+          a=$(sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }} -c "$q")
+          sleep {{ ft_baseline_seconds }}
+          b=$(sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }} -c "$q")
+          echo $(( (b - a) * 1000 / {{ ft_baseline_seconds }} ))
+      delegate_to: "{{ db }}"
+      become: true
+      register: ft_baseline
+      changed_when: false
+      failed_when: ft_baseline.stdout is not match('^[0-9]+$')
+
+    # Milli-events per second, kept integer so the rung arithmetic stays exact.
+    - name: Record the background rate
+      ansible.builtin.set_fact:
+        ft_background_mps: "{{ ft_baseline.stdout | trim | int }}"
+
     - name: Run the sweep
       ansible.builtin.include_tasks: rate.yml
       loop: "{{ ft_rates }}"
@@ -65,7 +95,7 @@
     # accepted stops tracking sent is visible rather than inferred.
     - name: Report the sweep
       ansible.builtin.debug:
-        msg: "{{ ['rate/dev  sent   sink(msgs)  events   sent/s  events/s'] + (ft_rows | default([])) }}"
+        msg: "{{ ['rate/dev  sent   sink(msgs)  events_raw bkgnd  events   sent/s  events/s'] + (ft_rows | default([])) }}"
 
     # A sweep where nothing arrived at any rate is a broken deployment, not a
     # result. Say so rather than publishing a table of zeros.
