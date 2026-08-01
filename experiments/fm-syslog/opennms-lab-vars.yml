@@ -12,3 +12,14 @@ fm_settle_seconds: 60
 # Long enough that the count is not dominated by rounding, short enough
 # not to add a rung to the sweep.
 fm_baseline_seconds: 30
+
+# The reference rung. Its persisted-over-sent ratio defines what "nothing was
+# lost" means for this workload against this deployment, instead of assuming
+# 1.0. Run longer than a sweep rung so the background correction is a small
+# share of the count rather than the dominant term, and at a rate with wide
+# margin against the knee (syslog saturates near 950/s; this offers ~100/s).
+fm_reference_rate: 10
+fm_reference_window: "60s"
+# How far the lowest sweep rung may sit from the reference before the sweep
+# stops. Two independent low rates that disagree mean one is already degraded.
+fm_reference_tolerance: 0.08

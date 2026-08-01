@@ -80,10 +80,13 @@
     fm_results: "{{ (fm_results | default([])) + [rung] }}"
     fm_rows: >-
       {{ (fm_rows | default([]))
-         + ['%-9s %-6s %-11s %-10s %-6s %-8s %-7s %s' | format(
-              fm_rate, rung.sent, rung.sink, rung.events_raw, rung.background, rung.events,
+         + ['%-9s %-6s %-8s %-7s %-9s %-6s %s' | format(
+              fm_rate, rung.sent, rung.events,
               (rung.sent | int / ([window_s | int, 1] | max)) | round(1),
-              (rung.events | int / ([window_s | int, 1] | max)) | round(1)) ] }}
+              (rung.events | int / ([window_s | int, 1] | max)) | round(1),
+              ratio | round(3),
+              '-' if fm_reference_ratio is not defined
+                  else (ratio / ([fm_reference_ratio | float, 0.000001] | max)) | round(3)) ] }}
   vars:
     ledger: >-
       {{ (fm_ledger.content | default("") | b64decode | from_json)
@@ -98,6 +101,10 @@
     ts_before: "{{ fm_events_before.stdout.split()[1] }}"
     ev_after: "{{ fm_events_after.stdout.split()[0] }}"
     ts_after: "{{ fm_events_after.stdout.split()[1] }}"
+    # Absolute persisted share. Read against the reference, not against 1.0: a
+    # workload the deployment partly discards has a reference below 1.0 and is
+    # not lossy (#212).
+    ratio: "{{ (rung.events | int) / ([rung.sent | int, 1] | max) }}"
     sink_before: "{{ fm_sink_before.stdout | trim | int }}"
     sink_after: "{{ fm_sink_after.stdout | trim | int }}"
     rung:
