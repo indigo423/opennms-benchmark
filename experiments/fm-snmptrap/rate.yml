@@ -27,8 +27,8 @@
     cmd: >-
       nl6-loadtest --protocol snmp-trap --rate {{ ft_rate }} --window {{ ft_window }}
       --start-ip {{ ft_start_ip }} --count {{ ft_device_count }}
-      --label "fm-snmptrap {{ ft_rate }}/s" --html /tmp/ft-{{ ft_rate }}.html
-      --json /tmp/ft-{{ ft_rate }}.json
+      --label "fm-snmptrap {{ ft_rate }}/s" --html /tmp/ft-{{ ft_rung_label | default(ft_rate) }}.html
+      --json /tmp/ft-{{ ft_rung_label | default(ft_rate) }}.json
   register: ft_load
   changed_when: true
   # Exit 1 means the generator itself fell short. That is a finding about the
@@ -71,7 +71,7 @@
 # the opposite of tolerating rc 1 above.
 - name: "Read the sent-ledger for rate {{ ft_rate }}"
   ansible.builtin.slurp:
-    src: "/tmp/ft-{{ ft_rate }}.json"
+    src: "/tmp/ft-{{ ft_rung_label | default(ft_rate) }}.json"
   register: ft_ledger
   failed_when: false
 
@@ -80,13 +80,15 @@
     ft_results: "{{ (ft_results | default([])) + [rung] }}"
     ft_rows: >-
       {{ (ft_rows | default([]))
-         + ['%-9s %-6s %-8s %-7s %-9s %-6s %s' | format(
-              ft_rate, rung.sent, rung.events,
+         + ['%-9s %-6s %-6s %-6s %-7s %-8s %-9s %-6.3f %s' | format(
+              ft_rung_label | default(ft_rate), rung.sent, rung.events_raw, rung.background, rung.events,
               (rung.sent | int / ([window_s | int, 1] | max)) | round(1),
               (rung.events | int / ([window_s | int, 1] | max)) | round(1),
-              ratio | round(3),
+              rung.ratio | float,
               '-' if ft_reference_ratio is not defined
-                  else (ratio / ([ft_reference_ratio | float, 0.000001] | max)) | round(3)) ] }}
+                  else '%.3f%s' | format(rung.ratio | float / (ft_reference_ratio | float),
+                                         '  <- over 1.0 means the background correction is off'
+                                         if rung.ratio | float > (ft_reference_ratio | float) * 1.05 else '')) ] }}
   vars:
     ledger: >-
       {{ (ft_ledger.content | default("") | b64decode | from_json)
@@ -101,10 +103,6 @@
     ts_before: "{{ ft_events_before.stdout.split()[1] }}"
     ev_after: "{{ ft_events_after.stdout.split()[0] }}"
     ts_after: "{{ ft_events_after.stdout.split()[1] }}"
-    # Absolute persisted share. Read against the reference, not against 1.0: a
-    # workload the deployment partly discards has a reference below 1.0 and is
-    # not lossy (#212).
-    ratio: "{{ (rung.events | int) / ([rung.sent | int, 1] | max) }}"
     sink_before: "{{ ft_sink_before.stdout | trim | int }}"
     sink_after: "{{ ft_sink_after.stdout | trim | int }}"
     rung:
@@ -125,6 +123,14 @@
       events_raw: "{{ ev_after | int - ev_before | int }}"
       bracket_s: "{{ (ts_after | float - ts_before | float) | round(1) }}"
       background: "{{ ((ft_background_mps | int * (ts_after | float - ts_before | float)) / 1000) | round | int }}"
+      # Absolute persisted share, carried on the rung rather than recomputed by
+      # each consumer. The reference ratio and the corroboration both read it
+      # from here, so a change to the arithmetic cannot leave them disagreeing
+      # with the printed table.
+      ratio: >-
+        {{ ([ (ev_after | int - ev_before | int)
+              - (((ft_background_mps | int * (ts_after | float - ts_before | float)) / 1000) | round | int),
+              0 ] | max) / ([ledger.delivered.sent | default(0) | int, 1] | max) }}
       events: >-
         {{ [ (ev_after | int - ev_before | int)
              - (((ft_background_mps | int * (ts_after | float - ts_before | float)) / 1000) | round | int),

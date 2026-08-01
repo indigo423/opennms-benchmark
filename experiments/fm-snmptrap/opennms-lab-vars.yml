@@ -16,13 +16,18 @@ ft_settle_seconds: 60
 # not to add a rung to the sweep.
 ft_baseline_seconds: 30
 
-# The reference rung. Its persisted-over-sent ratio defines what "nothing was
-# lost" means for this workload against this deployment, instead of assuming
-# 1.0. Run longer than a sweep rung so the background correction is a small
-# share of the count rather than the dominant term, and at a rate with wide
-# margin against the knee (syslog saturates near 950/s; this offers ~100/s).
-ft_reference_rate: 10
-ft_reference_window: "60s"
-# How far the lowest sweep rung may sit from the reference before the sweep
-# stops. Two independent low rates that disagree mean one is already degraded.
-ft_reference_tolerance: 0.08
+# The reference is the lowest sweep rate, run once before the sweep and once
+# inside it. There is deliberately no reference rate or window variable: make
+# passes this file via --extra-vars, which outranks include_tasks vars, so an
+# override of a name defined here is silently ignored. An earlier version set
+# a 60s reference window that never took effect.
+#
+# Relative, not absolute. An absolute window means +/-8% against a syslog
+# reference near 1.0 and +/-16% against a trap reference near 0.5, which is the
+# column it exists to guard. 0.10 covers the test-retest spread seen on
+# hardware with room for background drift.
+ft_reference_tolerance: 0.10
+# The generator is allowed to fall short of its requested rate (rate.yml
+# tolerates rc 1), but a reference built from a short delivery mis-scales every
+# rung measured against it.
+ft_reference_min_delivery: 0.9

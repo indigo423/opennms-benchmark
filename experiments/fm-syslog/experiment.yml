@@ -4,20 +4,34 @@
 #
 #   make experiment EXPERIMENT=fm-syslog DEPLOYMENT=kfk-exclusive
 #
-# Sweeps a list of rates and, for each, reconciles three independently-derived
-# numbers:
+# Sweeps a list of rates. Each rung reports what left the generator and what
+# the Core persisted, read against a measured reference rather than against an
+# assumed 1.0:
 #
 #   sent      nl6's immutable sent-ledger — what left the generator
-#   sink      OpenNMS.Sink.Syslog offset delta — what the Minion took
-#   events    rows in the OpenNMS events table — what the Core turned into events
+#   raw       rows added to the events table over the rung's bracket
+#   bkgnd     what the idle fleet would have produced over the same bracket
+#   events    raw minus bkgnd — what this rung's load actually persisted
+#   ratio     events / sent. Composition: it should NOT move with rate.
+#   vs-ref    ratio / reference ratio. Fidelity: a fall here is the system
+#             giving way.
 #
-# A rate where sent stops tracking sink is the ingress giving way. A rate where
-# sink stops tracking events is the Core. Measuring only one of the three cannot
-# tell those apart, and measuring only what was requested cannot see either.
+# Both ratios are published on purpose. A deployment that persists only part of
+# what a generator emits is a real property of the pair, and normalising it away
+# would swap one misleading number for another. This path's reference measures
+# near 1.0, so its workload happens to be fully persistable — but that is a
+# measured fact per run, not an assumption. The trap path's sits near 0.5 with
+# nothing wrong (#212).
 #
-# The sink batches, so its delta counts Kafka messages rather than records. It
-# is a floor on what arrived, not an exact count; the events delta is the
-# record-accurate figure.
+# raw and bkgnd are printed, not just used: a correction large relative to the
+# rung is itself the finding. They also separate a rung that lost its generator
+# ledger (sent 0, raw large) from one where the deployment gave way, which the
+# ratio columns alone render identical.
+#
+# OpenNMS.Sink.Syslog is still read and still asserted non-zero, but is not
+# tabulated: the sink batches at a rate-dependent size, so its offset delta
+# counts Kafka messages rather than syslog messages and cannot be compared against
+# them. See #215.
 
 - name: Build the fleet
   hosts: net_sim
@@ -65,6 +79,20 @@
     # constant rather than rate-dependent, so it reads as every rung receiving
     # more than was sent to it. It is not in nl6's ledger, so the two sides
     # cannot reconcile until it is measured here and taken back out per rung.
+    # The reference is fm_rates | first, so the list must be ascending for it to
+    # be the least-loaded measurement. Nothing else enforces the ordering, and a
+    # reordered list would silently calibrate the sweep against a saturated rung.
+    - name: Assert the sweep rates ascend
+      ansible.builtin.assert:
+        that:
+          - (fm_rates | length) > 1
+          - fm_rates | map('int') | list == (fm_rates | map('int') | sort | list)
+        fail_msg: >-
+          fm_rates must be ascending and hold at least two entries: the first is
+          used as the reference, and the reference has to be the least-loaded
+          rung in the sweep. Got {{ fm_rates }}.
+        quiet: true
+
     - name: Measure the idle background event rate
       ansible.builtin.shell:
         cmd: |
@@ -85,9 +113,10 @@
       ansible.builtin.set_fact:
         fm_background_mps: "{{ fm_baseline.stdout | trim | int }}"
 
-    # The reference rung. Its persisted-over-sent ratio is the definition of
-    # "nothing was lost" for this workload against this deployment, and it is
-    # measured rather than assumed to be 1.0.
+    # The reference rung: the lowest sweep rate, run once before the sweep and
+    # once inside it. Its persisted-over-sent ratio is the definition of
+    # "nothing was lost" for this workload against this deployment, measured
+    # rather than assumed to be 1.0.
     #
     # Assuming 1.0 assumes the deployment persists everything the generator
     # emits. That held for syslog by luck and was false for traps: about half
@@ -95,49 +124,64 @@
     # deployment discards, so the sweep reported a permanent 50% deficit that
     # no component caused (#212).
     #
-    # Run at a rate with wide margin against the knee, and for longer than a
-    # sweep rung, so the background correction is a small share of the count
-    # rather than the dominant term.
+    # Same rate and same window as the rung it is corroborated against, on
+    # purpose. An earlier version ran the reference at its own rate and window,
+    # which made it the *more* loaded of the two measurements and left their
+    # background corrections asymmetric (~24% against ~40% of the raw count),
+    # so the tolerance was being spent on noise rather than on signal. Running
+    # identical conditions twice makes corroboration a test-retest, and the
+    # background correction cancels instead of biasing.
+    #
+    # There is deliberately no reference rate or window variable. The previous
+    # ones could not work: make passes the experiment vars file via
+    # --extra-vars, which outranks include_tasks vars, so a window override was
+    # silently ignored and the reference ran at the sweep window regardless.
     - name: Measure the reference rung
       ansible.builtin.include_tasks: rate.yml
       vars:
-        fm_rate: "{{ fm_reference_rate }}"
-        fm_window: "{{ fm_reference_window }}"
+        fm_rate: "{{ fm_rates | first }}"
+        # Distinct sidecar, so the reference and the identical sweep rung
+        # cannot overwrite each other's ledger.
+        fm_rung_label: ref
 
-    # Split from the capture below deliberately: doing both in one set_fact
-    # would make the result depend on the order Ansible evaluates its keys.
-    - name: Capture the reference rung
+    - name: Capture the reference
       ansible.builtin.set_fact:
         fm_reference: "{{ fm_results | last }}"
-        fm_reference_row: "{{ fm_rows | last }}"
-
-    - name: Take the reference out of the sweep rows
-      ansible.builtin.set_fact:
-        fm_results: "{{ fm_results[:-1] }}"
-        fm_rows: "{{ fm_rows[:-1] }}"
-
-    - name: Record the reference ratio
-      ansible.builtin.set_fact:
-        fm_reference_ratio: "{{ (fm_reference.events | int) / ([fm_reference.sent | int, 1] | max) }}"
+        # Where the sweep's own rungs begin, recorded rather than assumed, so
+        # nothing depends on the reference being at a particular index later.
+        fm_sweep_from: "{{ fm_results | length }}"
 
     # A reference of zero cannot define healthy: every rung measured against it
     # would read as perfect. This fails towards reporting success, which is the
     # direction nobody investigates.
+    #
+    # The delivery check is the other half. rate.yml deliberately tolerates the
+    # generator falling short (rc 1), so without this a reference built from a
+    # handful of delivered records would pass on ratio alone and mis-scale the
+    # whole table.
     - name: Assert the reference carries a signal
       ansible.builtin.assert:
         that:
           - (fm_reference.sent | int) > 0
-          - (fm_reference_ratio | float) > 0
+          - (fm_reference.ratio | float) > 0
+          - (fm_reference.expected | int) == 0
+            or (fm_reference.sent | int) >= (fm_reference.expected | int) * (fm_reference_min_delivery | float)
         fail_msg: >-
-          The reference rung at {{ fm_reference_rate }}/device persisted
-          {{ fm_reference.events }} of {{ fm_reference.sent }} sent.
-          Nothing can be measured against a reference of zero. Check the
-          syslog ingress before reading anything below it.
+          The reference rung at {{ fm_rates | first }}/device delivered
+          {{ fm_reference.sent }} of {{ fm_reference.expected }} expected and
+          persisted {{ fm_reference.events }}. A reference that is zero, or built
+          from a short delivery, cannot define healthy: every rung measured
+          against it inherits the error.
         success_msg: >-
-          reference {{ (fm_reference_ratio | float) | round(3) }}
+          reference {{ (fm_reference.ratio | float) | round(3) }}
           ({{ fm_reference.events }}/{{ fm_reference.sent }} at
-          {{ fm_reference_rate }}/device)
+          {{ fm_rates | first }}/device)
         quiet: true
+
+    # Published so every rung's vs-ref can be computed against it.
+    - name: Record the reference ratio
+      ansible.builtin.set_fact:
+        fm_reference_ratio: "{{ fm_reference.ratio }}"
 
     - name: Run the sweep
       ansible.builtin.include_tasks: rate.yml
@@ -145,45 +189,61 @@
       loop_control:
         loop_var: fm_rate
 
-    # The whole point of the sweep. Reported as a table so the rate at which
-    # accepted stops tracking sent is visible rather than inferred.
+    # The reference and the sweep's own first rung are the same measurement
+    # taken twice. If they disagree, one is already degraded and the reference
+    # does not define healthy, so every vs-ref figure is against the wrong
+    # baseline. Relative, not absolute: an absolute window means +/-8% against a
+    # syslog reference near 1.0 and +/-16% against a trap reference near 0.5,
+    # which is the column it is supposed to be guarding.
+    #
+    # The zero case is called out separately because the relative test cannot
+    # see it: a near-zero reference makes the interval straddle zero, so a rung
+    # that persisted nothing would corroborate cleanly.
+    - name: Corroborate the reference against its repeat
+      ansible.builtin.assert:
+        that:
+          - (repeat.ratio | float) > 0
+          - ((repeat.ratio | float) / (fm_reference_ratio | float) - 1) | abs < (fm_reference_tolerance | float)
+        fail_msg: >-
+          The reference persisted {{ (fm_reference_ratio | float) | round(3) }} of what
+          was sent; its repeat at the same rate and window persisted
+          {{ (repeat.ratio | float) | round(3) }}. Two identical measurements
+          differing by more than {{ (fm_reference_tolerance | float * 100) | round }}%
+          mean one of them is already degraded, so the baseline is not sound and
+          nothing in the vs-ref column can be read.
+        success_msg: >-
+          reference {{ (fm_reference_ratio | float) | round(3) }} corroborated by its
+          repeat at {{ (repeat.ratio | float) | round(3) }}
+        quiet: true
+      vars:
+        repeat: "{{ fm_results[fm_sweep_from | int] }}"
+      register: fm_corroboration
+      failed_when: false
+
+    # Reported before the asserts below fire, so a failed run still shows its
+    # measurements, but never without saying the baseline is unsound. Printing
+    # a clean-looking table and only then failing is what the previous ordering
+    # did, and it is worse than either.
     - name: Report the sweep
       ansible.builtin.debug:
         msg: >-
-          {{ ['reference: %s persisted of %s sent at %s/device = ratio %s'
-                | format(fm_reference.events, fm_reference.sent, fm_reference_rate,
-                         (fm_reference_ratio | float) | round(3)),
+          {{ ([] if not fm_corroboration.failed else
+                ['*** BASELINE NOT CORROBORATED: the vs-ref column below is measured',
+                 '*** against a reference its own repeat disagrees with. See the error.',
+                 ''])
+             + ['reference: %s persisted of %s sent at %s/device = ratio %.3f'
+                  | format(fm_reference.events, fm_reference.sent,
+                           fm_rates | first, fm_reference.ratio | float),
+                'ratio is composition and should not move with rate.',
+                'vs-ref is fidelity: a fall here is the system giving way.',
                 '',
-                'rate/dev  sent   events   sent/s  events/s  ratio  vs-ref']
+                'rate/dev  sent   raw    bkgnd  events  sent/s   events/s  ratio  vs-ref']
              + (fm_rows | default([])) }}
 
-    # The reference and the lowest sweep rung are two independent low-rate
-    # measurements of the same thing. If they disagree, one of them is already
-    # degraded and the reference cannot be trusted to define healthy. Averaging
-    # them would bury exactly the case this guard exists for.
-    - name: Corroborate the reference against the lowest rung
-      ansible.builtin.assert:
-        that:
-          - (lowest_ratio | float) > (fm_reference_ratio | float) - (fm_reference_tolerance | float)
-          - (lowest_ratio | float) < (fm_reference_ratio | float) + (fm_reference_tolerance | float)
-        fail_msg: >-
-          The reference at {{ fm_reference_rate }}/device persisted
-          {{ (fm_reference_ratio | float) | round(3) }} of what was sent, while the
-          lowest sweep rung at {{ fm_rates | first }}/device persisted
-          {{ (lowest_ratio | float) | round(3) }}. Two low rates that disagree by more
-          than {{ fm_reference_tolerance }} mean one of them is already degraded, so
-          the reference does not define healthy and every vs-ref figure below it
-          is measured against the wrong baseline.
-        success_msg: >-
-          reference {{ (fm_reference_ratio | float) | round(3) }} corroborated by the
-          lowest rung at {{ (lowest_ratio | float) | round(3) }}
-        quiet: true
-      vars:
-        low: "{{ fm_results | first }}"
-        lowest_ratio: "{{ (low.events | int) / ([low.sent | int, 1] | max) }}"
-
     # A sweep where nothing arrived at any rate is a broken deployment, not a
-    # result. Say so rather than publishing a table of zeros.
+    # result. Asserted before the corroboration verdict because it names the
+    # cause: an all-zero sweep would otherwise fail as "two rates disagree",
+    # which is true and useless.
     - name: Assert the deployment accepted something at some rate
       ansible.builtin.assert:
         that:
@@ -197,4 +257,10 @@
           — a deployment can publish that endpoint, open its firewall and run
           the Core-side consumer while nothing listens, and every symptom is a
           clean zero.
+        quiet: true
+
+    - name: Fail if the baseline was not corroborated
+      ansible.builtin.assert:
+        that: [not fm_corroboration.failed]
+        fail_msg: "{{ fm_corroboration.msg | default('baseline not corroborated') }}"
         quiet: true
