@@ -28,6 +28,15 @@
     opennms_requisition_location: "{{ endpoints.ingestion.syslog.location }}"
     opennms_requisition_foreign_source: "{{ pm_foreign_source }}"
 
+# Provisiond returns as soon as the nodes exist, but Collectd schedules a new
+# node at some point within the interval rather than immediately. Measuring
+# straight away catches a partial cycle and reports it as a system that has
+# stopped keeping up. Settling for a full interval first means every node has
+# been scheduled and collected at least once before the window opens.
+- name: "Let collection settle after provisioning at rung {{ pm_rung_index }}"
+  ansible.builtin.pause:
+    seconds: "{{ pm_settle_seconds }}"
+
 - name: "Mark the measurement start for rung {{ pm_rung_index }}"
   ansible.builtin.command:
     cmd: kafka-metrics-report --label "pm baseline" --html /tmp/pm-base.html --json /tmp/pm-base.json
@@ -71,24 +80,59 @@
     src: "/tmp/pm-{{ pm_rung_devices }}.json"
   register: pm_result
 
+# Zero identified nodes with non-zero samples is a broken parser, not a data
+# point: the divide-by-zero guard would otherwise render the whole sample total
+# as a plausible-looking per-device rate.
+- name: "Assert the rung identified the nodes it collected at {{ pm_rung_devices }}"
+  ansible.builtin.assert:
+    that:
+      - (pm.totals.nodes_seen | default(0) | int) > 0 or (pm.totals.samples | int) == 0
+    fail_msg: >-
+      {{ pm.totals.samples }} samples arrived but no node could be identified in
+      any of them. That is a decoding problem, not a measurement: check the
+      warnings block in /tmp/pm-{{ pm_rung_devices }}.json for
+      unknown_resource_shape.
+    quiet: true
+  vars:
+    pm: "{{ pm_result.content | b64decode | from_json }}"
+
 - name: "Record the rung at {{ pm_rung_devices }}"
   ansible.builtin.set_fact:
     pm_results: "{{ (pm_results | default([])) + [rung] }}"
     pm_rows: >-
       {{ (pm_rows | default([]))
-         + ['%-8s %-8s %-9s %-11s %s' | format(
-              pm_rung_devices, rung.samples, rung.mean, rung.per_device_cycle, rung.records) ] }}
+         + ['%-8s %-7s %-8s %-8s %-13s %-9s %s' | format(
+              pm_rung_devices, rung.nodes_seen, rung.samples, rung.mean,
+              rung.per_device_cycle, rung.coverage, rung.records) ] }}
   vars:
     pm: "{{ pm_result.content | b64decode | from_json }}"
     cycles: "{{ (pm_window_seconds | int / pm_collection_interval | int) }}"
     rung:
       devices: "{{ pm_rung_devices }}"
+      # The discriminator. If this tracks the fleet size, a falling
+      # per-device-per-cycle is the system slowing down. If it lags, the run
+      # simply never collected the whole fleet and the rate says nothing.
+      # default(0): absent on a lab still running a consumer from before
+      # nodes_seen existed, which would otherwise abort after the window.
+      nodes_seen: "{{ pm.totals.nodes_seen | default(0) }}"
       samples: "{{ pm.totals.samples }}"
       records: "{{ pm.totals.records }}"
-      mean: "{{ pm.rate.mean_per_second | default(0) }}"
+      # mean_per_second is null, not absent, when the accepted span is zero.
+      mean: "{{ pm.rate.mean_per_second | default(0, true) }}"
       # The column that matters. Samples per device per collection cycle should
       # hold steady as the fleet grows; when it falls, collection is no longer
       # completing within the interval and the deployment has given way.
+      # Divided by the fleet this rung asked for, NOT by the nodes observed.
+      # nodes_seen is derived from the same message stream as the numerator, so
+      # normalising by it is self-cancelling: collect half the fleet and both
+      # halve, leaving the headline column flat at exactly the moment it should
+      # fall. The two numbers are independent only while one is the fleet we
+      # built and the other is what the topic reported, which is what makes the
+      # coverage check below mean anything.
       per_device_cycle: >-
         {{ (pm.totals.samples | int / ([pm_rung_devices | int, 1] | max) / ([cycles | float, 0.01] | max))
            | round(1) }}
+      # Observed over asked-for. Reconciled programmatically rather than left
+      # for a human to notice two adjacent columns disagreeing.
+      coverage: >-
+        {{ ((pm.totals.nodes_seen | int) / ([pm_rung_devices | int, 1] | max)) | round(2) }}

@@ -47,6 +47,20 @@
   changed_when: false
   tags: ["requisition"]
 
+# Without this the wait below cannot fail: an empty fleet makes its target 0,
+# and "totalCount >= 0" is true on the first poll for any value, including zero
+# nodes. The rung would then settle a full interval and measure an empty system.
+- name: Assert nl6 holds a fleet to provision
+  ansible.builtin.assert:
+    that:
+      - (opennms_requisition_fleet.json.data | default([], true) | length) > 0
+    fail_msg: >-
+      nl6 reports no devices, so there is nothing to provision and the wait
+      below would pass immediately against zero nodes. Create the fleet before
+      calling this role.
+    quiet: true
+  tags: ["requisition"]
+
 - name: Wait for provisiond to finish importing
   ansible.builtin.uri:
     url: >-
@@ -59,9 +73,12 @@
       Accept: application/json
     return_content: true
   register: opennms_requisition_nodes
+  # Exact, not >=. A stale foreign source holding more nodes than this fleet
+  # would otherwise satisfy the wait immediately and every rung would measure
+  # the previous run's lab.
   until: >-
     (opennms_requisition_nodes.json.totalCount | default(0) | int)
-    >= (opennms_requisition_fleet.json.data | default([]) | length)
+    == (opennms_requisition_fleet.json.data | default([], true) | length)
   retries: "{{ (opennms_requisition_timeout | int // (opennms_requisition_poll_interval | int)) | int }}"
   delay: "{{ opennms_requisition_poll_interval }}"
   changed_when: false

@@ -3,104 +3,104 @@
 # --require-topic: the probe reports an absent topic as zero by design, which
 # for a before-reading would make a wrong topic name indistinguishable from an
 # ingress that accepted nothing, at every rung, with the sweep still passing.
-- name: "Read the sink offset before rate {{ fm_rate }}"
+- name: "Read the sink offset before rate {{ ft_rate }}"
   ansible.builtin.command:
     cmd: kafka-offsets {{ sink_topic }} --require-topic
-  register: fm_sink_before
+  register: ft_sink_before
   changed_when: false
   # int() returns 0 for anything unparseable, which would read as "nothing
   # arrived" for the whole sweep rather than as a broken probe.
-  failed_when: fm_sink_before.stdout is not match('^[0-9]+$')
+  failed_when: ft_sink_before.stdout is not match('^[0-9]+$')
 
-- name: "Count events before rate {{ fm_rate }}"
+- name: "Count events before rate {{ ft_rate }}"
   ansible.builtin.command:
     cmd: >-
       sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }}
-      -c "select count(*) from events where eventsource = 'syslogd'"
+      -c "select count(*) from events where eventsource = 'trapd'"
   delegate_to: "{{ db }}"
   become: true
-  register: fm_events_before
+  register: ft_events_before
   changed_when: false
 
-- name: "Drive the load at rate {{ fm_rate }}"
+- name: "Drive the load at rate {{ ft_rate }}"
   ansible.builtin.command:
     cmd: >-
-      nl6-loadtest --protocol syslog --rate {{ fm_rate }} --window {{ fm_window }}
-      --start-ip {{ fm_start_ip }} --count {{ fm_device_count }}
-      --label "fm-syslog {{ fm_rate }}/s" --html /tmp/fm-{{ fm_rate }}.html
-      --json /tmp/fm-{{ fm_rate }}.json
-  register: fm_load
+      nl6-loadtest --protocol snmp-trap --rate {{ ft_rate }} --window {{ ft_window }}
+      --start-ip {{ ft_start_ip }} --count {{ ft_device_count }}
+      --label "fm-snmptrap {{ ft_rate }}/s" --html /tmp/ft-{{ ft_rate }}.html
+      --json /tmp/ft-{{ ft_rate }}.json
+  register: ft_load
   changed_when: true
   # Exit 1 means the generator itself fell short. That is a finding about the
   # generator, not the system under test, so the rung is recorded and the sweep
   # continues rather than failing.
-  failed_when: fm_load.rc > 1
+  failed_when: ft_load.rc > 1
 
 # Polled by the probe, not paused here: drain time grows precisely at the rate
 # where the system stops keeping up, so a fixed wait under-reports the rung that
 # matters and spills its backlog into the next one. Ansible's until cannot
 # compare consecutive reads, so the waiting lives in the probe.
-- name: "Let the pipeline drain after rate {{ fm_rate }}"
+- name: "Let the pipeline drain after rate {{ ft_rate }}"
   ansible.builtin.command:
-    cmd: kafka-offsets {{ sink_topic }} --settle={{ fm_settle_seconds }}
-  register: fm_drain
+    cmd: kafka-offsets {{ sink_topic }} --settle={{ ft_settle_seconds }}
+  register: ft_drain
   changed_when: false
 
-- name: "Read the sink offset after rate {{ fm_rate }}"
+- name: "Read the sink offset after rate {{ ft_rate }}"
   ansible.builtin.command:
     cmd: kafka-offsets {{ sink_topic }}
-  register: fm_sink_after
+  register: ft_sink_after
   changed_when: false
   # int() returns 0 for anything unparseable, which would read as "nothing
   # arrived" for the whole sweep rather than as a broken probe.
-  failed_when: fm_sink_after.stdout is not match('^[0-9]+$')
+  failed_when: ft_sink_after.stdout is not match('^[0-9]+$')
 
-- name: "Count events after rate {{ fm_rate }}"
+- name: "Count events after rate {{ ft_rate }}"
   ansible.builtin.command:
     cmd: >-
       sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }}
-      -c "select count(*) from events where eventsource = 'syslogd'"
+      -c "select count(*) from events where eventsource = 'trapd'"
   delegate_to: "{{ db }}"
   become: true
-  register: fm_events_after
+  register: ft_events_after
   changed_when: false
 
 # Guarded: nl6-loadtest can exit before writing its sidecar, and an unguarded
 # slurp would abort the loop and discard every rung already measured, which is
 # the opposite of tolerating rc 1 above.
-- name: "Read the sent-ledger for rate {{ fm_rate }}"
+- name: "Read the sent-ledger for rate {{ ft_rate }}"
   ansible.builtin.slurp:
-    src: "/tmp/fm-{{ fm_rate }}.json"
-  register: fm_ledger
+    src: "/tmp/ft-{{ ft_rate }}.json"
+  register: ft_ledger
   failed_when: false
 
-- name: "Record the rung for rate {{ fm_rate }}"
+- name: "Record the rung for rate {{ ft_rate }}"
   ansible.builtin.set_fact:
-    fm_results: "{{ (fm_results | default([])) + [rung] }}"
-    fm_rows: >-
-      {{ (fm_rows | default([]))
+    ft_results: "{{ (ft_results | default([])) + [rung] }}"
+    ft_rows: >-
+      {{ (ft_rows | default([]))
          + ['%-9s %-6s %-11s %-8s %-7s %s' | format(
-              fm_rate, rung.sent, rung.sink, rung.events,
+              ft_rate, rung.sent, rung.sink, rung.events,
               (rung.sent | int / ([window_s | int, 1] | max)) | round(1),
               (rung.events | int / ([window_s | int, 1] | max)) | round(1)) ] }}
   vars:
     ledger: >-
-      {{ (fm_ledger.content | default("") | b64decode | from_json)
-         if fm_ledger.content is defined else {"delivered": {}, "request": {}} }}
+      {{ (ft_ledger.content | default("") | b64decode | from_json)
+         if ft_ledger.content is defined else {"delivered": {}, "request": {}} }}
     # From the ledger, which records seconds because the driver already parses
     # Go durations. Stripping non-digits made "2m" yield 2 and reported rates
     # 60x too high. Guarded against zero: a malformed ledger must not divide.
     window_s: "{{ ledger.request.window_seconds | default(0) | float }}"
-    sink_before: "{{ fm_sink_before.stdout | trim | int }}"
-    sink_after: "{{ fm_sink_after.stdout | trim | int }}"
+    sink_before: "{{ ft_sink_before.stdout | trim | int }}"
+    sink_after: "{{ ft_sink_after.stdout | trim | int }}"
     rung:
-      rate: "{{ fm_rate }}"
+      rate: "{{ ft_rate }}"
       # Recorded, not left in a vars file: the table column is per-device, so
       # without this the fleet-wide offered rate is not recoverable from the
       # result at all.
-      devices: "{{ fm_device_count }}"
+      devices: "{{ ft_device_count }}"
       sent: "{{ ledger.delivered.sent | default(0) }}"
       expected: "{{ ledger.delivered.expected | default(0) }}"
       send_failures: "{{ ledger.delivered.send_failures | default(0) }}"
       sink: "{{ sink_after | int - sink_before | int }}"
-      events: "{{ fm_events_after.stdout | trim | int - fm_events_before.stdout | trim | int }}"
+      events: "{{ ft_events_after.stdout | trim | int - ft_events_before.stdout | trim | int }}"

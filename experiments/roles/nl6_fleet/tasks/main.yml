@@ -49,13 +49,13 @@
   register: nl6_fleet_check
   changed_when: false
   failed_when: >-
-    (nl6_fleet_check.json.data | default([]) | length) < (nl6_fleet_count | int)
+    (nl6_fleet_check.json.data | default([], true) | length) < (nl6_fleet_count | int)
   tags: ["fleet"]
 
 - name: Report the fleet
   ansible.builtin.debug:
     msg: >-
-      {{ nl6_fleet_check.json.data | length }} device(s) live from
+      {{ nl6_fleet_check.json.data | default([], true) | length }} device(s) live from
       {{ nl6_fleet_start_ip }}, syslog to {{ nl6_fleet_syslog_collector | trim }},
       traps to {{ nl6_fleet_trap_collector | trim }}
   tags: ["fleet"]

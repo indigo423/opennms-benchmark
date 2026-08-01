@@ -9,5 +9,8 @@ pm_foreign_source: nl6-pm
 # One full collection interval plus margin, so every node is collected exactly
 # once inside the window. Each rung costs this much wall clock.
 pm_collection_interval: 300
+# One full interval, so every newly provisioned node has been scheduled and
+# collected once before measurement starts. Each rung costs settle + window.
+pm_settle_seconds: 300
 pm_window_seconds: 330
 pm_bucket_seconds: 30

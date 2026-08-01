@@ -45,11 +45,17 @@ ingestion:
     port: {{ lab_syslog_port }}
     via: minion
     location: "{{ opennms_minion_controller.location | default('') }}"
+    # Where the Minion forwards what it accepts. Published so an experiment
+    # reading the accepted side reads a name rather than retyping one: a wrong
+    # topic reads as zero arrivals, which is indistinguishable from an ingress
+    # that accepted nothing.
+    sink_topic: "{{ lab_instance_id }}.Sink.Syslog"
   traps:
     host: "{{ addr(minion, 'sim') }}"
     port: {{ lab_trap_port }}
     via: minion
     location: "{{ opennms_minion_controller.location | default('') }}"
+    sink_topic: "{{ lab_instance_id }}.Sink.Trap"
 {% endif %}
 {% if bootstrap or db or core %}
 

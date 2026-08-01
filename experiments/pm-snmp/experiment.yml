@@ -6,8 +6,10 @@
 #
 # Sweeps fleet size. At each rung the fleet grows, is provisioned, and a full
 # collection interval is measured on the Kafka metrics topic. The column to read
-# is samples per device per cycle: it should hold steady as the fleet grows, and
-# when it falls the deployment is no longer keeping up.
+# is samples per device per cycle, read against the nodes column: if nodes
+# tracks the fleet size then a falling per-device rate is the system slowing
+# down, and if it lags then the run never collected the whole fleet and the
+# rate says nothing at all. Totals alone cannot tell those apart.
 #
 # The measurement point is the topic, not the OpenNMS UI. Under exclusive
 # forwarding the OSGi persister installs EmptyResourceStorageDao, so there are
@@ -32,6 +34,33 @@
       failed_when: not pm_tool.stat.exists
       changed_when: false
 
+    # A sweep that starts with the previous run's fleet still present measures
+    # that fleet at every rung while reporting the size it created.
+    #
+    # The reset alone is enough to clear OpenNMS too: the first rung re-imports
+    # the requisition from whatever nl6 then holds, and provisiond deletes the
+    # nodes absent from it. Running the import against an empty fleet would be
+    # the more direct way to say that, but nl6's onms-provision.sh iterates the
+    # device list without a null guard and fails when it is empty.
+    - name: Assert the sweep grows at every rung
+      ansible.builtin.assert:
+        that:
+          - pm_device_increments | length > 0
+          - pm_device_increments | map('int') | min > 0
+        fail_msg: >-
+          pm_device_increments must be non-empty and every entry positive. A
+          zero increment leaves the cumulative fleet unchanged, so two rungs
+          share a device count, write to the same JSON path and report the same
+          measurement twice under different labels.
+        quiet: true
+
+    - name: Reset the fleet before sweeping
+      ansible.builtin.include_role:
+        name: nl6_fleet
+        tasks_from: reset
+      vars:
+        nl6_fleet_endpoints: "{{ endpoints }}"
+
     - name: Run the sweep
       ansible.builtin.include_tasks: rung.yml
       loop: "{{ pm_device_increments }}"
@@ -43,7 +72,7 @@
 
     - name: Report the sweep
       ansible.builtin.debug:
-        msg: "{{ ['devices  samples  mean/s    per-dev/cyc  kafka msgs'] + pm_rows }}"
+        msg: "{{ ['devices  nodes   samples  mean/s   per-dev/cyc   coverage  kafka msgs'] + pm_rows }}"
 
     # A sweep that collected nothing at any size is a blocked Collectd, not a
     # result. Under exclusive forwarding that is what a missing Kafka Producer

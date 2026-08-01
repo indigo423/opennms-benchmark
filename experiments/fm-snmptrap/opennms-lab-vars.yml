@@ -1,0 +1,13 @@
+---
+# Trap sweep parameters. rate is per device, so the fleet-wide rate is
+# rate x ft_device_count.
+#
+# This path has carried no traffic before: the Minion's trap listener was only
+# bound in #207, and until then the deployment published a trap endpoint that
+# accepted nothing. Every symptom of that was a clean zero, which is why the
+# sweep reconciles sent against sink against events rather than trusting one.
+ft_start_ip: "10.42.0.1"
+ft_device_count: 10
+ft_rates: [5, 25, 100, 250]
+ft_window: 30s
+ft_settle_seconds: 30

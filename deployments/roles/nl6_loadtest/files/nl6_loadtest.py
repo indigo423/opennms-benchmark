@@ -288,6 +288,10 @@ def summarise(sid, report, armed, args):
         "request": {
             "rate": args.rate,
             "window": args.window,
+            # Recorded in seconds as well, so a consumer computing a rate does
+            # not have to re-parse a Go duration. Stripping non-digits from
+            # "2m" yields 2 and reports rates 60x too high.
+            "window_seconds": window_s,
             "drain": args.drain,
             "seed": args.seed,
             "devices": n,

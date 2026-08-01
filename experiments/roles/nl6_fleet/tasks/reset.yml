@@ -1,0 +1,40 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Removes every simulated device, so a sweep starts from a known fleet size.
+#
+# Without this a run inherits whatever the previous run left behind, and every
+# rung measures the accumulated fleet while reporting the count it created. The
+# nodes column makes that visible; this makes it not happen.
+- name: Remove every simulated device
+  ansible.builtin.uri:
+    url: "{{ nl6_fleet_endpoints.generators.nl6.url }}/api/v1/devices"
+    method: DELETE
+    # 404 is a fine outcome: there was nothing to delete. Anything else is not.
+    status_code: [200, 202, 204, 404]
+  register: nl6_fleet_reset
+  changed_when: nl6_fleet_reset.status != 404
+  # A 2xx is not success on this API; it wraps replies in {"success": …}.
+  failed_when: >-
+    nl6_fleet_reset.status not in [200, 202, 204, 404]
+    or (nl6_fleet_reset.status != 404
+        and not (nl6_fleet_reset.json.success | default(true)))
+  tags: ["fleet"]
+
+# default([], true), not default([]): nl6 returns "data": null for an empty
+# fleet, so the key exists and a plain default never fires.
+- name: Confirm the fleet is empty
+  ansible.builtin.uri:
+    url: "{{ nl6_fleet_endpoints.generators.nl6.url }}/api/v1/devices"
+    method: GET
+    return_content: true
+  register: nl6_fleet_empty
+  # .json is absent entirely if nl6 answers with a proxy error page, which would
+  # error the conditional instead of retrying through a transient failure.
+  until: >-
+    ((nl6_fleet_empty.json | default({}, true)).data | default([], true) | length) == 0
+  retries: 10
+  delay: 3
+  changed_when: false
+  tags: ["fleet"]

@@ -30,3 +30,9 @@ lab_kafka_topics:
   events: events
   alarms: alarms
   nodes: nodes
+
+# IPC topics are namespaced by the OpenNMS instance id; producer topics are not.
+# Named here so the manifest can publish the sink topic an experiment must read,
+# rather than each experiment retyping "OpenNMS.Sink.Trap" and discovering a typo
+# as a run where nothing arrived.
+lab_instance_id: OpenNMS

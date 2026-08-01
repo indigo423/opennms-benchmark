@@ -48,6 +48,9 @@ SERIES = {
 # buckets the timeline falls back to observed keys only and says so.
 MAX_DENSE_BUCKETS = 20_000
 
+# Above this, the sidecar records only the count, not the ids.
+MAX_NODE_IDS = 1_000
+
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(
@@ -152,6 +155,7 @@ def consume(consumer, topic, bounds, timeout):
 
     remaining = {p for p, b in bounds.items() if b["end"] > b["start"]}
     samples, records, resources_total = [], 0, 0
+    nodes = set()
     errors = Counter()
 
     while remaining:
@@ -192,12 +196,54 @@ def consume(consumer, topic, bounds, timeout):
                     errors["no_collection_timestamp"] += 1
                 else:
                     samples.append((cs.timestamp / 1000.0, ts_ms / 1000.0, n))
+                    # Counted here, not above: a node whose records were all
+                    # excluded contributes nothing to the numerator, so counting
+                    # it in the denominator would bias the per-node rate down
+                    # and read as a system slowing.
+                    for r in cs.resource:
+                        nid = resource_node(r)
+                        if nid is UNKNOWN_SHAPE:
+                            errors["unknown_resource_shape"] += 1
+                        elif nid is not None:
+                            nodes.add(nid)
 
         if msg.offset() >= bounds[part]["end"] - 1:
             remaining.discard(part)
             consumer.pause([TopicPartition(topic, part)])
 
-    return samples, records, resources_total, errors
+    return samples, records, resources_total, sorted(nodes), errors
+
+
+# Returned when a resource carries a shape this code does not know, so the
+# caller can count it rather than silently undercounting nodes.
+UNKNOWN_SHAPE = object()
+
+
+def resource_node(resource):
+    """The node a CollectionSetResource was *collected* from.
+
+    Answers "how many nodes were actually collected", which a sample count
+    cannot: a fleet whose per-device rate falls could be a system that stopped
+    keeping up, or one that only ever collected a subset. Those are identical in
+    totals and completely different here.
+
+    Response-time resources are excluded deliberately. Pollerd latency travels
+    this same topic under exclusive forwarding, so counting it would let a fleet
+    that is polled but never collected read as full collection coverage, which
+    is the confusion this function exists to remove.
+
+    Returns None for a resource that is deliberately not counted, UNKNOWN_SHAPE
+    for one this code cannot interpret, and the node id otherwise. A node id of
+    0 is a real id, so callers must test against None rather than truthiness.
+    """
+    which = resource.WhichOneof("resource")
+    if which == "response":
+        return None
+    if which == "node":
+        return resource.node.node_id
+    if which in ("interface", "generic"):
+        return getattr(resource, which).node.node_id
+    return UNKNOWN_SHAPE
 
 
 def timeline(samples, index, width, errors=None):
@@ -221,7 +267,7 @@ def timeline(samples, index, width, errors=None):
     return [{"t": t, "rate": buckets.get(t, 0) / width} for t in keys]
 
 
-def summarise(samples, records, resources_total, errors, args, bounds):
+def summarise(samples, records, resources_total, nodes, errors, args, bounds):
     total = sum(row[2] for row in samples)
     series = {
         name: timeline(samples, idx, args.bucket_seconds, errors)
@@ -247,6 +293,10 @@ def summarise(samples, records, resources_total, errors, args, bounds):
             "samples": total,
             "records": records,
             "resources": resources_total,
+            # How many distinct nodes appeared at all. Paired with a fleet size
+            # this separates "the system slowed down" from "the system only
+            # collected part of the fleet", which totals alone cannot.
+            "nodes_seen": len(nodes),
             "samples_per_record": round(total / records, 2) if records else 0,
         },
         "rate": {
@@ -255,6 +305,10 @@ def summarise(samples, records, resources_total, errors, args, bounds):
             "span_seconds": round(span, 1),
             "collection_span_seconds": round(spans["collection"], 1),
         },
+        # Capped: a large fleet would otherwise write tens of thousands of ids
+        # into a sidecar whose other fields are scalars, and every rung slurps
+        # this file back. nodes_seen carries the number that matters.
+        "node_ids": nodes if len(nodes) <= MAX_NODE_IDS else [],
         "offsets": bounds,
         "warnings": dict(errors),
         "series": series,
@@ -453,6 +507,7 @@ TEMPLATE = """<!DOCTYPE html>
   <tr><td>Numeric samples</td><td>{samples}</td></tr>
   <tr><td>Kafka records read</td><td>{records}</td></tr>
   <tr><td>Resources</td><td>{resources}</td></tr>
+  <tr><td>Distinct nodes seen</td><td>{nodes_seen}</td></tr>
   <tr><td>Samples per record</td><td>{per_record}</td></tr>
   <tr><td>Mean samples/second</td><td>{mean}</td></tr>
   <tr><td>Peak samples/second</td><td>{peak}</td></tr>
@@ -507,6 +562,7 @@ WARNING_TEXT = {
     "no_record_timestamp": "records carried no broker timestamp and were excluded",
     "no_collection_timestamp": "records carried no collection timestamp and were excluded",
     "sparse_timeline": "timestamps spanned an implausible range, so the timeline shows only observed buckets",
+    "unknown_resource_shape": "resources carried a shape this build cannot interpret, so their nodes were not counted",
 }
 
 
@@ -534,6 +590,7 @@ def render_html(report, svg, geom):
         samples=f"{report['totals']['samples']:,}",
         records=f"{report['totals']['records']:,}",
         resources=f"{report['totals']['resources']:,}",
+        nodes_seen=f"{report['totals']['nodes_seen']:,}",
         per_record=f"{report['totals']['samples_per_record']:,.2f}",
         # A slice too short to have a span has no rate; "n/a" says that, where
         # 0.0 would read as a run that collected nothing.
@@ -569,11 +626,11 @@ def main(argv=None):
     )
     try:
         bounds = bounded_slice(consumer, args.topic, start_offsets, replay_bounds)
-        samples, records, resources, errors = consume(consumer, args.topic, bounds, args.timeout)
+        samples, records, resources, nodes, errors = consume(consumer, args.topic, bounds, args.timeout)
     finally:
         consumer.close()
 
-    report = summarise(samples, records, resources, errors, args, bounds)
+    report = summarise(samples, records, resources, nodes, errors, args, bounds)
     svg, geom = svg_chart(report)
     args.json_out.write_text(json.dumps(report, indent=2))
     args.html.write_text(render_html(report, svg, geom))
@@ -581,6 +638,7 @@ def main(argv=None):
     r = report["rate"]
     mean = "n/a" if r["mean_per_second"] is None else f"{r['mean_per_second']:,.2f}/s"
     print(f"samples   {report['totals']['samples']:,}")
+    print(f"nodes     {report['totals']['nodes_seen']:,} distinct")
     print(f"mean      {mean} over {r['span_seconds']:,.1f}s")
     print(f"peak      {r['peak_per_second']:,.2f}/s")
     print(f"report    {args.html}")
