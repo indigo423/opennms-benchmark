@@ -142,6 +142,29 @@
   register: ftc_ledger
   failed_when: false
 
+# The allowance is one tick per device, and it is not slack. nl6 computes
+# expected as rate x devices x window, but a device ticking every 1/rate over a
+# half-open window fits one interval fewer, so a healthy run comes in exactly
+# device_count short: 149,900 of 150,000 at 100 devices, 59,990 of 60,000 at 10.
+# Rate-independent, which is what proves it is arithmetic rather than loss —
+# real loss scales with rate.
+#
+# Absolute, because the artifact is absolute while the floor is a fraction, so
+# its weight grows as rate x window shrinks: 0.02% at 5/device over 15m, but
+# 1.67% at 1/device over 60s, which would condemn a rung over an off-by-one.
+- name: "Judge whether the generator filled the request at {{ ftc_rate }}"
+  ansible.builtin.set_fact:
+    ftc_delivered_ok: >-
+      {{ (ledger.delivered.expected | default(0) | int) == 0
+         or (ledger.delivered.sent | default(0) | int)
+            >= (ledger.delivered.expected | int) * (ftc_min_delivery | float)
+         or ((ledger.delivered.expected | int) - (ledger.delivered.sent | default(0) | int))
+            <= (ftc_device_count | int) }}
+  vars:
+    ledger: >-
+      {{ (ftc_ledger.content | default("") | b64decode | from_json)
+         if ftc_ledger.content is defined else {"delivered": {}, "request": {}} }}
+
 # The validity gate, and it is about the generator rather than the SUT.
 #
 # fm-snmptrap tolerates a shortfall and records the rung, because a short
@@ -152,38 +175,27 @@
 # Gated on the fraction, not on the exit status. nl6 exits 1 for any shortfall
 # at all, including the ~0.3% jitter a healthy run shows, so an rc test rejects
 # every rung and the sweep cannot run.
+# A rung the generator could not fill measures nl6, not the deployment, so it
+# cannot be a capacity measurement. It is recorded as INVALID and the sweep goes
+# on, rather than aborting.
 #
-# The allowance is one tick per device, and it is not slack. nl6 computes
-# expected as rate x devices x window, but a device ticking every 1/rate over a
-# half-open window fits one interval fewer, so a perfectly healthy run comes in
-# exactly device_count short: 59,990 of 60,000 at 100/device and 149,990 of
-# 150,000 at 250/device. Rate-independent, which is what proves it is arithmetic
-# rather than loss — real loss scales with rate.
-#
-# It has to be an absolute allowance because the artifact is absolute while the
-# floor is a fraction, so its weight grows as rate x window shrinks: 0.02% at
-# 5/device over 15m, but 1.67% at 1/device over 60s, which would abort a run
-# over an off-by-one.
-- name: "Assert the generator filled the request at {{ ftc_rate }}"
-  ansible.builtin.assert:
-    that:
-      - (ledger.delivered.expected | default(0) | int) == 0
-        or (ledger.delivered.sent | default(0) | int)
-           >= (ledger.delivered.expected | int) * (ftc_min_delivery | float)
-        or ((ledger.delivered.expected | int) - (ledger.delivered.sent | default(0) | int))
-           <= (ftc_device_count | int)
-    fail_msg: >-
-      At {{ ftc_rate }}/device the generator delivered
+# Aborting was worse than useless: it discarded the whole table, including every
+# rung that had already measured cleanly, and it fired mid-drain, so the events
+# still in flight for that rung never landed and the run's totals could not be
+# reconciled afterwards either. Same failure as gating the generator on rc — a
+# fact about the generator taking down facts about the deployment.
+- name: "Warn when the generator could not fill the request at {{ ftc_rate }}"
+  ansible.builtin.debug:
+    msg: >-
+      GENERATOR-LIMITED at {{ ftc_rate }}/device: delivered
       {{ ledger.delivered.sent | default(0) }} of
       {{ ledger.delivered.expected | default(0) }} requested
       ({{ ((ledger.delivered.sent | default(0) | int)
            / ([ledger.delivered.expected | default(1) | int, 1] | max) * 100) | round(1) }}%,
-      floor {{ (ftc_min_delivery | float * 100) | round(1) }}%, or an absolute
-      allowance of {{ ftc_device_count }}). That is nl6 running out of headroom,
-      not the deployment giving way, so this rung cannot be a capacity
-      measurement. Lower the ladder, spread the same fleet-wide rate over more
-      devices, or add generator capacity, and rerun.
-    quiet: true
+      floor {{ (ftc_min_delivery | float * 100) | round(1) }}%). nl6 is out of
+      headroom here, so this rung says nothing about the deployment. Spread the
+      same fleet-wide rate over more devices, or add generator capacity.
+  when: not (ftc_delivered_ok | bool)
   vars:
     ledger: >-
       {{ (ftc_ledger.content | default("") | b64decode | from_json)
@@ -262,8 +274,15 @@
            <= (ftc_lag_before.stdout | trim | int) + (ftc_drain_tolerance | int) }}
       # Tier 3: fidelity held and did not decay across the window.
       tier3: "{{ (tier3_fidelity | bool) and (tier3_trend | bool) }}"
+      delivered_ok: "{{ ftc_delivered_ok | bool }}"
+      # INVALID outranks the tiers. A rung the generator could not fill offered
+      # less load than it claims, so its tiers would pass for a reason that has
+      # nothing to do with the deployment — and reading that as R_max would
+      # publish nl6's ceiling as OpenNMS's.
       verdict: >-
-        {{ 'PASS'
+        {{ 'INVALID'
+           if not (ftc_delivered_ok | bool)
+           else 'PASS'
            if (((ftc_udp_after.stdout | trim | int) - (ftc_udp_before.stdout | trim | int)) == 0)
               and ((ftc_lag_after.stdout | trim | int)
                    <= (ftc_lag_before.stdout | trim | int) + (ftc_drain_tolerance | int))

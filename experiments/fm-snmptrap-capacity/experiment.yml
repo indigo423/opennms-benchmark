@@ -404,17 +404,26 @@
     - name: Report R_max
       ansible.builtin.debug:
         msg: >-
-          {{ ('R_max not bracketed: every rung passed up to %s/device (%s/s fleet-wide). '
-              + 'Raise the ladder and rerun.')
-               | format(ftc_passing | last, (ftc_passing | last | int) * (ftc_device_count | int))
-             if (ftc_passing | length) == (ftc_rates | length)
-             else ('R_max = %s/device = %s/s fleet-wide (first failure at %s/device)'
-                   | format(ftc_passing | last,
-                            (ftc_passing | last | int) * (ftc_device_count | int),
-                            ftc_failing | first))
-                  if (ftc_passing | length) > 0 and (ftc_failing | length) > 0
-                  else 'R_max below the ladder: the lowest rung already failed.' }}
+          {{ (['R_max = %s/device = %s/s fleet-wide (first failure at %s/device)'
+                 | format(ftc_passing | last,
+                          (ftc_passing | last | int) * (ftc_device_count | int),
+                          ftc_failing | first)]
+              if (ftc_passing | length) > 0 and (ftc_failing | length) > 0
+              else ['R_max is at least %s/device = %s/s fleet-wide, and this sweep '
+                    + 'cannot say where it ends: no rung failed on the deployment.'
+                      | format(ftc_passing | last,
+                               (ftc_passing | last | int) * (ftc_device_count | int))]
+                   if (ftc_passing | length) > 0
+                   else ['R_max below the ladder: the lowest rung already failed.'])
+             + (['%s rung(s) were GENERATOR-LIMITED and prove nothing about the '
+                 + 'deployment: %s/device. The ceiling above is nl6, not OpenNMS.'
+                   | format(ftc_invalid | length, ftc_invalid | join(', '))]
+                if (ftc_invalid | length) > 0 else []) }}
       vars:
         ftc_sweep: "{{ ftc_results[ftc_sweep_from | int :] }}"
         ftc_passing: "{{ ftc_sweep | selectattr('verdict', 'equalto', 'PASS') | map(attribute='rate') | list }}"
-        ftc_failing: "{{ ftc_sweep | rejectattr('verdict', 'equalto', 'PASS') | map(attribute='rate') | list }}"
+        # FAIL only. A generator-limited rung is INVALID, not a failure of the
+        # deployment, and treating it as one would report nl6's ceiling as
+        # R_max — which is exactly the mistake the verdict exists to prevent.
+        ftc_failing: "{{ ftc_sweep | selectattr('verdict', 'equalto', 'FAIL') | map(attribute='rate') | list }}"
+        ftc_invalid: "{{ ftc_sweep | selectattr('verdict', 'equalto', 'INVALID') | map(attribute='rate') | list }}"
