@@ -40,13 +40,24 @@
     nl6_fleet_sim_network: "{{ nl6_fleet_endpoints.generators.nl6.sim_network }}"
     nl6_fleet_start_ip: "{{ ft_start_ip }}"
     nl6_fleet_count: "{{ ft_device_count }}"
-  roles:
+  tasks:
     # Reset first: ft/fm sweeps share the 10.42.0.x range with pm-snmp, so
     # without this a run can drive load at devices another experiment created
     # and reconcile against traffic it did not send.
-    - role: nl6_fleet
-      tasks_from: reset
-    - nl6_fleet
+    #
+    # include_role, not a `roles:` entry. `tasks_from` is a parameter of
+    # include_role/import_role and is not a key the play-level `roles:` list
+    # understands: there it is silently taken as a role *variable*, main.yml
+    # runs in place of reset.yml, and the reset above never happens. This
+    # played that way from the start (#217).
+    - name: Remove any fleet a previous run left behind
+      ansible.builtin.include_role:
+        name: nl6_fleet
+        tasks_from: reset
+
+    - name: Create the fleet
+      ansible.builtin.include_role:
+        name: nl6_fleet
 
 - name: Sweep the trap rate
   hosts: mon_servers
