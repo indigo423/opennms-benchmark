@@ -75,6 +75,7 @@ Not currently enforced; see #173.
 
 | class | vCPU | RAM | notes |
 |---|---|---|---|
+| `micro` | 1 | 2 GiB | the only single-vCPU class, and the one class that exists **to be measured**: the starved end of a sizing comparison. `kvm` only. Do not reach for it to make a lab fit — that is what `tiny` is for |
 | `tiny` | 2 | 2 GiB | **shape/wiring test beds only.** Enough to start a service, not to measure one: a 2 GiB Elasticsearch gets a ~1 GiB heap. Never use in a benchmark topology |
 | `small` | 2 | 4 GiB | db, kafka, minion, netsim, mon |
 | `medium` | 2 | 8 GiB | |

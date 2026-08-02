@@ -19,6 +19,11 @@ locals {
 
   # t-shirt size class → libvirt memory (MiB) / vCPU (see deployments/README.md).
   size_map = {
+    # micro is the only single-vCPU class, and it exists to be measured rather
+    # than to save resources: it is the small end of a sizing comparison, where
+    # the question is what a component can still carry when it is starved. Do
+    # not reach for it to make a lab fit — that is what tiny is for.
+    micro = { memory = 2048, vcpu = 1 }
     # tiny exists for wiring/shape test beds only — enough to start a service,
     # not enough to measure one. See deployments/README.md.
     tiny   = { memory = 2048, vcpu = 2 }

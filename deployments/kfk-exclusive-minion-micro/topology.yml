@@ -1,0 +1,50 @@
+---
+name: kfk-exclusive-minion-micro
+description: >-
+  kfk-exclusive with the Minion starved to one vCPU and 2 GiB. The paired
+  variant for a Minion-sizing comparison: every other role, subnet, size and
+  variable is identical to kfk-exclusive, so Minion CPU and memory are the only
+  thing that differs and a delta between the two is attributable to it.
+  kvm only — micro is a kvm size class.
+roles:
+  database:
+    count: 1
+    size: small
+    subnets: [mgmt, db]
+    groups: [database]
+  core:
+    count: 1
+    size: xlarge
+    subnets: [mgmt, db, kafka]
+    groups: [core]
+  kafka:
+    # medium, not baseline's small: this broker carries the IPC sink/RPC/twin
+    # traffic *and* the entire metric stream, because Kafka is the only
+    # persistence target. A saturated broker would make the benchmark measure
+    # Kafka rather than OpenNMS. Revert to small only with headroom evidence.
+    count: 1
+    size: medium
+    subnets: [mgmt, kafka]
+    groups: [message_broker, docker_engine, kafka_ui]
+  minion:
+    count: 1
+    size: micro    # <- the independent variable; kfk-exclusive has small (2 vCPU / 4 GiB)
+    subnets: [mgmt, kafka, sim]
+    routes: { sim: net_sim }
+    groups: [minion]
+  loadgen:
+    count: 1
+    size: small
+    subnets: [mgmt, sim]
+    groups: [net_sim, docker_engine]
+  monitoring:
+    # baseline gives monitoring [mgmt, external]. This profile adds kafka,
+    # because the metrics topic is the only measurement point the deployment
+    # has and kafka_metrics_report runs here. Without the NIC the consumer
+    # resolves the broker's address, routes it out the external gateway and
+    # fails with a transport error that reads like a broken broker.
+    count: 1
+    size: small
+    subnets: [mgmt, kafka, external]
+    public_ip: true
+    groups: [mon_servers, docker_engine, grafana]
