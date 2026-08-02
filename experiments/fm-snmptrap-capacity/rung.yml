@@ -206,13 +206,13 @@
     ftc_results: "{{ (ftc_results | default([])) + [rung] }}"
     ftc_rows: >-
       {{ (ftc_rows | default([]))
-         + ['%-9s %-8s %-6s %-7s %-6.3f %-7s %-2s %-2s %-2s  %s' | format(
+         + ['%-9s %-8s %-8s %-8s %-6.3f %-7s %-9s %-2s %-2s  %s' | format(
               ftc_rung_label | default(ftc_rate),
               (ftc_rate | int) * (ftc_device_count | int),
               rung.sent, rung.events, rung.ratio | float,
               '-' if ftc_reference_ratio is not defined
                   else '%.3f' | format(rung.ratio | float / (ftc_reference_ratio | float)),
-              'ok' if rung.tier1 else 'XX',
+              rung.udp_drops,
               'ok' if rung.tier2 else 'XX',
               'ok' if rung.tier3 else 'XX',
               rung.verdict) ] }}

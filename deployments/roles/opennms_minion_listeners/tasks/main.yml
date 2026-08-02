@@ -6,6 +6,27 @@
 # Without these the port is open in the firewall, the Core-side consumer is
 # running and the manifest advertises the address, while nothing listens: the
 # generator reports a clean send and the sink never moves.
+# A listener that binds the port but cannot absorb a burst drops datagrams in
+# the kernel, before OpenNMS sees them. Nothing in the application logs says so;
+# the only evidence is RcvbufErrors on the host and a generator whose ledger
+# disagrees with the database.
+#
+# Written to /etc/sysctl.d rather than set live, so a reboot keeps it and the
+# value is discoverable next to the rest of the host's configuration.
+- name: Raise the receive-buffer ceiling the listeners are clamped to
+  ansible.posix.sysctl:
+    name: net.core.rmem_max
+    value: "{{ opennms_minion_listeners_rmem_max }}"
+    sysctl_file: /etc/sysctl.d/60-opennms-minion-listeners.conf
+    sysctl_set: true
+    reload: true
+    state: present
+  # The socket takes its size when it is bound, so a running Minion keeps the
+  # old buffer until it restarts. Without this the sysctl reads as applied while
+  # the trap socket is still the stock 208 KB.
+  notify: Restart minion
+  tags: ["minion_listeners"]
+
 - name: Configure the Minion's fault-management listeners
   ansible.builtin.template:
     src: "{{ item }}.j2"

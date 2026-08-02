@@ -374,12 +374,14 @@
           {{ ['reference: %s persisted of %s sent at %s/device = ratio %.3f'
                 | format(ftc_reference.events, ftc_reference.sent,
                          ftc_rates | first, ftc_reference.ratio | float),
-              'tier1 socket = Minion UDP drops. tier2 handoff = sink lag drained.',
-              'tier3 e2e = vs-ref >= %s and no decline across buckets.'
+              'drops = Minion UDP receive-buffer overruns (tier 1); any is a fail.',
+              'Printed rather than ticked: a handful is a jitter spike, and',
+              'hundreds of thousands is a different finding entirely.',
+              't2 handoff = sink lag drained. t3 e2e = vs-ref >= %s, no decline.'
                 | format(ftc_fidelity_floor),
               'PASS requires all three. R_max is the highest passing rate.',
               '',
-              'rate/dev  fleet/s  sent   events  ratio  vs-ref  t1 t2 t3  verdict']
+              'rate/dev  fleet/s  sent     events   ratio  vs-ref  drops     t2 t3  verdict']
              + (ftc_rows | default([])) }}
 
     # A sweep where nothing arrived at any rate is a broken deployment, not a

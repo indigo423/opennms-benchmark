@@ -9,3 +9,43 @@
 # definition, three consumers.
 opennms_minion_listeners_home: /opt/minion
 opennms_minion_listeners_interface: "0.0.0.0"
+
+# Receive-buffer ceiling for the fault-management listeners.
+#
+# rmem_max is the effective control here, and it is measured rather than
+# assumed. Trapd asks for a large SO_RCVBUF and the kernel clamps the request to
+# rmem_max, so the ceiling is what the socket actually gets: raising rmem_max to
+# 128 MiB produced rb268435456 on the live socket, exactly twice the ceiling
+# (Linux doubles the value for bookkeeping), and not twice rmem_default. Stock
+# ships both at 212992, which makes the two indistinguishable until they differ.
+#
+# Untuned, this is the deployment's real trap ceiling rather than anything about
+# OpenNMS. Measured on kvm at 10,000 traps/s against a 100-device fleet: 924,298
+# datagrams discarded at the socket, every one a receive-buffer overrun, while
+# everything that did get in was persisted with fidelity 1.000.
+#
+# Sized to absorb jitter and nothing more, because a receive buffer turns a rate
+# deficit into a backlog. Make it large and a Minion that genuinely cannot keep
+# up simply fills the buffer for the whole window and reports no drops at all —
+# the benchmark then measures the buffer instead of the Minion. Make it stock
+# and any GC pause reads as a capacity limit. The honest size is one that
+# swallows scheduling noise and cannot swallow a sustained deficit.
+#
+# Budget in bytes-per-second, not datagrams: the kernel charges the socket
+# skb->truesize, not the payload. A trap on this workload measures 70 bytes of
+# UDP payload (tcpdump, 400 packets) but costs roughly 768 bytes of buffer, so
+# sizing from the payload would over-estimate capacity by more than ten times.
+#
+# 8 MiB gives a 16 MiB socket, about one second at 20,000 traps/s:
+#   * 20-100x a typical G1 young-GC pause, so jitter never reads as loss;
+#   * 0.1% of a 15-minute steady-state window, so it cannot mask one;
+#   * at a 10% sustained deficit it fills in ~10s and then drops for the rest
+#     of the window, which is the signal the measurement is there to catch.
+#
+# Deliberately not the 128 MiB the riptide flow work used: that yields a 256 MiB
+# buffer, roughly seventeen seconds, which would hide a deficit inside a 60s
+# rung and is unsafe on a 2 GiB Minion besides.
+#
+# A pinned control of any Minion-sizing comparison — identical on every variant,
+# or the sizing is not the only variable — so it belongs on the result.
+opennms_minion_listeners_rmem_max: 8388608

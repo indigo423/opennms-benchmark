@@ -36,3 +36,10 @@ collections:
   # deployment roles.
   - name: amazon.aws
     version: "11.3.0"
+
+  # ansible.posix.sysctl, used by deployments/roles/opennms_minion_listeners to
+  # size the receive buffers the trap and syslog listeners inherit. It ships
+  # with most Ansible installations but is not part of ansible-core, so an
+  # unpinned run works locally and fails in CI.
+  - name: ansible.posix
+    version: "2.2.2"
