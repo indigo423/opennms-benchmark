@@ -39,6 +39,11 @@ The reference rung, run at the lowest sweep rate before the sweep and again insi
 Sources are **provisioned** (foreign source `nl6-ft`, ICMP and SNMP only), so trapd resolves each trap against a cached node instead of paying a lookup miss per trap.
 The requisition is built here rather than through the `opennms_requisition` role, because that role emits a `gNMI-Telemetry` service and `oc.*` meta-data, and TELEMETRYD is enabled on `kfk-exclusive` — an OpenConfig connector streaming from every node would be uncontrolled load.
 
+**The fleet's syslog is silent** (`ftc_syslog_collector: ""`), so this measures the trap path and only the trap path.
+Left on, the fleet emits syslog every 10 seconds per device down the same Minion sink, Kafka topic, eventd queue and Postgres table the traps use.
+That stream competes for the exact capacity under test.
+Excluding it from the count by `eventsource`, which the sweep does, removes it from the arithmetic but not from the system, so R_max comes out depressed by an amount nothing in the table reveals.
+
 `ftc_device_count` is a pinned control, not a variable.
 Rate is per device, so the claim is scoped to this fleet shape: 2500/s from 10 sources is not necessarily the same workload as 2500/s from 500, because trapd may key work by source.
 

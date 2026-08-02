@@ -16,6 +16,15 @@
 ftc_start_ip: "10.42.0.1"
 ftc_device_count: 10
 ftc_foreign_source: nl6-ft
+# Empty means the fleet emits no syslog at all: nl6 omits the block and the
+# devices come back with "syslog": null.
+#
+# One variable at a time. A trap benchmark run with the fleet's syslog left on
+# is measuring the two paths together — syslog every 10s per device travels the
+# same Minion sink, Kafka topic, eventd queue and Postgres inserts as the traps,
+# so it consumes the capacity under test and depresses R_max. Set this to a
+# host:port only if the question is explicitly about mixed load.
+ftc_syslog_collector: ""
 
 # ── the sweep ─────────────────────────────────────────────────────────────────
 # Ascending, and the first entry is the reference. Phase A brackets; it makes no

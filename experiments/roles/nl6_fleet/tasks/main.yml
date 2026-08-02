@@ -16,21 +16,36 @@
     nl6_fleet_prefix: "{{ nl6_fleet_sim_network.split('/')[1] }}"
   tags: ["fleet"]
 
+# A collector set to the empty string omits its block from the POST, and nl6
+# then builds devices that never emit that protocol at all (verified: the
+# device comes back with "syslog": null).
+#
+# This matters for any single-protocol benchmark. A trap capacity run with
+# syslog left on is measuring both: the fleet emits syslog every 10s per device
+# down the same Minion sink, Kafka topic, eventd queue and Postgres inserts
+# that the traps use, so the syslog stream competes for the very capacity being
+# measured and depresses the result. Filtering it out of the *count* (which the
+# experiments do, via eventsource) does not remove it from the *system*.
 - name: Create the fleet
   ansible.builtin.uri:
     url: "{{ nl6_fleet_endpoints.generators.nl6.url }}/api/v1/devices"
     method: POST
     body_format: json
     status_code: [200, 201, 202]
-    body:
+    body: "{{ nl6_fleet_body }}"
+  vars:
+    nl6_fleet_body_base:
       start_ip: "{{ nl6_fleet_start_ip }}"
       device_count: "{{ nl6_fleet_count | int }}"
       netmask: "{{ nl6_fleet_sim_network.split('/')[1] }}"
-      syslog:
-        collector: "{{ nl6_fleet_syslog_collector | trim }}"
-      traps:
-        collector: "{{ nl6_fleet_trap_collector | trim }}"
-        mode: trap
+    nl6_fleet_body_syslog: >-
+      {{ {'syslog': {'collector': nl6_fleet_syslog_collector | trim}}
+         if (nl6_fleet_syslog_collector | default('', true) | trim | length > 0) else {} }}
+    nl6_fleet_body_traps: >-
+      {{ {'traps': {'collector': nl6_fleet_trap_collector | trim, 'mode': 'trap'}}
+         if (nl6_fleet_trap_collector | default('', true) | trim | length > 0) else {} }}
+    nl6_fleet_body: >-
+      {{ nl6_fleet_body_base | combine(nl6_fleet_body_syslog) | combine(nl6_fleet_body_traps) }}
   register: nl6_fleet_result
   changed_when: true
   # A 2xx is not success: nl6 wraps replies in {"success": …} and rejects a
@@ -56,6 +71,11 @@
   ansible.builtin.debug:
     msg: >-
       {{ nl6_fleet_check.json.data | default([], true) | length }} device(s) live from
-      {{ nl6_fleet_start_ip }}, syslog to {{ nl6_fleet_syslog_collector | trim }},
-      traps to {{ nl6_fleet_trap_collector | trim }}
+      {{ nl6_fleet_start_ip }},
+      syslog {{ ('to ' ~ (nl6_fleet_syslog_collector | trim))
+                if (nl6_fleet_syslog_collector | default('', true) | trim | length > 0)
+                else 'SILENT' }},
+      traps {{ ('to ' ~ (nl6_fleet_trap_collector | trim))
+               if (nl6_fleet_trap_collector | default('', true) | trim | length > 0)
+               else 'SILENT' }}
   tags: ["fleet"]

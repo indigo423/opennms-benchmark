@@ -43,6 +43,13 @@
     nl6_fleet_sim_network: "{{ nl6_fleet_endpoints.generators.nl6.sim_network }}"
     nl6_fleet_start_ip: "{{ ftc_start_ip }}"
     nl6_fleet_count: "{{ ftc_device_count }}"
+    # Silent, so this measures the trap path and only the trap path. The fleet
+    # otherwise emits syslog every 10s per device into the same Minion sink,
+    # Kafka topic, eventd queue and Postgres table the traps use, competing for
+    # the exact capacity being measured. Excluding it from the count by
+    # eventsource, which the sweep does, removes it from the arithmetic but not
+    # from the system.
+    nl6_fleet_syslog_collector: "{{ ftc_syslog_collector }}"
   tasks:
     # Reset first: this range is shared with pm-snmp and fm-snmptrap, so without
     # it a run can drive load at devices another experiment created and
