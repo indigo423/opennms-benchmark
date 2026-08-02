@@ -159,9 +159,17 @@
     # The import raises a burst of Provisiond, nodeUp and poller events. A
     # background rate measured during that storm is measuring the storm, and
     # every rung inherits the error through its correction.
+    #
+    # wait_for, not pause. ansible.builtin.pause needs a controlling terminal:
+    # run unattended (CI, nohup, a background shell) it blocks far past the
+    # requested duration — observed here as a 300s settle taking over twenty
+    # minutes, and a whole sweep taking two hours instead of twenty minutes.
+    # wait_for with only a timeout is a plain sleep with no terminal handling.
     - name: Let provisioning settle
-      ansible.builtin.pause:
-        seconds: "{{ ftc_provision_settle_seconds }}"
+      ansible.builtin.wait_for:
+        timeout: "{{ ftc_provision_settle_seconds }}"
+      delegate_to: localhost
+      become: false
 
 - name: Sweep the trap rate
   hosts: mon_servers
