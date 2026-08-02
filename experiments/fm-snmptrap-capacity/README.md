@@ -27,7 +27,7 @@ Tier 2 reads **lag**, not the offset delta.
 The sink batches at a rate-dependent size, so the delta counts Kafka messages rather than traps and cannot be compared against the generator's ledger ([#215](https://github.com/indigo423/opennms-benchmark/issues/215)).
 Lag is immune to batch size, and it is also the only honest drain signal: the simulated fleet emits continuously, so waiting for a count to stop moving never fires.
 
-## auto-clean has to be off, or there is nothing to count
+## The path is pinned to trapd → eventd → database
 
 `SNMP_Authen_Failure` ships with:
 
@@ -35,18 +35,32 @@ Lag is immune to batch size, and it is also the only honest drain signal: the si
 <alarm-data reduction-key="%uei%:%dpname%:%nodeid%" alarm-type="3" auto-clean="true"/>
 ```
 
-Every authenticationFailure trap from a node reduces onto one alarm, and auto-clean then **deletes the older events backing it**.
-The traps are received, decoded and persisted normally. The rows are removed afterwards, by alarmd, on its own schedule.
+Every authenticationFailure trap from a node reduces onto one alarm, and alarmd's auto-clean then **deletes the older events backing it**.
+The traps are received, decoded and persisted normally. The rows are removed afterwards.
+
+Measured on the lab: **ten alarms, one per node, carrying a summed counter of 61,672**, against an events table holding a few hundred survivors. The traps arrived. The rows did not stay.
 
 This is fatal to a row-counting measurement in a way a filter would not be.
 A filter removes a fixed share of the workload, and a reference ratio normalises that away.
-This removes rows *after* they are counted in, at a moment alarmd chooses, so the surviving share depends on how much cleanup alarmd completes inside the bracket — which moves with load.
-The correction would then vary with the independent variable, and every `vs-ref` figure would be unsound.
+This removes rows *after* they are counted in, asynchronously, so the surviving share depends on when the bracket closes: the same 2,990-trap run showed 1,099 survivors moments after finishing and settled towards ~50% later.
+The correction moves with load, which is the independent variable, so no reference can absorb it.
 
-The experiment therefore switches auto-clean off for `ftc_autoclean_ueis` before measuring, and restarts OpenNMS if it changed anything (eventd holds the config in memory).
+`ftc_core_services` therefore pins two daemons off, for two different reasons:
+
+| Daemon | Why | Class |
+|---|---|---|
+| `ALARMD` | Performs auto-clean, which deletes the rows the sweep counts | Correctness |
+| `EVENTTRANSLATOR` | Per-event hot-path work unrelated to trap ingestion | Isolation |
+
+Neither is the **Event Correlator**, which `kfk-exclusive` already ships disabled (`CORE_SERVICE_CORRELATOR_ENABLED="false"`) — the deletions happened with the correlator off.
+Both default to `true` in the shipped `service-configuration.xml`, so both are in the path unless pinned.
+
+Disabling daemons rather than editing the event definition is deliberate.
+Editing `SNMP_Authen_Failure` fixes the symptom for one UEI while leaving alarm creation and reduction on the hot path, so the benchmark would still be timing alarmd, and it mutates a stock definition that outlives the run.
+
+"With alarm processing" and "with event translation" are each their own experiment against this same harness.
 
 This was previously mis-diagnosed as an ingress discard ([#212](https://github.com/indigo423/opennms-benchmark/issues/212)).
-The arithmetic says otherwise: at 5/device the sweep sent 2990 and 1494 survived, which is ~1495 coldStart plus ~10 authenticationFailure survivors (one per node).
 Nothing was ever dropped.
 
 ## Loss is still relative to a measured reference

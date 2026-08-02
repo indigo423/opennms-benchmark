@@ -35,70 +35,68 @@
 # bisection between phases is an operator decision and Ansible has no loop that
 # can express a search. See README.md for the phase sequence.
 
-# Without this the sweep cannot count what it measures.
+# Reduces the trap path to trapd -> eventd -> database, which is what makes the
+# sweep countable at all.
 #
 # SNMP_Authen_Failure ships with
 #   <alarm-data reduction-key="%uei%:%dpname%:%nodeid%" alarm-type="3" auto-clean="true"/>
-# so every authenticationFailure trap from one node reduces onto a single
-# alarm, and auto-clean then DELETES the older events backing it. The traps are
-# received, decoded and persisted normally; the rows are removed afterwards, by
-# alarmd, on its own schedule.
+# so every authenticationFailure trap from a node reduces onto one alarm, and
+# alarmd's auto-clean then DELETES the older events backing it. The traps are
+# received, decoded and persisted normally; the rows are removed afterwards.
 #
-# That is fatal to a row-counting measurement in a way a filter would not be.
-# A filter removes a fixed share of the workload, which a reference ratio
-# normalises away. This removes rows *after* they are counted-in, at a moment
-# alarmd chooses, so the share depends on how much cleanup alarmd completes
-# inside the bracket — which itself moves with load. The correction would then
-# vary with the independent variable, and every vs-ref figure would be unsound.
+# Measured on this lab: ten alarms, one per node, carrying a summed counter of
+# 61,672, against an events table holding a few hundred survivors. The traps
+# arrived. The rows did not stay.
 #
-# It was also mis-diagnosed here as an ingress discard (#212). The arithmetic
-# says otherwise: at 5/device the sweep sent 2990, and 1494 survived. Half the
-# nl6 workload is authenticationFailure, all of it collapsing to ~1 row per
-# node, which is ~1495 coldStart plus ~10 survivors. Nothing was ever dropped.
-- name: Make trap events survive long enough to be counted
-  hosts: database
-  gather_facts: false
-  become: true
-  tasks:
-    - name: Disable auto-clean on the trap events the sweep counts
-      ansible.builtin.shell:
-        cmd: |
-          set -eu
-          sudo -u postgres psql -qtA -d {{ lab_endpoints.measurement.database.name }} <<'SQL'
-          with changed as (
-            update eventconf_events
-               set xml_content = replace(xml_content, 'auto-clean="true"', 'auto-clean="false"'),
-                   last_modified = now()
-             where uei = any(string_to_array('{{ ftc_autoclean_ueis | join(",") }}', ','))
-               and xml_content like '%auto-clean="true"%'
-            returning 1)
-          select count(*) from changed;
-          SQL
-      vars:
-        lab_endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
-      register: ftc_autoclean
-      # Idempotent: the UPDATE matches only rows still set to true, so a second
-      # run changes nothing and reports 0.
-      changed_when: (ftc_autoclean.stdout | trim | int) > 0
-      failed_when: ftc_autoclean.stdout is not match('^[0-9]+$')
-
-    - name: Publish whether the event configuration moved
-      ansible.builtin.set_fact:
-        ftc_autoclean_changed: "{{ (ftc_autoclean.stdout | trim | int) > 0 }}"
-
-# Eventd holds the configuration in memory, so a row the sweep just changed is
-# not in force until the JVM reloads it. Restarting only on an actual change
-# keeps a re-run from paying for it.
-- name: Load the changed event configuration
+# Fatal to a row-counting measurement in a way a filter would not be. A filter
+# removes a fixed share of the workload and a reference ratio normalises it
+# away. This removes rows *after* they are counted in, asynchronously, so the
+# surviving share depends on when the bracket closes: the same 2,990-trap run
+# showed 1,099 survivors moments after finishing and settled towards ~50%
+# later. The correction moves with load, which is the independent variable, so
+# no reference can absorb it.
+#
+# Disabling daemons rather than editing the event definition, deliberately.
+# Editing SNMP_Authen_Failure fixes the symptom for one UEI while leaving alarm
+# creation and reduction on the hot path, so the benchmark would still be timing
+# alarmd; and it mutates a stock definition that outlives the run.
+#
+# Not the Event Correlator, which kfk-exclusive already ships disabled
+# (CORE_SERVICE_CORRELATOR_ENABLED="false"), so the deletions happened with the
+# correlator off. Nor the EventTranslator, which does not delete rows — it is
+# pinned off here for isolation rather than correctness, being per-event work
+# unrelated to trap ingestion.
+#
+# The 0.5 ratio was previously read as an ingress discard (#212). Nothing was
+# ever dropped.
+- name: Pin the daemons that must be out of the trap path
   hosts: core
   gather_facts: false
   become: true
   tasks:
-    - name: Restart OpenNMS
-      ansible.builtin.systemd:
-        name: opennms
-        state: restarted
-      when: hostvars[groups['database'][0]].ftc_autoclean_changed | default(false) | bool
+    # opennms.conf is rendered by the pinned collection and says "DO NOT EDIT".
+    # Editing it here is deliberate and self-healing: a redeploy rewrites the
+    # file and drops these, and the next run of this experiment puts them back.
+    # The alternative, carrying them in the deployment overlay, would apply them
+    # to every experiment that shares the deployment.
+    - name: Set the daemon enablement this experiment controls
+      ansible.builtin.lineinfile:
+        path: /opt/opennms/etc/opennms.conf
+        regexp: "^export {{ item.key }}="
+        line: 'export {{ item.key }}="{{ item.value }}"'
+        owner: opennms
+        group: opennms
+        mode: "0640"
+      loop: "{{ ftc_core_services | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}={{ item.value }}"
+      notify: Restart OpenNMS to apply the daemon set
+
+    # Handlers otherwise run at the end of the play, which is after the wait
+    # below and after nothing has been measured yet but the check would have
+    # passed against the pre-restart JVM.
+    - name: Apply the daemon set before anything is measured
+      ansible.builtin.meta: flush_handlers
 
     - name: Wait for the REST interface to answer
       ansible.builtin.uri:
@@ -112,6 +110,15 @@
       retries: 60
       delay: 10
       changed_when: false
+
+  handlers:
+    # The gates are read at JVM startup, so a change is not in force until
+    # OpenNMS restarts. As a handler, a re-run against an already-pinned lab
+    # costs nothing.
+    - name: Restart OpenNMS to apply the daemon set
+      ansible.builtin.systemd:
+        name: opennms
+        state: restarted
 
 - name: Build the fleet
   hosts: net_sim

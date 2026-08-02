@@ -32,16 +32,28 @@ ftc_syslog_collector: ""
 ftc_rates: [5, 25, 50, 100, 250]
 ftc_window: 60s
 
-# ── countability ──────────────────────────────────────────────────────────────
-# Event definitions whose auto-clean the sweep switches off before measuring.
-#
-# auto-clean deletes the older events backing an alarm once a new one reduces
-# onto it, so a trap that is received, decoded and persisted normally still
-# disappears from the table before it can be counted. Only SNMP_Authen_Failure
-# carries it in the stock trap source, and half of every nl6 trap workload is
-# authenticationFailure, so leaving it on removes about half the rows.
-ftc_autoclean_ueis:
-  - uei.opennms.org/generic/traps/SNMP_Authen_Failure
+# ── the daemon set, pinned so the trap path is the only path ─────────────────
+# Written into opennms.conf and applied by a restart. Both default to true in
+# the shipped service-configuration.xml, so both are in the path unless pinned.
+ftc_core_services:
+  # Correctness. Alarmd performs auto-clean, which DELETES the older events
+  # backing an alarm once a new one reduces onto it. SNMP_Authen_Failure
+  # reduces on %uei%:%dpname%:%nodeid%, so a whole run's authenticationFailure
+  # traps collapse onto one alarm per node and the rows the sweep counts are
+  # removed underneath it. Measured on this lab: ten alarms carrying a summed
+  # counter of 61,672, against an events table holding a few hundred survivors.
+  #
+  # Worse than a fixed loss, the deletion is asynchronous, so the surviving
+  # count depends on when the bracket closes: the same 2,990-trap run showed
+  # 1,099 survivors moments after it finished and settled towards ~50% later.
+  # A reference ratio cannot normalise that away, because the correction moves
+  # with load — which is the independent variable.
+  CORE_SERVICE_ALARMD_ENABLED: "false"
+  # Isolation. The translator is not what deletes rows, but it is per-event work
+  # on the hot path that has nothing to do with trap ingestion. Pinning it off
+  # keeps the measurement to trapd -> eventd -> database, and leaves "with event
+  # translation" as its own experiment against the same harness.
+  CORE_SERVICE_EVENTTRANSLATOR_ENABLED: "false"
 
 # ── pass criteria ─────────────────────────────────────────────────────────────
 # Fidelity relative to the measured reference rather than to an assumed 1.0.
