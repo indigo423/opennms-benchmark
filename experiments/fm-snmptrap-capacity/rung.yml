@@ -61,6 +61,26 @@
   # Gating on rc alone fails a rung that missed 10 sends out of 3000.
   failed_when: ftc_load.rc > 1
 
+# Closes the trend's window at the moment load stopped, which is not where the
+# counting bracket closes.
+#
+# The bracket has to run past the drain so events still in flight are counted,
+# but the per-minute trend must not: every minute of drain and probe overhead
+# contributes a bucket holding only the fleet's background traps, and those
+# near-zero buckets sit in the tail. Comparing halves of the whole bracket then
+# fails for any healthy rung — measured at 20,000/s, head 599,848/min against
+# tail 218/min, which condemned a rung whose ratio was 1.000 and whose socket
+# dropped nothing.
+- name: "Mark the end of load for {{ ftc_rate }}"
+  ansible.builtin.command:
+    cmd: >-
+      sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }}
+      -c "select extract(epoch from now())"
+  delegate_to: "{{ db }}"
+  become: true
+  register: ftc_t_load_end
+  changed_when: false
+
 # Drain on the lag returning to where it started, not on a fixed pause. The
 # simulated fleet emits continuously, so "wait until the count stops moving"
 # never fires; a fixed pause either truncates a slow drain (under-reporting the
@@ -112,9 +132,12 @@
   changed_when: false
   failed_when: ftc_udp_after.stdout is not match('^[0-9]+$')
 
-# One grouped range scan over events_time_idx: total, and per-minute counts for
-# the trend. Emitted as "total<newline>bucket bucket ..." so a single register
-# carries both without a second query and a second bracket to keep aligned.
+# Two ranges on purpose, both over events_time_idx. The total spans the whole
+# bracket, so events still in flight when load stopped are counted. The buckets
+# stop at the end of load, so the trend describes the period when load was
+# actually offered rather than being dragged down by idle minutes of drain and
+# probe overhead. Emitted as "total<newline>bucket bucket ..." so one register
+# carries both.
 - name: "Read what persisted for {{ ftc_rate }}"
   ansible.builtin.shell:
     cmd: |
@@ -128,7 +151,7 @@
               select date_trunc('minute', eventtime) as m, count(*) as c
                 from events
                where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
-                 and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
+                 and eventtime <  to_timestamp({{ ftc_t_load_end.stdout | trim }})
                  and eventsource = 'trapd'
                group by 1) b"
   delegate_to: "{{ db }}"
