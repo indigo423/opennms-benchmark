@@ -1,0 +1,64 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase A defaults: short windows, coarse ladder, bracketing only. Phase B and C
+# override ftc_rates and ftc_window through EXTRA_VARS — see README.md.
+#
+# make passes this file via --extra-vars, and EXTRA_VARS is passed after it, so
+# a CLI override of any name defined here wins. That ordering is what makes the
+# phases runnable without editing this file.
+
+# ── the fleet (a pinned control, not a variable of this experiment) ───────────
+# rate is per device, so the fleet-wide offered rate is rate x count. The claim
+# is scoped to this fleet shape: 2500/s from 10 sources is not necessarily the
+# same workload as 2500/s from 500, because trapd may key work by source.
+ftc_start_ip: "10.42.0.1"
+ftc_device_count: 10
+ftc_foreign_source: nl6-ft
+
+# ── the sweep ─────────────────────────────────────────────────────────────────
+# Ascending, and the first entry is the reference. Phase A brackets; it makes no
+# claims, because 60s is absorbed by the sink batch and the eventd queue.
+ftc_rates: [5, 25, 50, 100, 250]
+ftc_window: 60s
+
+# ── pass criteria ─────────────────────────────────────────────────────────────
+# Fidelity relative to the measured reference, not absolute. Half of every nl6
+# trap workload is authenticationFailure, which this deployment discards, so the
+# absolute ratio sits near 0.5 with nothing wrong (#212). 0.99 is "lost nothing
+# the reference did not also lose".
+ftc_fidelity_floor: 0.99
+# The second half of the window must hold at least this share of the first
+# half's rate. Below it the system is progressively falling behind, which a
+# single window total cannot distinguish from keeping up.
+ftc_trend_floor: 0.95
+
+# ── drain ─────────────────────────────────────────────────────────────────────
+# Absolute, since a baseline of zero admits no relative tolerance. One batch of
+# slack: the consumer commits per batch, so a lag of a few records is a commit
+# in flight rather than a backlog.
+ftc_drain_tolerance: 100
+ftc_drain_poll: 10
+ftc_drain_timeout: 600
+
+# ── settling and baselines ────────────────────────────────────────────────────
+# Long enough that the count is not dominated by rounding, short enough not to
+# add a rung to the sweep.
+ftc_baseline_seconds: 30
+# The import raises Provisiond, nodeUp and poller events. Measuring the idle
+# background rate during that storm measures the storm.
+ftc_provision_settle_seconds: 300
+# Every rung must be filled by the generator to at least this fraction, or it
+# measures nl6's ceiling rather than the deployment's. 0.99 rather than 1.0
+# because a healthy 60s run at 5/device shows ~0.3% jitter (2,990 of 3,000):
+# demanding an exact fill rejects every rung and the sweep cannot run.
+ftc_min_delivery: 0.99
+# The reference is held to the same floor via the rung gate; this remains the
+# separate, looser check that its *signal* is usable.
+ftc_reference_min_delivery: 0.9
+
+# ── where the accepted side is read ───────────────────────────────────────────
+# The Core's sink consumer group. Not derived from the manifest because the
+# manifest publishes topics, not groups.
+ftc_sink_group: OpenNMS

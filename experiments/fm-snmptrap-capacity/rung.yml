@@ -1,0 +1,256 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# One rung of the capacity sweep, measured at three tiers.
+#
+# Every probe runs outside the load window. That is deliberate: the obvious
+# design samples the events table periodically during the window to get a
+# trend, but `events` carries no index on eventsource, so each sample is a
+# sequential scan over the whole table and competes for exactly the disk I/O
+# the benchmark is trying to saturate (#216). Instead the trend is reconstructed
+# afterwards from a single grouped query over `eventtime`, which uses
+# events_time_idx and costs time proportional to the window rather than to the
+# table. The measurement window therefore carries load and nothing else.
+
+- name: "Read the Minion UDP counters before {{ ftc_rate }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      awk '/^Udp:/ { if (h == "") { for (i=2;i<=NF;i++) k[i]=$i; h="x"; next }
+                     for (i=2;i<=NF;i++) v[k[i]]=$i }
+           END { print (v["InErrors"] + v["RcvbufErrors"]) }' /proc/net/snmp
+  delegate_to: "{{ minion }}"
+  register: ftc_udp_before
+  changed_when: false
+  failed_when: ftc_udp_before.stdout is not match('^[0-9]+$')
+
+# Should be at or near zero before a rung. A non-zero starting lag means the
+# previous rung never drained, so this rung starts against a backlog and its
+# result belongs to both rungs rather than to either.
+- name: "Read the sink lag before {{ ftc_rate }}"
+  ansible.builtin.command:
+    cmd: kafka-offsets {{ sink_topic }} --require-topic --lag={{ ftc_sink_group }}
+  register: ftc_lag_before
+  changed_when: false
+  failed_when: ftc_lag_before.stdout is not match('^[0-9]+$')
+
+- name: "Mark the measurement start for {{ ftc_rate }}"
+  ansible.builtin.command:
+    cmd: >-
+      sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }}
+      -c "select extract(epoch from now())"
+  delegate_to: "{{ db }}"
+  become: true
+  register: ftc_t0
+  changed_when: false
+
+- name: "Drive the load at {{ ftc_rate }}"
+  ansible.builtin.command:
+    cmd: >-
+      nl6-loadtest --protocol snmp-trap --rate {{ ftc_rate }} --window {{ ftc_window }}
+      --start-ip {{ ftc_start_ip }} --count {{ ftc_device_count }}
+      --label "fm-snmptrap-capacity {{ ftc_rate }}/device"
+      --html /tmp/ftc-{{ ftc_rung_label | default(ftc_rate) }}.html
+      --json /tmp/ftc-{{ ftc_rung_label | default(ftc_rate) }}.json
+  register: ftc_load
+  changed_when: true
+  # rc 1 means the generator did not deliver the full requested load; rc > 1 is
+  # a real error. Neither is decided here — the amount of the shortfall is what
+  # matters, and that is only knowable from the ledger, which is read below.
+  # Gating on rc alone fails a rung that missed 10 sends out of 3000.
+  failed_when: ftc_load.rc > 1
+
+# Drain on the lag returning to where it started, not on a fixed pause. The
+# simulated fleet emits continuously, so "wait until the count stops moving"
+# never fires; a fixed pause either truncates a slow drain (under-reporting the
+# rung) or wastes wall clock on every fast one. The tolerance is absolute
+# because a baseline of zero admits no relative one.
+- name: "Drain the pipeline after {{ ftc_rate }}"
+  ansible.builtin.command:
+    cmd: kafka-offsets {{ sink_topic }} --lag={{ ftc_sink_group }}
+  register: ftc_drain
+  until: >-
+    ftc_drain.stdout is match('^[0-9]+$')
+    and (ftc_drain.stdout | int) <= (ftc_lag_before.stdout | int) + (ftc_drain_tolerance | int)
+  retries: "{{ (ftc_drain_timeout | int // ftc_drain_poll | int) | int }}"
+  delay: "{{ ftc_drain_poll }}"
+  changed_when: false
+  # Not fatal. A rung that never drains is the finding — it says the deployment
+  # cannot keep up at this rate — and failing here would discard the tier
+  # readings that prove it.
+  failed_when: false
+
+# The events for traps sent late in the window arrive during the drain, so the
+# counting bracket has to close after the drain rather than at the end of load.
+- name: "Mark the measurement end for {{ ftc_rate }}"
+  ansible.builtin.command:
+    cmd: >-
+      sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }}
+      -c "select extract(epoch from now())"
+  delegate_to: "{{ db }}"
+  become: true
+  register: ftc_t1
+  changed_when: false
+
+- name: "Read the sink lag after {{ ftc_rate }}"
+  ansible.builtin.command:
+    cmd: kafka-offsets {{ sink_topic }} --lag={{ ftc_sink_group }}
+  register: ftc_lag_after
+  changed_when: false
+  failed_when: ftc_lag_after.stdout is not match('^[0-9]+$')
+
+- name: "Read the Minion UDP counters after {{ ftc_rate }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      awk '/^Udp:/ { if (h == "") { for (i=2;i<=NF;i++) k[i]=$i; h="x"; next }
+                     for (i=2;i<=NF;i++) v[k[i]]=$i }
+           END { print (v["InErrors"] + v["RcvbufErrors"]) }' /proc/net/snmp
+  delegate_to: "{{ minion }}"
+  register: ftc_udp_after
+  changed_when: false
+  failed_when: ftc_udp_after.stdout is not match('^[0-9]+$')
+
+# One grouped range scan over events_time_idx: total, and per-minute counts for
+# the trend. Emitted as "total<newline>bucket bucket ..." so a single register
+# carries both without a second query and a second bracket to keep aligned.
+- name: "Read what persisted for {{ ftc_rate }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      psql() { sudo -u postgres command psql -qtA -d {{ endpoints.measurement.database.name }} "$@"; }
+      psql -c "select count(*) from events
+                where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
+                  and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
+                  and eventsource = 'trapd'"
+      psql -c "select string_agg(c::text, ' ' order by m) from (
+                 select date_trunc('minute', eventtime) as m, count(*) as c
+                   from events
+                  where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
+                    and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
+                    and eventsource = 'trapd'
+                  group by 1) b"
+  delegate_to: "{{ db }}"
+  become: true
+  register: ftc_persisted
+  changed_when: false
+
+- name: "Read the sent-ledger for {{ ftc_rate }}"
+  ansible.builtin.slurp:
+    src: "/tmp/ftc-{{ ftc_rung_label | default(ftc_rate) }}.json"
+  register: ftc_ledger
+  failed_when: false
+
+# The validity gate, and it is about the generator rather than the SUT.
+#
+# fm-snmptrap tolerates a shortfall and records the rung, because a short
+# delivery is still a valid fidelity data point. A capacity sweep cannot: a rung
+# the generator could not fill measures the generator, and recording it as R_max
+# would publish nl6's ceiling as the deployment's.
+#
+# Gated on the fraction, not on the exit status. nl6 exits 1 for any shortfall
+# at all, including the ~0.3% jitter a healthy run shows, so an rc test rejects
+# every rung and the sweep cannot run.
+- name: "Assert the generator filled the request at {{ ftc_rate }}"
+  ansible.builtin.assert:
+    that:
+      - (ledger.delivered.expected | default(0) | int) == 0
+        or (ledger.delivered.sent | default(0) | int)
+           >= (ledger.delivered.expected | int) * (ftc_min_delivery | float)
+    fail_msg: >-
+      At {{ ftc_rate }}/device the generator delivered
+      {{ ledger.delivered.sent | default(0) }} of
+      {{ ledger.delivered.expected | default(0) }} requested
+      ({{ ((ledger.delivered.sent | default(0) | int)
+           / ([ledger.delivered.expected | default(1) | int, 1] | max) * 100) | round(1) }}%,
+      floor {{ (ftc_min_delivery | float * 100) | round(1) }}%). That is nl6
+      running out of headroom, not the deployment giving way, so this rung
+      cannot be a capacity measurement. Lower the ladder, or add generator
+      capacity, and rerun.
+    quiet: true
+  vars:
+    ledger: >-
+      {{ (ftc_ledger.content | default("") | b64decode | from_json)
+         if ftc_ledger.content is defined else {"delivered": {}, "request": {}} }}
+
+- name: "Record the rung for {{ ftc_rate }}"
+  ansible.builtin.set_fact:
+    ftc_results: "{{ (ftc_results | default([])) + [rung] }}"
+    ftc_rows: >-
+      {{ (ftc_rows | default([]))
+         + ['%-9s %-8s %-6s %-7s %-6.3f %-7s %-2s %-2s %-2s  %s' | format(
+              ftc_rung_label | default(ftc_rate),
+              (ftc_rate | int) * (ftc_device_count | int),
+              rung.sent, rung.events, rung.ratio | float,
+              '-' if ftc_reference_ratio is not defined
+                  else '%.3f' | format(rung.ratio | float / (ftc_reference_ratio | float)),
+              'ok' if rung.tier1 else 'XX',
+              'ok' if rung.tier2 else 'XX',
+              'ok' if rung.tier3 else 'XX',
+              rung.verdict) ] }}
+  vars:
+    ledger: >-
+      {{ (ftc_ledger.content | default("") | b64decode | from_json)
+         if ftc_ledger.content is defined else {"delivered": {}, "request": {}} }}
+    bracket_s: "{{ (ftc_t1.stdout | trim | float) - (ftc_t0.stdout | trim | float) }}"
+    persisted_raw: "{{ ftc_persisted.stdout_lines[0] | default(0) | int }}"
+    buckets: >-
+      {{ (ftc_persisted.stdout_lines[1] | default('', true)).split()
+         | map('int') | list }}
+    background: "{{ ((ftc_background_mps | int * (bracket_s | float)) / 1000) | round | int }}"
+    persisted: "{{ [(persisted_raw | int) - (background | int), 0] | max }}"
+    # Trend across the load window's own buckets, ignoring the first and last:
+    # the first is partial (the window opens mid-minute) and the last is the
+    # drain tapering off. A system that is keeping up holds a flat rate; one
+    # that is progressively falling behind declines, and a single window total
+    # cannot tell those apart.
+    trend_buckets: "{{ buckets[1:-1] if (buckets | length) >= 5 else [] }}"
+    trend_head: >-
+      {{ (trend_buckets[: (trend_buckets | length) // 2] | sum)
+         / ([(trend_buckets | length) // 2, 1] | max) }}
+    trend_tail: >-
+      {{ (trend_buckets[(trend_buckets | length) // 2 :] | sum)
+         / ([(trend_buckets | length) - (trend_buckets | length) // 2, 1] | max) }}
+    ratio_v: >-
+      {{ (persisted | int) / ([ledger.delivered.sent | default(0) | int, 1] | max) }}
+    # vs-ref is undefined on the reference rung itself, which is measured before
+    # the ratio it defines exists. Treated as passing so the reference is not
+    # reported as a failure of the thing it calibrates.
+    tier3_fidelity: >-
+      {{ true if ftc_reference_ratio is not defined
+         else (ratio_v | float) / (ftc_reference_ratio | float) >= (ftc_fidelity_floor | float) }}
+    tier3_trend: >-
+      {{ true if (trend_buckets | length) < 4
+         else (trend_tail | float) >= (trend_head | float) * (ftc_trend_floor | float) }}
+    rung:
+      rate: "{{ ftc_rate }}"
+      devices: "{{ ftc_device_count }}"
+      fleet_rate: "{{ (ftc_rate | int) * (ftc_device_count | int) }}"
+      sent: "{{ ledger.delivered.sent | default(0) }}"
+      expected: "{{ ledger.delivered.expected | default(0) }}"
+      send_failures: "{{ ledger.delivered.send_failures | default(0) }}"
+      events_raw: "{{ persisted_raw }}"
+      background: "{{ background }}"
+      events: "{{ persisted }}"
+      bracket_s: "{{ bracket_s | float | round(1) }}"
+      buckets: "{{ buckets }}"
+      ratio: "{{ ratio_v }}"
+      udp_drops: "{{ (ftc_udp_after.stdout | trim | int) - (ftc_udp_before.stdout | trim | int) }}"
+      lag_before: "{{ ftc_lag_before.stdout | trim | int }}"
+      lag_after: "{{ ftc_lag_after.stdout | trim | int }}"
+      # Tier 1: nothing dropped at the Minion's socket.
+      tier1: "{{ ((ftc_udp_after.stdout | trim | int) - (ftc_udp_before.stdout | trim | int)) == 0 }}"
+      # Tier 2: the backlog drained back to where it started.
+      tier2: >-
+        {{ (ftc_lag_after.stdout | trim | int)
+           <= (ftc_lag_before.stdout | trim | int) + (ftc_drain_tolerance | int) }}
+      # Tier 3: fidelity held and did not decay across the window.
+      tier3: "{{ (tier3_fidelity | bool) and (tier3_trend | bool) }}"
+      verdict: >-
+        {{ 'PASS'
+           if (((ftc_udp_after.stdout | trim | int) - (ftc_udp_before.stdout | trim | int)) == 0)
+              and ((ftc_lag_after.stdout | trim | int)
+                   <= (ftc_lag_before.stdout | trim | int) + (ftc_drain_tolerance | int))
+              and (tier3_fidelity | bool) and (tier3_trend | bool)
+           else 'FAIL' }}

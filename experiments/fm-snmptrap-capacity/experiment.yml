@@ -1,0 +1,320 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Fault management: the maximum sustained SNMP trap rate this deployment
+# accepts without data loss.
+#
+#   make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kfk-exclusive \
+#     EXTRA_VARS='{"ftc_rates":[5,25,50,100,250],"ftc_window":"60s"}'
+#
+# Distinct from fm-snmptrap, which sweeps a fixed ladder at 30s windows and
+# reports a fidelity table. That answers "does this path carry traffic, and
+# does fidelity move with rate". It cannot answer "what is the maximum
+# sustained rate", because a 30s window is absorbed by Kafka sink batching, the
+# eventd queue and Postgres, and drains during the settle. A rate that passes
+# at 30s can collapse over 15 minutes. See #216.
+#
+# The answer is R_max: the highest offered fleet-wide rate passing all three
+# tiers below. Report all three, because where they diverge is the diagnosis.
+#
+#   tier 1  socket     Minion UDP InErrors + RcvbufErrors delta == 0
+#                      -> did the kernel drop traps before OpenNMS saw them?
+#   tier 2  handoff    consumer lag on the sink topic returns to baseline
+#                      -> is the Minion keeping up, or is the Core behind?
+#   tier 3  end-to-end vs-ref >= ftc_fidelity_floor, no decline across buckets
+#                      -> did anything fail to persist?
+#
+# Tier 2 reads lag, not the offset delta: the sink batches at a rate-dependent
+# size, so the delta counts Kafka messages rather than traps (#215). Lag is
+# immune to batch size, and "backlog returned to baseline" is also the only
+# honest drain signal here — the fleet emits continuously, so waiting for a
+# count to stop moving never fires.
+#
+# The sweep is run once per phase with an explicit rate list, because the
+# bisection between phases is an operator decision and Ansible has no loop that
+# can express a search. See README.md for the phase sequence.
+
+- name: Build the fleet
+  hosts: net_sim
+  gather_facts: false
+  vars:
+    nl6_fleet_endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    nl6_fleet_sim_network: "{{ nl6_fleet_endpoints.generators.nl6.sim_network }}"
+    nl6_fleet_start_ip: "{{ ftc_start_ip }}"
+    nl6_fleet_count: "{{ ftc_device_count }}"
+  tasks:
+    # Reset first: this range is shared with pm-snmp and fm-snmptrap, so without
+    # it a run can drive load at devices another experiment created and
+    # reconcile against traffic it did not send.
+    #
+    # include_role, not a `roles:` entry. `tasks_from` is a parameter of
+    # include_role/import_role and is NOT a key the play-level `roles:` list
+    # understands — there it is silently accepted as a role *variable* and
+    # main.yml runs instead, so the reset never happens and the run inherits the
+    # previous fleet. See #217.
+    - name: Remove any fleet a previous run left behind
+      ansible.builtin.include_role:
+        name: nl6_fleet
+        tasks_from: reset
+
+    - name: Create the fleet
+      ansible.builtin.include_role:
+        name: nl6_fleet
+
+- name: Provision the fleet
+  hosts: mon_servers
+  gather_facts: false
+  vars:
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    ftc_opennms_base: >-
+      http://{{ endpoints.measurement.opennms.host }}:{{ endpoints.measurement.opennms.port }}/opennms
+  tasks:
+    # Built here rather than through the opennms_requisition role on purpose.
+    # That role runs nl6's onms-provision.sh, which always emits a
+    # gNMI-Telemetry monitored service plus oc.* meta-data. TELEMETRYD is
+    # enabled on kfk-exclusive, so those nodes would have an OpenConfig
+    # connector streaming from them for the whole sweep: uncontrolled load in a
+    # benchmark whose entire point is one independent variable.
+    #
+    # Re-deriving the mapping is normally the wrong trade (upstream owns it and
+    # it drifts), but that argument is about nl6's *rich* mapping. This wants
+    # deliberately less than nl6 knows: an address and two services.
+    - name: Read the fleet nl6 holds
+      ansible.builtin.uri:
+        url: "{{ endpoints.generators.nl6.url }}/api/v1/devices"
+        method: GET
+        return_content: true
+      register: ftc_fleet
+      changed_when: false
+
+    # Without this the import below would post an empty requisition, provisiond
+    # would delete whatever was there, and every rung would measure traps from
+    # sources OpenNMS does not know — which is the unprovisioned experiment,
+    # silently substituted for the provisioned one.
+    - name: Assert nl6 holds the fleet this run asked for
+      ansible.builtin.assert:
+        that:
+          - (ftc_fleet.json.data | default([], true) | length) == (ftc_device_count | int)
+        fail_msg: >-
+          nl6 reports {{ ftc_fleet.json.data | default([], true) | length }} device(s),
+          not the {{ ftc_device_count }} this run creates. Provisioning that would
+          measure a different fleet than the one being driven.
+        quiet: true
+
+    - name: Build the requisition
+      ansible.builtin.set_fact:
+        ftc_requisition: >-
+          {{ lookup('template', playbook_dir ~ '/requisition.xml.j2') }}
+      vars:
+        ftc_devices: "{{ ftc_fleet.json.data | default([], true) }}"
+        ftc_location: "{{ endpoints.ingestion.traps.location }}"
+
+    - name: Upload the requisition
+      ansible.builtin.uri:
+        url: "{{ ftc_opennms_base }}/rest/requisitions"
+        method: POST
+        body: "{{ ftc_requisition }}"
+        body_format: raw
+        headers:
+          Content-Type: application/xml
+        user: admin
+        password: admin
+        force_basic_auth: true
+        status_code: [200, 202, 204]
+      changed_when: true
+
+    - name: Trigger the import
+      ansible.builtin.uri:
+        url: >-
+          {{ ftc_opennms_base }}/rest/requisitions/{{ ftc_foreign_source }}/import?rescanExisting=false
+        method: PUT
+        user: admin
+        password: admin
+        force_basic_auth: true
+        status_code: [200, 202, 204]
+      changed_when: true
+
+    # Exact, not >=. A stale foreign source holding more nodes than this fleet
+    # would satisfy a >= wait immediately, and every rung would measure the
+    # previous run's lab.
+    - name: Wait for provisiond to finish importing
+      ansible.builtin.uri:
+        url: >-
+          {{ ftc_opennms_base }}/rest/nodes?foreignSource={{ ftc_foreign_source }}&limit=1
+        method: GET
+        user: admin
+        password: admin
+        force_basic_auth: true
+        headers:
+          Accept: application/json
+        return_content: true
+      register: ftc_nodes
+      until: >-
+        (ftc_nodes.json.totalCount | default(0) | int) == (ftc_device_count | int)
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    # The import raises a burst of Provisiond, nodeUp and poller events. A
+    # background rate measured during that storm is measuring the storm, and
+    # every rung inherits the error through its correction.
+    - name: Let provisioning settle
+      ansible.builtin.pause:
+        seconds: "{{ ftc_provision_settle_seconds }}"
+
+- name: Sweep the trap rate
+  hosts: mon_servers
+  gather_facts: false
+  vars:
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    db: "{{ groups['database'][0] }}"
+    minion: "{{ groups['minion'][0] }}"
+    # Published by the deployment, not retyped here. A topic name typed into an
+    # experiment reads as zero arrivals when it is wrong, which is
+    # indistinguishable from an ingress that accepted nothing.
+    sink_topic: "{{ endpoints.ingestion.traps.sink_topic }}"
+  roles:
+    - kafka_offsets
+  tasks:
+    - name: Assert the deployment installed the tools this needs
+      ansible.builtin.stat:
+        path: "/usr/local/bin/{{ item }}"
+      loop: [nl6-loadtest, kafka-offsets]
+      register: ftc_tools
+      failed_when: not ftc_tools.stat.exists
+      changed_when: false
+
+    # The reference is ftc_rates | first, so the list must ascend for it to be
+    # the least-loaded measurement. Nothing else enforces the ordering, and a
+    # reordered list would silently calibrate the sweep against a saturated rung.
+    - name: Assert the sweep rates ascend
+      ansible.builtin.assert:
+        that:
+          - (ftc_rates | length) > 1
+          - ftc_rates | map('int') | list == (ftc_rates | map('int') | sort | list)
+        fail_msg: >-
+          ftc_rates must ascend and hold at least two entries: the first is the
+          reference, and the reference has to be the least-loaded rung.
+          Got {{ ftc_rates }}.
+        quiet: true
+
+    # Measured after provisioning has settled, so it is the idle rate of a
+    # provisioned fleet rather than of a scan storm.
+    - name: Measure the idle background trap rate
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          q="select count(*) from events where eventsource = 'trapd'"
+          a=$(sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }} -c "$q")
+          sleep {{ ftc_baseline_seconds }}
+          b=$(sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }} -c "$q")
+          echo $(( (b - a) * 1000 / {{ ftc_baseline_seconds }} ))
+      delegate_to: "{{ db }}"
+      become: true
+      register: ftc_baseline
+      changed_when: false
+      failed_when: ftc_baseline.stdout is not match('^[0-9]+$')
+
+    # Milli-events per second, kept integer so the rung arithmetic stays exact.
+    - name: Record the background rate
+      ansible.builtin.set_fact:
+        ftc_background_mps: "{{ ftc_baseline.stdout | trim | int }}"
+
+    # The reference rung: the lowest sweep rate, run once before the sweep and
+    # once inside it, at the same rate and the same window. Its persisted-over-
+    # sent ratio is the definition of "nothing was lost" for this workload
+    # against this deployment, measured rather than assumed to be 1.0.
+    #
+    # Assuming 1.0 would assume the deployment persists everything the generator
+    # emits. About half of every nl6 trap workload is authenticationFailure,
+    # which this deployment discards, so the trap ratio sits near 0.5 with
+    # nothing wrong (#212).
+    - name: Measure the reference rung
+      ansible.builtin.include_tasks: rung.yml
+      vars:
+        ftc_rate: "{{ ftc_rates | first }}"
+        ftc_rung_label: ref
+
+    - name: Capture the reference
+      ansible.builtin.set_fact:
+        ftc_reference: "{{ ftc_results | last }}"
+        ftc_sweep_from: "{{ ftc_results | length }}"
+
+    # A reference of zero cannot define healthy: every rung measured against it
+    # would read as perfect. This fails towards reporting success, which is the
+    # direction nobody investigates.
+    - name: Assert the reference carries a signal
+      ansible.builtin.assert:
+        that:
+          - (ftc_reference.sent | int) > 0
+          - (ftc_reference.ratio | float) > 0
+          - (ftc_reference.expected | int) == 0
+            or (ftc_reference.sent | int) >= (ftc_reference.expected | int) * (ftc_reference_min_delivery | float)
+        fail_msg: >-
+          The reference rung at {{ ftc_rates | first }}/device delivered
+          {{ ftc_reference.sent }} of {{ ftc_reference.expected }} expected and
+          persisted {{ ftc_reference.events }}. A reference that is zero, or built
+          from a short delivery, cannot define healthy.
+        quiet: true
+
+    - name: Record the reference ratio
+      ansible.builtin.set_fact:
+        ftc_reference_ratio: "{{ ftc_reference.ratio }}"
+
+    - name: Run the sweep
+      ansible.builtin.include_tasks: rung.yml
+      loop: "{{ ftc_rates }}"
+      loop_control:
+        loop_var: ftc_rate
+
+    - name: Report the sweep
+      ansible.builtin.debug:
+        msg: >-
+          {{ ['reference: %s persisted of %s sent at %s/device = ratio %.3f'
+                | format(ftc_reference.events, ftc_reference.sent,
+                         ftc_rates | first, ftc_reference.ratio | float),
+              'tier1 socket = Minion UDP drops. tier2 handoff = sink lag drained.',
+              'tier3 e2e = vs-ref >= %s and no decline across buckets.'
+                | format(ftc_fidelity_floor),
+              'PASS requires all three. R_max is the highest passing rate.',
+              '',
+              'rate/dev  fleet/s  sent   events  ratio  vs-ref  t1 t2 t3  verdict']
+             + (ftc_rows | default([])) }}
+
+    # A sweep where nothing arrived at any rate is a broken deployment, not a
+    # result.
+    - name: Assert the deployment accepted something at some rate
+      ansible.builtin.assert:
+        that:
+          - (ftc_results | default([])) | length > 0
+          - (ftc_results | default([])) | map(attribute='sent') | map('int') | sum > 0
+          - (ftc_results | default([])) | map(attribute='events') | map('int') | sum > 0
+        fail_msg: >-
+          No traps reached OpenNMS at any rate in the sweep. Check that the
+          Minion binds {{ endpoints.ingestion.traps.host }}:{{ endpoints.ingestion.traps.port }}
+          — a deployment can publish that endpoint, open its firewall and run
+          the Core-side consumer while nothing listens, and every symptom of
+          that is a clean zero.
+        quiet: true
+
+    # Printed rather than asserted. A sweep whose top rung still passes has not
+    # found R_max, it has found that the ladder was too short, and that is a
+    # instruction to the operator rather than a failure of the run.
+    - name: Report R_max
+      ansible.builtin.debug:
+        msg: >-
+          {{ ('R_max not bracketed: every rung passed up to %s/device (%s/s fleet-wide). '
+              + 'Raise the ladder and rerun.')
+               | format(ftc_passing | last, (ftc_passing | last | int) * (ftc_device_count | int))
+             if (ftc_passing | length) == (ftc_rates | length)
+             else ('R_max = %s/device = %s/s fleet-wide (first failure at %s/device)'
+                   | format(ftc_passing | last,
+                            (ftc_passing | last | int) * (ftc_device_count | int),
+                            ftc_failing | first))
+                  if (ftc_passing | length) > 0 and (ftc_failing | length) > 0
+                  else 'R_max below the ladder: the lowest rung already failed.' }}
+      vars:
+        ftc_sweep: "{{ ftc_results[ftc_sweep_from | int :] }}"
+        ftc_passing: "{{ ftc_sweep | selectattr('verdict', 'equalto', 'PASS') | map(attribute='rate') | list }}"
+        ftc_failing: "{{ ftc_sweep | rejectattr('verdict', 'equalto', 'PASS') | map(attribute='rate') | list }}"

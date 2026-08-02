@@ -182,7 +182,7 @@ deployment: guard-DEPLOYMENT ## Show + validate one deployment spec (DEPLOYMENT=
 	$(DESCRIPTOR) --validate "$$f" && echo && cat "$$f"
 
 .PHONY: experiment
-experiment: guard-EXPERIMENT ## Run an experiment (EXPERIMENT=<name>, DEPLOYMENT=<slug> to layer its vars)
+experiment: guard-EXPERIMENT ## Run an experiment (EXPERIMENT=<name>, DEPLOYMENT=<slug> to layer its vars, EXTRA_VARS='<json>' to override)
 	@d="experiments/$(EXPERIMENT)"; \
 	[ -f "$$d/experiment.yml" ] || { echo "Error: no such experiment '$(EXPERIMENT)' ($$d/experiment.yml not found)" >&2; exit 1; }; \
 	[ -f ansible-inventory.yml ] || { echo "Error: ansible-inventory.yml not found; deploy first" >&2; exit 1; }; \
@@ -191,7 +191,8 @@ experiment: guard-EXPERIMENT ## Run an experiment (EXPERIMENT=<name>, DEPLOYMENT
 	  experiments/$(EXPERIMENT)/experiment.yml \
 	  --extra-vars="@opennms-lab-vars.yml" \
 	  $(if $(wildcard $(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml),--extra-vars="@$(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml") \
-	  $(if $(wildcard experiments/$(EXPERIMENT)/opennms-lab-vars.yml),--extra-vars="@experiments/$(EXPERIMENT)/opennms-lab-vars.yml")
+	  $(if $(wildcard experiments/$(EXPERIMENT)/opennms-lab-vars.yml),--extra-vars="@experiments/$(EXPERIMENT)/opennms-lab-vars.yml") \
+	  $(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 
 .PHONY: experiments
 experiments: ## List runnable experiments

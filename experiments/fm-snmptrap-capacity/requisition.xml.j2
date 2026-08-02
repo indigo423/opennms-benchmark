@@ -1,0 +1,23 @@
+{#- Copyright 2026 Ronny Trommer <ronny@no42.org>
+    SPDX-License-Identifier: Apache-2.0
+
+    Deliberately less than nl6 knows about each device: an address, ICMP and
+    SNMP. No gNMI-Telemetry service and no oc.* meta-data, because TELEMETRYD
+    is enabled on kfk-exclusive and an OpenConfig connector streaming from every
+    node would be load this benchmark did not ask for and does not control.
+
+    Nodes are pinned to the Minion's location because the simulated network is
+    reachable from the Minion and nowhere else: a node polled from the Core
+    would never answer.
+-#}
+<?xml version="1.0" encoding="UTF-8"?>
+<model-import xmlns="http://xmlns.opennms.org/xsd/config/model-import" foreign-source="{{ ftc_foreign_source }}">
+{% for device in ftc_devices %}
+  <node location="{{ ftc_location }}" foreign-id="{{ device.id }}" node-label="{{ device.id }}">
+    <interface ip-addr="{{ device.ip }}" status="1" snmp-primary="P">
+      <monitored-service service-name="ICMP"/>
+      <monitored-service service-name="SNMP"/>
+    </interface>
+  </node>
+{% endfor %}
+</model-import>
