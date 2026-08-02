@@ -119,18 +119,18 @@
   ansible.builtin.shell:
     cmd: |
       set -eu
-      psql() { sudo -u postgres command psql -qtA -d {{ endpoints.measurement.database.name }} "$@"; }
-      psql -c "select count(*) from events
-                where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
-                  and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
-                  and eventsource = 'trapd'"
-      psql -c "select string_agg(c::text, ' ' order by m) from (
-                 select date_trunc('minute', eventtime) as m, count(*) as c
-                   from events
-                  where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
-                    and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
-                    and eventsource = 'trapd'
-                  group by 1) b"
+      sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }} \
+        -c "select count(*) from events
+             where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
+               and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
+               and eventsource = 'trapd'" \
+        -c "select string_agg(c::text, ' ' order by m) from (
+              select date_trunc('minute', eventtime) as m, count(*) as c
+                from events
+               where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
+                 and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
+                 and eventsource = 'trapd'
+               group by 1) b"
   delegate_to: "{{ db }}"
   become: true
   register: ftc_persisted
