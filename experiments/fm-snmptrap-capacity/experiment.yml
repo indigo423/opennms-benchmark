@@ -409,14 +409,14 @@
                           (ftc_passing | last | int) * (ftc_device_count | int),
                           ftc_failing | first)]
               if (ftc_passing | length) > 0 and (ftc_failing | length) > 0
-              else ['R_max is at least %s/device = %s/s fleet-wide, and this sweep '
-                    + 'cannot say where it ends: no rung failed on the deployment.'
+              else [('R_max is at least %s/device = %s/s fleet-wide, and this sweep '
+                     ~ 'cannot say where it ends: no rung failed on the deployment.')
                       | format(ftc_passing | last,
                                (ftc_passing | last | int) * (ftc_device_count | int))]
                    if (ftc_passing | length) > 0
                    else ['R_max below the ladder: the lowest rung already failed.'])
-             + (['%s rung(s) were GENERATOR-LIMITED and prove nothing about the '
-                 + 'deployment: %s/device. The ceiling above is nl6, not OpenNMS.'
+             + ([('%s rung(s) were GENERATOR-LIMITED and prove nothing about the '
+                  ~ 'deployment: %s/device. The ceiling there is nl6, not OpenNMS.')
                    | format(ftc_invalid | length, ftc_invalid | join(', '))]
                 if (ftc_invalid | length) > 0 else []) }}
       vars:
