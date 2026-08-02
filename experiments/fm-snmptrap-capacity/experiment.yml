@@ -35,6 +35,84 @@
 # bisection between phases is an operator decision and Ansible has no loop that
 # can express a search. See README.md for the phase sequence.
 
+# Without this the sweep cannot count what it measures.
+#
+# SNMP_Authen_Failure ships with
+#   <alarm-data reduction-key="%uei%:%dpname%:%nodeid%" alarm-type="3" auto-clean="true"/>
+# so every authenticationFailure trap from one node reduces onto a single
+# alarm, and auto-clean then DELETES the older events backing it. The traps are
+# received, decoded and persisted normally; the rows are removed afterwards, by
+# alarmd, on its own schedule.
+#
+# That is fatal to a row-counting measurement in a way a filter would not be.
+# A filter removes a fixed share of the workload, which a reference ratio
+# normalises away. This removes rows *after* they are counted-in, at a moment
+# alarmd chooses, so the share depends on how much cleanup alarmd completes
+# inside the bracket — which itself moves with load. The correction would then
+# vary with the independent variable, and every vs-ref figure would be unsound.
+#
+# It was also mis-diagnosed here as an ingress discard (#212). The arithmetic
+# says otherwise: at 5/device the sweep sent 2990, and 1494 survived. Half the
+# nl6 workload is authenticationFailure, all of it collapsing to ~1 row per
+# node, which is ~1495 coldStart plus ~10 survivors. Nothing was ever dropped.
+- name: Make trap events survive long enough to be counted
+  hosts: database
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Disable auto-clean on the trap events the sweep counts
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          sudo -u postgres psql -qtA -d {{ lab_endpoints.measurement.database.name }} <<'SQL'
+          with changed as (
+            update eventconf_events
+               set xml_content = replace(xml_content, 'auto-clean="true"', 'auto-clean="false"'),
+                   last_modified = now()
+             where uei = any(string_to_array('{{ ftc_autoclean_ueis | join(",") }}', ','))
+               and xml_content like '%auto-clean="true"%'
+            returning 1)
+          select count(*) from changed;
+          SQL
+      vars:
+        lab_endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+      register: ftc_autoclean
+      # Idempotent: the UPDATE matches only rows still set to true, so a second
+      # run changes nothing and reports 0.
+      changed_when: (ftc_autoclean.stdout | trim | int) > 0
+      failed_when: ftc_autoclean.stdout is not match('^[0-9]+$')
+
+    - name: Publish whether the event configuration moved
+      ansible.builtin.set_fact:
+        ftc_autoclean_changed: "{{ (ftc_autoclean.stdout | trim | int) > 0 }}"
+
+# Eventd holds the configuration in memory, so a row the sweep just changed is
+# not in force until the JVM reloads it. Restarting only on an actual change
+# keeps a re-run from paying for it.
+- name: Load the changed event configuration
+  hosts: core
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Restart OpenNMS
+      ansible.builtin.systemd:
+        name: opennms
+        state: restarted
+      when: hostvars[groups['database'][0]].ftc_autoclean_changed | default(false) | bool
+
+    - name: Wait for the REST interface to answer
+      ansible.builtin.uri:
+        url: http://localhost:8980/opennms/rest/info
+        user: admin
+        password: admin
+        force_basic_auth: true
+        status_code: [200]
+      register: ftc_rest
+      until: ftc_rest.status == 200
+      retries: 60
+      delay: 10
+      changed_when: false
+
 - name: Build the fleet
   hosts: net_sim
   gather_facts: false
@@ -241,10 +319,10 @@
     # sent ratio is the definition of "nothing was lost" for this workload
     # against this deployment, measured rather than assumed to be 1.0.
     #
-    # Assuming 1.0 would assume the deployment persists everything the generator
-    # emits. About half of every nl6 trap workload is authenticationFailure,
-    # which this deployment discards, so the trap ratio sits near 0.5 with
-    # nothing wrong (#212).
+    # With auto-clean disabled above this should land near 1.0. It is still
+    # measured, because an assumed 1.0 is what hid the auto-clean bug: the ratio
+    # sat at exactly 0.500 and read as a plausible property of the workload
+    # rather than as rows being deleted underneath the measurement.
     - name: Measure the reference rung
       ansible.builtin.include_tasks: rung.yml
       vars:

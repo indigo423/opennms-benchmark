@@ -27,12 +27,33 @@ Tier 2 reads **lag**, not the offset delta.
 The sink batches at a rate-dependent size, so the delta counts Kafka messages rather than traps and cannot be compared against the generator's ledger ([#215](https://github.com/indigo423/opennms-benchmark/issues/215)).
 Lag is immune to batch size, and it is also the only honest drain signal: the simulated fleet emits continuously, so waiting for a count to stop moving never fires.
 
-## Loss is relative to a measured reference
+## auto-clean has to be off, or there is nothing to count
 
-About half of every nl6 trap workload is `authenticationFailure`, which this deployment discards, so the absolute persisted ratio sits near 0.5 with nothing wrong ([#212](https://github.com/indigo423/opennms-benchmark/issues/212)).
-`persisted == sent` is therefore not a usable criterion.
-The reference rung, run at the lowest sweep rate before the sweep and again inside it, defines what "lost nothing" means for this workload against this deployment.
-`vs-ref` is measured against it.
+`SNMP_Authen_Failure` ships with:
+
+```xml
+<alarm-data reduction-key="%uei%:%dpname%:%nodeid%" alarm-type="3" auto-clean="true"/>
+```
+
+Every authenticationFailure trap from a node reduces onto one alarm, and auto-clean then **deletes the older events backing it**.
+The traps are received, decoded and persisted normally. The rows are removed afterwards, by alarmd, on its own schedule.
+
+This is fatal to a row-counting measurement in a way a filter would not be.
+A filter removes a fixed share of the workload, and a reference ratio normalises that away.
+This removes rows *after* they are counted in, at a moment alarmd chooses, so the surviving share depends on how much cleanup alarmd completes inside the bracket — which moves with load.
+The correction would then vary with the independent variable, and every `vs-ref` figure would be unsound.
+
+The experiment therefore switches auto-clean off for `ftc_autoclean_ueis` before measuring, and restarts OpenNMS if it changed anything (eventd holds the config in memory).
+
+This was previously mis-diagnosed as an ingress discard ([#212](https://github.com/indigo423/opennms-benchmark/issues/212)).
+The arithmetic says otherwise: at 5/device the sweep sent 2990 and 1494 survived, which is ~1495 coldStart plus ~10 authenticationFailure survivors (one per node).
+Nothing was ever dropped.
+
+## Loss is still relative to a measured reference
+
+With auto-clean off the reference should land near 1.0, but it is measured rather than assumed.
+An assumed 1.0 is exactly what hid this bug for two releases: the ratio sat at 0.500 and read as a plausible property of the workload.
+The reference rung, run at the lowest sweep rate before the sweep and again inside it, defines what "lost nothing" means for this workload against this deployment, and `vs-ref` is measured against it.
 
 ## Controls
 

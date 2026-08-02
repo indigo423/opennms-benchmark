@@ -32,11 +32,22 @@ ftc_syslog_collector: ""
 ftc_rates: [5, 25, 50, 100, 250]
 ftc_window: 60s
 
+# ── countability ──────────────────────────────────────────────────────────────
+# Event definitions whose auto-clean the sweep switches off before measuring.
+#
+# auto-clean deletes the older events backing an alarm once a new one reduces
+# onto it, so a trap that is received, decoded and persisted normally still
+# disappears from the table before it can be counted. Only SNMP_Authen_Failure
+# carries it in the stock trap source, and half of every nl6 trap workload is
+# authenticationFailure, so leaving it on removes about half the rows.
+ftc_autoclean_ueis:
+  - uei.opennms.org/generic/traps/SNMP_Authen_Failure
+
 # ── pass criteria ─────────────────────────────────────────────────────────────
-# Fidelity relative to the measured reference, not absolute. Half of every nl6
-# trap workload is authenticationFailure, which this deployment discards, so the
-# absolute ratio sits near 0.5 with nothing wrong (#212). 0.99 is "lost nothing
-# the reference did not also lose".
+# Fidelity relative to the measured reference rather than to an assumed 1.0.
+# With auto-clean off the reference should land near 1.0; it is still measured
+# rather than assumed, because that is what catches the next thing that eats
+# rows silently.
 ftc_fidelity_floor: 0.99
 # The second half of the window must hold at least this share of the first
 # half's rate. Below it the system is progressively falling behind, which a
