@@ -38,7 +38,9 @@ Lag is immune to batch size, and it is also the only honest drain signal: the si
 Every authenticationFailure trap from a node reduces onto one alarm, and alarmd's auto-clean then **deletes the older events backing it**.
 The traps are received, decoded and persisted normally. The rows are removed afterwards.
 
-Measured on the lab: **ten alarms, one per node, carrying a summed counter of 61,672**, against an events table holding a few hundred survivors. The traps arrived. The rows did not stay.
+Measured on the lab, at the ten-device fleet this was first found on: **ten alarms, one per node, carrying a summed counter of 61,672**, against an events table holding a few hundred survivors. The traps arrived. The rows did not stay.
+
+With alarmd pinned off the same harness persisted 1,133,649 events against 1,133,400 sent — a ratio of 1.0002, the excess being the fleet's own background traps.
 
 This is fatal to a row-counting measurement in a way a filter would not be.
 A filter removes a fixed share of the workload, and a reference ratio normalises that away.
@@ -80,7 +82,11 @@ That stream competes for the exact capacity under test.
 Excluding it from the count by `eventsource`, which the sweep does, removes it from the arithmetic but not from the system, so R_max comes out depressed by an amount nothing in the table reveals.
 
 `ftc_device_count` is a pinned control, not a variable.
-Rate is per device, so the claim is scoped to this fleet shape: 2500/s from 10 sources is not necessarily the same workload as 2500/s from 500, because trapd may key work by source.
+Rate is per device, so the claim is scoped to this fleet shape: 10,000/s from 100 sources is not necessarily the same workload as 10,000/s from 10, because trapd may key work by source.
+
+It is set to **100** because 10 could not drive the deployment hard enough.
+Asking ten devices for a fleet-wide 10,000/s means 1,000 traps/s out of each simulated agent, and nl6 ran out of headroom there — it delivered 563,490 of 600,000 (93.9%), and the delivery gate correctly refused to report that as a property of the deployment.
+Spreading the same fleet-wide rate over 100 devices asks a tenth as much of each, and is the more realistic shape anyway.
 
 **The `events` table size is a control.** Insert throughput is a function of table size and its 13 btree indexes, so a run starting from an arbitrary table is not reproducible, and R_max drifts downward as the sweep itself adds rows. Reset before Phase B and again before Phase C:
 
@@ -112,7 +118,7 @@ make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kfk-exclusive \
 
 ```bash
 make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kfk-exclusive \
-  EXTRA_VARS='{"ftc_rates":[50,50,50,75,75,75],"ftc_window":"15m"}'
+  EXTRA_VARS='{"ftc_rates":[75,75,75,100,100,100],"ftc_window":"15m"}'
 ```
 
 ## What a result claims
