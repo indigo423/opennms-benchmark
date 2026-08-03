@@ -223,6 +223,26 @@ Spreading load across more devices is what bought headroom. A healthy run is sho
 
 ---
 
+## Endurance: 4,800 traps/s held for one hour
+
+Two consecutive one-hour trials per variant, 17,279,900 traps each, one rate throughout. Phase A's ladder answers *where* the knee is; this answers whether a rate below it survives being held.
+
+**Nothing is lost on either variant.** Ratio 0.999 and zero UDP receive-buffer overruns across 34.5 million traps per variant. But "not lost" and "kept up" part company over an hour in a way sixty-second windows never showed.
+
+The margin against the 95% keep-up gate, and the p99 wait before a trap reaches the database:
+
+| | trial 1 | trial 2 |
+|---|---|---|
+| **B: 1 vCPU / 2 GiB** | 98.63%, lag **71s** | 95.44%, lag **194s** |
+
+At sixty-second windows this same rate showed a 3–9 second wait. Held for an hour it is 71 seconds, and on the second hour 194 — three minutes of backlog, 0.4 percentage points above failing.
+
+**The second trial is not a clean replicate of the first, by construction.** It runs against a table already holding the 17.3M rows the first trial wrote, growing to 34.5M by the end — the same load against a two-fold larger table with thirteen indexes to maintain. Whether the degradation is elapsed time or table size is not separated by this design, and the table is a pinned control everywhere else in this experiment precisely because it moves the answer.
+
+The A/B comparison survives that, since both variants run the identical sequence from a truncated start. The absolute claim does not: **"sustains 4,800/s for an hour" holds only for the first hour after a truncate.**
+
+Sizing note for anyone reproducing: 648 bytes per trap event, measured. One hour at 4,800/s is 11.2 GB, and the two trials together take 22.4 GB of the database volume's 43 GB.
+
 ## Open items
 
 1. **Phase B / C** — sustained 15-minute windows and repeat trials. Phase A makes no claims by design.
