@@ -39,6 +39,27 @@ Throughput plateaus at **~4,700–4,800/s**; beyond it the pipeline accumulates 
 
 Scoped to this fleet shape (100 sources) and to Phase A's 60-second windows. Sustained 15-minute windows and repeat trials were not run.
 
+### Minion sizing makes no measurable difference
+
+Halving the Minion — 2 vCPU / 4 GiB against 1 vCPU / 2 GiB — changes nothing. Both variants report **R_max = 5,000/s**, both take zero UDP drops at every rung, and both plateau in the same place.
+
+| offer/s | A: 2 vCPU / 4 GiB | B: 1 vCPU / 2 GiB | delta | lag A | lag B |
+|---:|---:|---:|---:|---:|---:|
+| 2,000 | 1,883 | 1,882 | −0.1% | 1s | 1s |
+| 4,000 | 3,762 | 3,767 | +0.1% | 3s | 1s |
+| 5,000 | 4,701 | 4,579 | −2.6% | 5s | 7s |
+| 6,000 | 4,781 | 4,899 | +2.5% | 15s | 14s |
+| 8,000 | 4,191 | 4,735 | **+13.0%** | 45s | 38s |
+| 10,000 | 4,472 | 4,208 | −5.9% | 65s | 69s |
+
+The deltas change sign four times across six rungs and the largest favours the *smaller* Minion, which is the signature of noise rather than an effect. Run-to-run variation on variant A alone spans a comparable range.
+
+The reason is structural: the Minion is a pass-through on this path. It reads a UDP datagram and forwards it to Kafka; it neither decodes the trap into an event nor writes anything. That work is Core-side, which is where the ~4,700/s ceiling lives, and no amount of Minion CPU moves it.
+
+**Practical consequence: a 1 vCPU / 2 GiB Minion carries this trap workload as well as a 2 vCPU / 4 GiB one.** The receive-buffer setting matters far more than the vCPU count — untuned it cost 924,298 datagrams at 10,000/s, while halving the CPU cost nothing measurable.
+
+Comparability: both runs used the same harness, the same ladder, the same 100-source fleet, the same pinned daemon set, and the same 8 MiB `rmem_max` (verified `rb16777216` on the trap socket in both). The deployments differ by one line — the Minion's size class — with playbook and variables symlinked so no other control could drift. Variant B was measured after a full `make deploy`, so its stack was freshly configured rather than mutated in place.
+
 **Do not quote the larger numbers this investigation produced along the way** (10,000 / 25,000 traps/s). Each was an artefact; see below.
 
 ---
