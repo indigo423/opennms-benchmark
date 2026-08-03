@@ -22,8 +22,18 @@
 #                      -> did the kernel drop traps before OpenNMS saw them?
 #   tier 2  handoff    consumer lag on the sink topic returns to baseline
 #                      -> is the Minion keeping up, or is the Core behind?
-#   tier 3  end-to-end vs-ref >= ftc_fidelity_floor, no decline across buckets
-#                      -> did anything fail to persist?
+#   tier 3  end-to-end vs-ref >= ftc_fidelity_floor AND the sustained rate,
+#                      from the span of eventcreatetime, >= ftc_keepup_floor of
+#                      what was offered
+#                      -> did it persist everything, and did it keep up?
+#
+# Those two halves of tier 3 are not the same question, and only the second
+# bounds capacity. eventtime is the trap's own timestamp, so counting by it
+# replays the OFFERED rate however far behind the deployment is; Kafka's sink
+# absorbs whatever the Minion accepts, so "nothing was eventually lost" holds at
+# any rate the generator can reach. Measured here at 25,000/s offered:
+# everything persisted, at a sustained ~4,600/s, with traps waiting up to 415s.
+# Core's own trapd metric independently reported a p99 of 4,687/s.
 #
 # Tier 2 reads lag, not the offset delta: the sink batches at a rate-dependent
 # size, so the delta counts Kafka messages rather than traps (#215). Lag is
@@ -374,14 +384,17 @@
           {{ ['reference: %s persisted of %s sent at %s/device = ratio %.3f'
                 | format(ftc_reference.events, ftc_reference.sent,
                          ftc_rates | first, ftc_reference.ratio | float),
-              'drops = Minion UDP receive-buffer overruns (tier 1); any is a fail.',
-              'Printed rather than ticked: a handful is a jitter spike, and',
-              'hundreds of thousands is a different finding entirely.',
-              't2 handoff = sink lag drained. t3 e2e = vs-ref >= %s, no decline.'
-                | format(ftc_fidelity_floor),
-              'PASS requires all three. R_max is the highest passing rate.',
+              'achiev/s is the rate the deployment SUSTAINED, from the span of',
+              'eventcreatetime. events is what it eventually persisted. They',
+              'diverge whenever Kafka is absorbing more than the Core can drain,',
+              'and only the first one is a capacity number.',
+              'lag is the p99 seconds a trap waited to be written; it grows',
+              'without bound once the deployment stops keeping up.',
+              'PASS = no UDP drops, sink drained, ratio vs-ref >= %s, and',
+              'achiev/s >= %s of offered.'
+                | format(ftc_fidelity_floor, ftc_keepup_floor),
               '',
-              'rate/dev  fleet/s  sent     events   ratio  vs-ref  drops     t2 t3  verdict']
+              'rate/dev  offer/s  sent     events   achiev/s lag    ratio  drops     verdict']
              + (ftc_rows | default([])) }}
 
     # A sweep where nothing arrived at any rate is a broken deployment, not a

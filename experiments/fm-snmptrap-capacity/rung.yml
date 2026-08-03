@@ -5,12 +5,11 @@
 # One rung of the capacity sweep, measured at three tiers.
 #
 # Every probe runs outside the load window. That is deliberate: the obvious
-# design samples the events table periodically during the window to get a
-# trend, but `events` carries no index on eventsource, so each sample is a
-# sequential scan over the whole table and competes for exactly the disk I/O
-# the benchmark is trying to saturate (#216). Instead the trend is reconstructed
-# afterwards from a single grouped query over `eventtime`, which uses
-# events_time_idx and costs time proportional to the window rather than to the
+# design samples the events table during the window, but `events` carries no
+# index on eventsource, so each sample is a sequential scan over the whole table
+# and competes for exactly the disk I/O the benchmark is trying to saturate
+# (#216). Everything is instead reconstructed afterwards from range scans over
+# events_time_idx, which cost time proportional to the window rather than to the
 # table. The measurement window therefore carries load and nothing else.
 
 - name: "Read the Minion UDP counters before {{ ftc_rate }}"
@@ -61,16 +60,10 @@
   # Gating on rc alone fails a rung that missed 10 sends out of 3000.
   failed_when: ftc_load.rc > 1
 
-# Closes the trend's window at the moment load stopped, which is not where the
-# counting bracket closes.
-#
-# The bracket has to run past the drain so events still in flight are counted,
-# but the per-minute trend must not: every minute of drain and probe overhead
-# contributes a bucket holding only the fleet's background traps, and those
-# near-zero buckets sit in the tail. Comparing halves of the whole bracket then
-# fails for any healthy rung — measured at 20,000/s, head 599,848/min against
-# tail 218/min, which condemned a rung whose ratio was 1.000 and whose socket
-# dropped nothing.
+# When load stopped, which is not where the counting bracket closes: the bracket
+# runs past the drain so events still in flight are counted. Kept as the marker
+# for anything that must describe the offered period rather than the whole
+# bracket.
 - name: "Mark the end of load for {{ ftc_rate }}"
   ansible.builtin.command:
     cmd: >-
@@ -176,12 +169,24 @@
   changed_when: false
   failed_when: ftc_udp_after.stdout is not match('^[0-9]+$')
 
-# Two ranges on purpose, both over events_time_idx. The total spans the whole
-# bracket, so events still in flight when load stopped are counted. The buckets
-# stop at the end of load, so the trend describes the period when load was
-# actually offered rather than being dragged down by idle minutes of drain and
-# probe overhead. Emitted as "total<newline>bucket bucket ..." so one register
-# carries both.
+# Counted by eventtime, rated by eventcreatetime, and the difference between
+# those two is the whole measurement.
+#
+# eventtime is the trap's own timestamp, so bucketing on it replays the rate the
+# generator OFFERED no matter how far behind the deployment is: a 60s burst of
+# 1.5M traps lands in one eventtime minute even when it took five minutes to
+# write. eventcreatetime is when OpenNMS created the row, so its span is the
+# rate the deployment actually SUSTAINED.
+#
+# Measured on this lab at 25,000/s offered: 24,783/s by eventtime, ~4,600/s by
+# eventcreatetime, with traps sitting up to 415s behind. Core's own trapd metric
+# independently reported a p99 of 4,687/s, which is the eventcreatetime figure
+# and not the eventtime one.
+#
+# Completeness alone therefore cannot bound capacity here. Kafka's sink absorbs
+# whatever the Minion accepts and the Core drains it later, so "nothing was
+# eventually lost" stays true at any offered rate the generator can reach — it
+# measures the buffer, not the system.
 - name: "Read what persisted for {{ ftc_rate }}"
   ansible.builtin.shell:
     cmd: |
@@ -191,13 +196,18 @@
              where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
                and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
                and eventsource = 'trapd'" \
-        -c "select string_agg(c::text, ' ' order by m) from (
-              select date_trunc('minute', eventtime) as m, count(*) as c
-                from events
-               where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
-                 and eventtime <  to_timestamp({{ ftc_t_load_end.stdout | trim }})
-                 and eventsource = 'trapd'
-               group by 1) b"
+        -c "select coalesce(round(count(*) / nullif(extract(epoch from
+                     (max(eventcreatetime) - min(eventcreatetime))), 0))::text, '0')
+             from events
+            where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
+              and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
+              and eventsource = 'trapd'" \
+        -c "select coalesce(round(percentile_cont(0.99) within group
+                     (order by extract(epoch from (eventcreatetime - eventtime)))::numeric)::text, '0')
+             from events
+            where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
+              and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
+              and eventsource = 'trapd'"
   delegate_to: "{{ db }}"
   become: true
   register: ftc_persisted
@@ -273,25 +283,23 @@
     ftc_results: "{{ (ftc_results | default([])) + [rung] }}"
     ftc_rows: >-
       {{ (ftc_rows | default([]))
-         + ['%-9s %-8s %-8s %-8s %-6.3f %-7s %-9s %-2s %-2s  %s' | format(
+         + ['%-9s %-8s %-8s %-8s %-8s %-6s %-6.3f %-8s  %s' | format(
               ftc_rung_label | default(ftc_rate),
               (ftc_rate | int) * (ftc_device_count | int),
-              rung.sent, rung.events, rung.ratio | float,
-              '-' if ftc_reference_ratio is not defined
-                  else '%.3f' | format(rung.ratio | float / (ftc_reference_ratio | float)),
-              rung.udp_drops,
-              'ok' if rung.tier2 else 'XX',
-              'ok' if rung.tier3 else 'XX',
-              rung.verdict) ] }}
+              rung.sent, rung.events, rung.achieved, rung.lag_p99,
+              rung.ratio | float, rung.udp_drops, rung.verdict) ] }}
   vars:
     ledger: >-
       {{ (ftc_ledger.content | default("") | b64decode | from_json)
          if ftc_ledger.content is defined else {"delivered": {}, "request": {}} }}
     bracket_s: "{{ (ftc_t1.stdout | trim | float) - (ftc_t0.stdout | trim | float) }}"
     persisted_raw: "{{ ftc_persisted.stdout_lines[0] | default(0) | int }}"
-    buckets: >-
-      {{ (ftc_persisted.stdout_lines[1] | default('', true)).split()
-         | map('int') | list }}
+    # The rate the deployment sustained, from the span of eventcreatetime.
+    achieved: "{{ ftc_persisted.stdout_lines[1] | default(0) | int }}"
+    # How far behind the pipeline ran. Bounded means it kept up; growing into
+    # minutes means Kafka is holding a backlog the Core has not reached yet.
+    lag_p99: "{{ ftc_persisted.stdout_lines[2] | default(0) | int }}"
+    offered: "{{ (ftc_rate | int) * (ftc_device_count | int) }}"
     background: "{{ ((ftc_background_mps | int * (bracket_s | float)) / 1000) | round | int }}"
     persisted: "{{ [(persisted_raw | int) - (background | int), 0] | max }}"
     # Trend across the load window's own buckets, ignoring the first and last:
@@ -299,13 +307,6 @@
     # drain tapering off. A system that is keeping up holds a flat rate; one
     # that is progressively falling behind declines, and a single window total
     # cannot tell those apart.
-    trend_buckets: "{{ buckets[1:-1] if (buckets | length) >= 5 else [] }}"
-    trend_head: >-
-      {{ (trend_buckets[: (trend_buckets | length) // 2] | sum)
-         / ([(trend_buckets | length) // 2, 1] | max) }}
-    trend_tail: >-
-      {{ (trend_buckets[(trend_buckets | length) // 2 :] | sum)
-         / ([(trend_buckets | length) - (trend_buckets | length) // 2, 1] | max) }}
     ratio_v: >-
       {{ (persisted | int) / ([ledger.delivered.sent | default(0) | int, 1] | max) }}
     # vs-ref is undefined on the reference rung itself, which is measured before
@@ -314,9 +315,14 @@
     tier3_fidelity: >-
       {{ true if ftc_reference_ratio is not defined
          else (ratio_v | float) / (ftc_reference_ratio | float) >= (ftc_fidelity_floor | float) }}
-    tier3_trend: >-
-      {{ true if (trend_buckets | length) < 4
-         else (trend_tail | float) >= (trend_head | float) * (ftc_trend_floor | float) }}
+    # Did the deployment keep up in real time, or merely catch up later?
+    #
+    # This is the capacity question, and completeness cannot answer it: Kafka's
+    # sink absorbs whatever the Minion accepts, so everything is eventually
+    # persisted at any rate the generator can reach. The rate that matters is
+    # the one eventcreatetime spans, and it must track what was offered.
+    tier3_keptup: >-
+      {{ (achieved | int) >= (offered | int) * (ftc_keepup_floor | float) }}
     rung:
       rate: "{{ ftc_rate }}"
       devices: "{{ ftc_device_count }}"
@@ -340,7 +346,9 @@
         {{ (ftc_lag_after.stdout | trim | int)
            <= (ftc_lag_before.stdout | trim | int) + (ftc_drain_tolerance | int) }}
       # Tier 3: fidelity held and did not decay across the window.
-      tier3: "{{ (tier3_fidelity | bool) and (tier3_trend | bool) }}"
+      achieved: "{{ achieved }}"
+      lag_p99: "{{ lag_p99 }}"
+      tier3: "{{ (tier3_fidelity | bool) and (tier3_keptup | bool) }}"
       delivered_ok: "{{ ftc_delivered_ok | bool }}"
       # INVALID outranks the tiers. A rung the generator could not fill offered
       # less load than it claims, so its tiers would pass for a reason that has
@@ -353,5 +361,5 @@
            if (((ftc_udp_after.stdout | trim | int) - (ftc_udp_before.stdout | trim | int)) == 0)
               and ((ftc_lag_after.stdout | trim | int)
                    <= (ftc_lag_before.stdout | trim | int) + (ftc_drain_tolerance | int))
-              and (tier3_fidelity | bool) and (tier3_trend | bool)
+              and (tier3_fidelity | bool) and (tier3_keptup | bool)
            else 'FAIL' }}

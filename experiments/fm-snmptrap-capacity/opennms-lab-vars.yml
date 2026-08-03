@@ -72,10 +72,17 @@ ftc_core_services:
 # rather than assumed, because that is what catches the next thing that eats
 # rows silently.
 ftc_fidelity_floor: 0.99
-# The second half of the window must hold at least this share of the first
-# half's rate. Below it the system is progressively falling behind, which a
-# single window total cannot distinguish from keeping up.
-ftc_trend_floor: 0.95
+# The rate the deployment sustained, measured across the span of
+# eventcreatetime, must be at least this share of the rate offered.
+#
+# This is the capacity criterion, and completeness cannot substitute for it.
+# Kafka's sink absorbs whatever the Minion accepts and the Core drains it later,
+# so "nothing was eventually lost" stays true at any rate the generator can
+# reach — it measures the buffer, not the deployment. Measured here at 25,000/s
+# offered: everything persisted, but at ~4,600/s with traps sitting up to 415s
+# behind, which Core's own trapd metric independently reported as a p99 of
+# 4,687/s.
+ftc_keepup_floor: 0.95
 
 # ── drain ─────────────────────────────────────────────────────────────────────
 # Absolute, since a baseline of zero admits no relative tolerance. One batch of
