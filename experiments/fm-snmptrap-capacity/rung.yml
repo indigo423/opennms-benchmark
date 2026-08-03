@@ -196,11 +196,12 @@
              where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
                and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
                and eventsource = 'trapd'" \
-        -c "select coalesce(round(count(*) / nullif(extract(epoch from
-                     (max(eventcreatetime) - min(eventcreatetime))), 0))::text, '0')
+        -c "select round(count(*) / greatest(extract(epoch from
+                     (to_timestamp({{ ftc_t_load_end.stdout | trim }})
+                      - to_timestamp({{ ftc_t0.stdout | trim }}))), 1))::text
              from events
-            where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
-              and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
+            where eventcreatetime >= to_timestamp({{ ftc_t0.stdout | trim }})
+              and eventcreatetime <  to_timestamp({{ ftc_t_load_end.stdout | trim }})
               and eventsource = 'trapd'" \
         -c "select coalesce(round(percentile_cont(0.99) within group
                      (order by extract(epoch from (eventcreatetime - eventtime)))::numeric)::text, '0')
@@ -294,7 +295,20 @@
          if ftc_ledger.content is defined else {"delivered": {}, "request": {}} }}
     bracket_s: "{{ (ftc_t1.stdout | trim | float) - (ftc_t0.stdout | trim | float) }}"
     persisted_raw: "{{ ftc_persisted.stdout_lines[0] | default(0) | int }}"
-    # The rate the deployment sustained, from the span of eventcreatetime.
+    # The rate the deployment sustained *while load was being offered*: rows
+    # created inside the load window, over the length of that window.
+    #
+    # Not the span of eventcreatetime across the whole bracket. The fleet emits
+    # continuously, so its background traps keep creating rows until the bracket
+    # closes and push that span out to the bracket's length whatever the rung
+    # did — measured at 2,000/s offered, an 80s span for a 60s window, reporting
+    # 1,504/s for a rung whose p99 wait was one second and which was plainly
+    # keeping up.
+    #
+    # A deployment that keeps up writes the traps as they arrive, so everything
+    # lands inside the window and this equals the offered rate. One that falls
+    # behind leaves the remainder for the drain, and the shortfall here is the
+    # size of the deficit.
     achieved: "{{ ftc_persisted.stdout_lines[1] | default(0) | int }}"
     # How far behind the pipeline ran. Bounded means it kept up; growing into
     # minutes means Kafka is holding a backlog the Core has not reached yet.
