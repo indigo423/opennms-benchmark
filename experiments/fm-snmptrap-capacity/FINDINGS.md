@@ -18,13 +18,16 @@ SPDX-License-Identifier: Apache-2.0
 
 ```
 rate/dev  offer/s  sent     events   achiev/s lag    ratio  drops  verdict
-ref       2000     119900   119721   1883     1s     0.999  0      PASS
-20        2000     119900   119729   1884     1s     0.999  0      PASS
-40        4000     239900   239714   3762     3s     0.999  0      PASS
-50        5000     299900   299707   4701     5s     0.999  0      PASS
-60        6000     359900   359746   4781    15s     1.000  0      FAIL
-80        8000     479900   479763   4191    45s     1.000  0      FAIL
-100      10000     599900   599763   4472    65s     1.000  0      FAIL
+ref       2000     119900   119700   1999     1s     0.998  0      PASS
+20        2000     119900   119696   1998     1s     0.998  0      PASS
+40        4000     239900   239719   3999     1s     0.999  0      PASS
+50        5000     299900   299689   4724     9s     0.999  0      FAIL *
+60        6000     359900   359686   5046    16s     0.999  0      FAIL
+80        8000     479900   479705   4914    40s     1.000  0      FAIL
+100      10000     599900   599719   4508    68s     1.000  0      FAIL
+
+* did not reproduce. Three repeat trials at the same rung: 4,999 / 4,848 / 4,999,
+  all PASS. R_max is 5,000/s; this rung landed 0.5pp under the 95% gate once.
 ```
 
 Throughput plateaus at **~4,700–4,800/s**; beyond it the pipeline accumulates backlog rather than losing anything. Three independent measurements agree:
@@ -45,16 +48,22 @@ Self-contained HTML report: [`minion-sizing-report.html`](minion-sizing-report.h
 
 Halving the Minion — 2 vCPU / 4 GiB against 1 vCPU / 2 GiB — changes nothing. Both variants report **R_max = 5,000/s**, both take zero UDP drops at every rung, and both plateau in the same place.
 
-| offer/s | A: 2 vCPU / 4 GiB | B: 1 vCPU / 2 GiB | delta | lag A | lag B |
-|---:|---:|---:|---:|---:|---:|
-| 2,000 | 1,883 | 1,882 | −0.1% | 1s | 1s |
-| 4,000 | 3,762 | 3,767 | +0.1% | 3s | 1s |
-| 5,000 | 4,701 | 4,579 | −2.6% | 5s | 7s |
-| 6,000 | 4,781 | 4,899 | +2.5% | 15s | 14s |
-| 8,000 | 4,191 | 4,735 | **+13.0%** | 45s | 38s |
-| 10,000 | 4,472 | 4,208 | −5.9% | 65s | 69s |
+| offered | A: 2 vCPU / 4 GiB | B: 1 vCPU / 2 GiB | verdict |
+|---:|---:|---:|:--|
+| 2,000 | 1,998 | 1,999 | parity |
+| 4,000 | 3,999 | 3,999 | parity |
+| **5,000** (4 trials) | **4,924** (4,724–4,999) | **4,918** (4,727–4,999) | **parity — 0.1%** |
+| 6,000 | 5,046 | 5,212 | parity |
+| 8,000 | 4,914 | 5,020 | parity |
+| 10,000 | 4,508 | 4,604 | parity |
 
-The deltas change sign four times across six rungs and the largest favours the *smaller* Minion, which is the signature of noise rather than an effect. Run-to-run variation on variant A alone spans a comparable range.
+All seven metrics, R_max included, render as *parity (within noise)* against the report's ±10% band.
+
+**The decisive rung was measured four times per variant, and that is what settles it.** At 5,000/s offered, each variant passed 3 of 4 trials and each produced exactly one failure at ~4,72x traps/s — A at 4,724, B at 4,727. The same outlier on both sides is a property of the measurement, not of either Minion. Medians differ by 6 traps/s.
+
+Each variant's own spread at that one rung is **5.5%**, larger than any A-vs-B difference anywhere on the ladder. That is the quantitative reason no difference can be claimed.
+
+A first single-trial sweep put A at R_max 4,000 and B at 5,000, implying the *smaller* Minion was faster. That was one measurement landing half a percentage point under the gate, and it did not reproduce. It is why the decisive rung now carries repeat trials.
 
 The reason is structural: the Minion is a pass-through on this path. It reads a UDP datagram and forwards it to Kafka; it neither decodes the trap into an event nor writes anything. That work is Core-side, which is where the ~4,700/s ceiling lives, and no amount of Minion CPU moves it.
 
