@@ -215,10 +215,9 @@ Spreading load across more devices is what bought headroom. A healthy run is sho
 ## Open items
 
 1. **Phase B / C** — sustained 15-minute windows and repeat trials. Phase A makes no claims by design.
-3. **Minion 1 vCPU vs 2 vCPU A/B.** Scaffolding ready, but **the premise is now doubtful**: the Minion dropped nothing at 25,000/s, so the constraint is Core-side (eventd/Postgres). Sizing the Minion may show no difference. Worth confirming where the ~4,600/s limit actually sits before spending a redeploy.
-4. **Where is the 4,600/s spent?** Not yet attributed between eventd, the Core's Kafka consumer, and Postgres insert cost with 13 indexes. This is the natural next investigation.
-5. **Run manifest and HTML report** — the `opennms-benchmark` skill's contracts 1 and 3 are not yet satisfied; no manifest is emitted.
-6. **`pm-snmp` collection still never reaches the fleet** ([#211](https://github.com/indigo423/opennms-benchmark/issues/211)) — untouched by this work.
+2. **Where is the 4,600/s spent?** Not yet attributed between eventd, the Core's Kafka consumer, and Postgres insert cost with 13 indexes. This is the natural next investigation.
+3. **Run manifest and HTML report** — the `opennms-benchmark` skill's contracts 1 and 3 are not yet satisfied; no manifest is emitted.
+4. **`pm-snmp` collection still never reaches the fleet** ([#211](https://github.com/indigo423/opennms-benchmark/issues/211)) — untouched by this work.
 
 ## Lab state at pause
 
