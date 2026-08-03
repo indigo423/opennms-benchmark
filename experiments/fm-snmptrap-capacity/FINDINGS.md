@@ -41,6 +41,8 @@ Scoped to this fleet shape (100 sources) and to Phase A's 60-second windows. Sus
 
 ### Minion sizing makes no measurable difference
 
+Self-contained HTML report: [`minion-sizing-report.html`](minion-sizing-report.html) — open it in a browser, no build or network needed.
+
 Halving the Minion — 2 vCPU / 4 GiB against 1 vCPU / 2 GiB — changes nothing. Both variants report **R_max = 5,000/s**, both take zero UDP drops at every rung, and both plateau in the same place.
 
 | offer/s | A: 2 vCPU / 4 GiB | B: 1 vCPU / 2 GiB | delta | lag A | lag B |
