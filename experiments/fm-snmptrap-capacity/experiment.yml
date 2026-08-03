@@ -390,8 +390,8 @@
               'and only the first one is a capacity number.',
               'lag is the p99 seconds a trap waited to be written; it grows',
               'without bound once the deployment stops keeping up.',
-              'PASS = no UDP drops, sink drained, ratio vs-ref >= %s, and',
-              'achiev/s >= %s of offered.'
+              ('PASS = no UDP drops, sink drained, ratio vs-ref >= %s, '
+               ~ 'and achiev/s >= %s of offered.')
                 | format(ftc_fidelity_floor, ftc_keepup_floor),
               '',
               'rate/dev  offer/s  sent     events   achiev/s lag    ratio  drops     verdict']
