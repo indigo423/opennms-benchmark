@@ -298,15 +298,22 @@
     # The reference is ftc_rates | first, so the list must ascend for it to be
     # the least-loaded measurement. Nothing else enforces the ordering, and a
     # reordered list would silently calibrate the sweep against a saturated rung.
+    #
+    # One entry is allowed and is not a degenerate sweep: it is an endurance
+    # run, where the reference and the single rung carry the same load on
+    # purpose and the corroboration between them becomes a test-retest at that
+    # load rather than a calibration of a ladder.
     - name: Assert the sweep rates ascend
       ansible.builtin.assert:
         that:
-          - (ftc_rates | length) > 1
+          - (ftc_rates | length) > 0
           - ftc_rates | map('int') | list == (ftc_rates | map('int') | sort | list)
         fail_msg: >-
-          ftc_rates must ascend and hold at least two entries: the first is the
+          ftc_rates must ascend and hold at least one entry: the first is the
           reference, and the reference has to be the least-loaded rung.
           Got {{ ftc_rates }}.
+        success_msg: >-
+          {{ ftc_rates | length }} rung(s), reference at {{ ftc_rates | first }}/device
         quiet: true
 
     # Measured after provisioning has settled, so it is the idle rate of a
