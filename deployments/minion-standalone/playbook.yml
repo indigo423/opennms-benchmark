@@ -39,3 +39,13 @@
   become: true
   roles:
     - nl6_loadtest
+
+# The sink topic is the measurement point here, so the probe that reads it is
+# part of the deployment rather than of an experiment. Elsewhere an experiment
+# applies this role itself; that works because those deployments also install
+# kafka_metrics_report, whose virtualenv it used to borrow.
+- name: Install the Kafka offsets probe on the monitoring node
+  hosts: mon_servers
+  become: true
+  roles:
+    - kafka_offsets

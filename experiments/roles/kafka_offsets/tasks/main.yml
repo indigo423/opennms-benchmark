@@ -2,12 +2,42 @@
 # Copyright 2026 Ronny Trommer <ronny@no42.org>
 # SPDX-License-Identifier: Apache-2.0
 
+- name: Install the Python virtualenv builder
+  ansible.builtin.apt:
+    name: python3-venv
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: ["kafka_offsets"]
+
+- name: Create the tool directory
+  ansible.builtin.file:
+    path: "{{ kafka_offsets_home }}"
+    state: directory
+    owner: "{{ kafka_offsets_owner }}"
+    group: "{{ kafka_offsets_owner }}"
+    mode: "0755"
+  tags: ["kafka_offsets"]
+
+- name: Create the virtualenv
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ kafka_offsets_home }}/venv
+    creates: "{{ kafka_offsets_home }}/venv/bin/python"
+  tags: ["kafka_offsets"]
+
+- name: Install the pinned Python dependencies
+  ansible.builtin.pip:
+    name: "{{ kafka_offsets_pip }}"
+    virtualenv: "{{ kafka_offsets_home }}/venv"
+    state: present
+  tags: ["kafka_offsets"]
+
 - name: Install the offsets probe
   ansible.builtin.copy:
     src: kafka_offsets.py
     dest: "{{ kafka_offsets_home }}/kafka_offsets.py"
-    owner: root
-    group: root
+    owner: "{{ kafka_offsets_owner }}"
+    group: "{{ kafka_offsets_owner }}"
     mode: "0755"
   tags: ["kafka_offsets"]
 
@@ -19,7 +49,7 @@
       set -euo pipefail
       exec {{ kafka_offsets_home }}/venv/bin/python {{ kafka_offsets_home }}/kafka_offsets.py "$@"
     dest: /usr/local/bin/kafka-offsets
-    owner: root
-    group: root
+    owner: "{{ kafka_offsets_owner }}"
+    group: "{{ kafka_offsets_owner }}"
     mode: "0755"
   tags: ["kafka_offsets"]

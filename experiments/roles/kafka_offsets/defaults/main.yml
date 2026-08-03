@@ -2,6 +2,19 @@
 # Copyright 2026 Ronny Trommer <ronny@no42.org>
 # SPDX-License-Identifier: Apache-2.0
 
-# Reuses the virtualenv kafka_metrics_report already installs, rather than
-# building a second one for a thirty-line script.
-kafka_offsets_home: /opt/kafka-metrics-report
+# Self-contained, deliberately. This used to point at kafka_metrics_report's
+# virtualenv to avoid building a second one for a thirty-line script, which was
+# a fair economy while every deployment installed both roles. It stops being one
+# the moment a deployment wants offsets without the metrics consumer:
+# minion-standalone has no Core, so nothing writes the metrics topic and
+# kafka_metrics_report would install a consumer that measures nothing — yet
+# dropping it silently removed the interpreter kafka-offsets execs.
+#
+# The topic is the measurement point in a Core-less deployment, so this role has
+# to stand on its own.
+kafka_offsets_home: /opt/kafka-offsets
+kafka_offsets_owner: root
+# confluent-kafka only; the protobuf and grpcio pins kafka_metrics_report needs
+# are for decoding CollectionSets, which this does not do.
+kafka_offsets_pip:
+  - "confluent-kafka==2.6.1"
