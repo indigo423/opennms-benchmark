@@ -302,11 +302,6 @@
     offered: "{{ (ftc_rate | int) * (ftc_device_count | int) }}"
     background: "{{ ((ftc_background_mps | int * (bracket_s | float)) / 1000) | round | int }}"
     persisted: "{{ [(persisted_raw | int) - (background | int), 0] | max }}"
-    # Trend across the load window's own buckets, ignoring the first and last:
-    # the first is partial (the window opens mid-minute) and the last is the
-    # drain tapering off. A system that is keeping up holds a flat rate; one
-    # that is progressively falling behind declines, and a single window total
-    # cannot tell those apart.
     ratio_v: >-
       {{ (persisted | int) / ([ledger.delivered.sent | default(0) | int, 1] | max) }}
     # vs-ref is undefined on the reference rung itself, which is measured before
@@ -334,7 +329,6 @@
       background: "{{ background }}"
       events: "{{ persisted }}"
       bracket_s: "{{ bracket_s | float | round(1) }}"
-      buckets: "{{ buckets }}"
       ratio: "{{ ratio_v }}"
       udp_drops: "{{ (ftc_udp_after.stdout | trim | int) - (ftc_udp_before.stdout | trim | int) }}"
       lag_before: "{{ ftc_lag_before.stdout | trim | int }}"
