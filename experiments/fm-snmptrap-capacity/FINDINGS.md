@@ -229,17 +229,25 @@ Two consecutive one-hour trials per variant, 17,279,900 traps each, one rate thr
 
 **Nothing is lost on either variant.** Ratio 0.999 and zero UDP receive-buffer overruns across 34.5 million traps per variant. But "not lost" and "kept up" part company over an hour in a way sixty-second windows never showed.
 
-The margin against the 95% keep-up gate, and the p99 wait before a trap reaches the database:
-
 | | trial 1 | trial 2 |
 |---|---|---|
-| **B: 1 vCPU / 2 GiB** | 98.63%, lag **71s** | 95.44%, lag **194s** |
+| **A: 2 vCPU / 4 GiB** | 3,099/s — 64.6%, lag **210s** — FAIL | 4,430/s — 92.3%, lag **294s** — FAIL |
+| **B: 1 vCPU / 2 GiB** | 4,734/s — 98.6%, lag **71s** — PASS | 4,581/s — 95.4%, lag **194s** — PASS |
 
-At sixty-second windows this same rate showed a 3–9 second wait. Held for an hour it is 71 seconds, and on the second hour 194 — three minutes of backlog, 0.4 percentage points above failing.
+**The answer to the question asked: neither deployment loses traps at 4,800/s for an hour, and neither keeps up in real time.** 17,266,7xx of 17,279,900 persisted in every trial — 99.92% — with no socket drops. What degrades is timeliness: at sixty-second windows this rate waited 3–9 seconds, held for an hour it waits 71 to 294 seconds. Traps arrive minutes late and the backlog grows.
 
-**The second trial is not a clean replicate of the first, by construction.** It runs against a table already holding the 17.3M rows the first trial wrote, growing to 34.5M by the end — the same load against a two-fold larger table with thirteen indexes to maintain. Whether the degradation is elapsed time or table size is not separated by this design, and the table is a pinned control everywhere else in this experiment precisely because it moves the answer.
+### The A-vs-B half of this run is invalid
 
-The A/B comparison survives that, since both variants run the identical sequence from a truncated start. The absolute claim does not: **"sustains 4,800/s for an hour" holds only for the first hour after a truncate.**
+A scored worse than B on both trials, and A is the larger Minion. There is no mechanism for that: the Minion is a pass-through on this path and the 60-second A/B, with four trials per variant, put the two at parity within 0.1%.
+
+Two protocol faults explain it, both mine:
+
+1. **Asymmetric warm-up.** B's endurance ran on a lab that had been up and settled since its earlier trials. A's ran immediately after a full `make deploy` — fresh install, restart, re-provisioning of 100 nodes, cold JVM and page cache. A's first trial is the worst figure in the whole investigation and its second recovers by 43%, which is the shape of warm-up, not of capacity. The 60-second A/B did not have this fault: both variants were measured after a fresh deploy.
+2. **Table growth between trials.** Trial 2 runs against the 17.3M rows trial 1 wrote, reaching 34.5M — the same load against a two-fold larger table with thirteen indexes. Elapsed time and table size are not separated, and the events table is a pinned control everywhere else in this experiment for exactly that reason.
+
+Hypervisor contention was ruled out rather than assumed: steal time is 0.00–0.02% on core, database and Minion, so the guests were not starved of CPU.
+
+Redoing this as a comparison needs both variants deployed and settled identically, the trials interleaved (A, B, A, B) so run order cannot alias onto the variant, and a truncate between every trial. That is a full day of lab time. The endurance numbers above stand as an absolute result for the deployment; they do not compare the two Minion sizes.
 
 Sizing note for anyone reproducing: 648 bytes per trap event, measured. One hour at 4,800/s is 11.2 GB, and the two trials together take 22.4 GB of the database volume's 43 GB.
 
