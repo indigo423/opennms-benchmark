@@ -103,6 +103,50 @@
 
 # The events for traps sent late in the window arrive during the drain, so the
 # counting bracket has to close after the drain rather than at the end of load.
+# Lag drained is necessary and not sufficient, so the bracket does not close
+# until the events themselves stop arriving.
+#
+# Tier 2 reads lag in Kafka messages and the sink batches at a rate-dependent
+# size (#215), so a lag inside the tolerance can still hide a six-figure backlog
+# of traps. Closing the bracket there leaves the rung's own events to be written
+# afterwards, where they land inside the NEXT rung's window: measured at the
+# reference-to-first-rung boundary, where both rungs offer the same load, the
+# second counted 299,716 events for 149,900 sent — a ratio of 1.999, one rung's
+# worth of spillover. At higher rates the same spillover is small against the
+# rung's own volume and reads as a healthy 1.000, which is worse: it is present
+# and invisible.
+#
+# Quiescence is defined against the background rather than as zero, because the
+# fleet keeps emitting: the fleet's own traps continue at ftc_background_mps
+# whatever the sweep does, so "stopped" can only mean "back down to what an idle
+# fleet produces".
+- name: "Wait for the events to stop arriving at {{ ftc_rate }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      q="select count(*) from events
+          where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
+            and eventsource = 'trapd'"
+      a=$(sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }} -c "$q")
+      sleep {{ ftc_quiesce_poll }}
+      b=$(sudo -u postgres psql -qtA -d {{ endpoints.measurement.database.name }} -c "$q")
+      echo $(( b - a ))
+  delegate_to: "{{ db }}"
+  become: true
+  register: ftc_quiesce
+  # Twice what an idle fleet would produce over the same poll, so ordinary
+  # background traffic satisfies it and a real backlog does not.
+  until: >-
+    ftc_quiesce.stdout is match('^[0-9]+$')
+    and (ftc_quiesce.stdout | int)
+        <= (2 * (ftc_background_mps | int) * (ftc_quiesce_poll | int) / 1000) | round | int
+  retries: "{{ (ftc_quiesce_timeout | int // ftc_quiesce_poll | int) | int }}"
+  delay: 0
+  changed_when: false
+  # A rung that never settles is the finding, not a reason to discard the tier
+  # readings that show why.
+  failed_when: false
+
 - name: "Mark the measurement end for {{ ftc_rate }}"
   ansible.builtin.command:
     cmd: >-

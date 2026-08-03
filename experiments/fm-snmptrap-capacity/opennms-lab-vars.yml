@@ -85,6 +85,13 @@ ftc_drain_tolerance: 100
 ftc_drain_poll: 10
 ftc_drain_timeout: 600
 
+# Event quiescence, which is what actually closes the bracket. Lag drained is
+# necessary and not sufficient: lag counts Kafka messages and the sink batches,
+# so a lag inside the tolerance can hide a six-figure backlog of traps that then
+# lands in the next rung's window.
+ftc_quiesce_poll: 15
+ftc_quiesce_timeout: 900
+
 # ── settling and baselines ────────────────────────────────────────────────────
 # Long enough that the count is not dominated by rounding, short enough not to
 # add a rung to the sweep.

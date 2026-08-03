@@ -407,10 +407,13 @@
       ansible.builtin.debug:
         msg: >-
           {{ (['R_max = %s/device = %s/s fleet-wide (first failure at %s/device)'
-                 | format(ftc_passing | last,
-                          (ftc_passing | last | int) * (ftc_device_count | int),
+                 | format(ftc_below_first_fail | last,
+                          (ftc_below_first_fail | last | int) * (ftc_device_count | int),
                           ftc_failing | first)]
               if (ftc_passing | length) > 0 and (ftc_failing | length) > 0
+                 and (ftc_below_first_fail | length) > 0
+              else ['R_max is below the ladder: the lowest rung already failed.']
+                   if (ftc_failing | length) > 0 and (ftc_below_first_fail | length) == 0
               else [('R_max is at least %s/device = %s/s fleet-wide, and this sweep '
                      ~ 'cannot say where it ends: no rung failed on the deployment.')
                       | format(ftc_passing | last,
@@ -420,7 +423,12 @@
              + ([('%s rung(s) were GENERATOR-LIMITED and prove nothing about the '
                   ~ 'deployment: %s/device. The ceiling there is nl6, not OpenNMS.')
                    | format(ftc_invalid | length, ftc_invalid | join(', '))]
-                if (ftc_invalid | length) > 0 else []) }}
+                if (ftc_invalid | length) > 0 else [])
+             + ([('*** NON-MONOTONIC: %s/device passed at or above the first failure '
+                  ~ 'at %s/device. A capacity curve that recovers as load rises is a '
+                  ~ 'broken measurement, not a result — read the table, not R_max.')
+                   | format(ftc_above_first_fail | join(', '), ftc_failing | first)]
+                if (ftc_above_first_fail | length) > 0 else []) }}
       vars:
         ftc_sweep: "{{ ftc_results[ftc_sweep_from | int :] }}"
         ftc_passing: "{{ ftc_sweep | selectattr('verdict', 'equalto', 'PASS') | map(attribute='rate') | list }}"
@@ -429,3 +437,16 @@
         # R_max — which is exactly the mistake the verdict exists to prevent.
         ftc_failing: "{{ ftc_sweep | selectattr('verdict', 'equalto', 'FAIL') | map(attribute='rate') | list }}"
         ftc_invalid: "{{ ftc_sweep | selectattr('verdict', 'equalto', 'INVALID') | map(attribute='rate') | list }}"
+        # R_max is the last rung before the first failure, not simply the
+        # highest that passed. Those differ exactly when the curve is not
+        # monotonic, and a curve that recovers as load rises is a broken
+        # measurement — reporting its highest pass would launder the breakage
+        # into a headline number.
+        ftc_below_first_fail: >-
+          {{ ftc_passing | map('int')
+             | select('lt', (ftc_failing | map('int') | first) if (ftc_failing | length) > 0 else 10 ** 9)
+             | list }}
+        ftc_above_first_fail: >-
+          {{ ftc_passing | map('int')
+             | select('ge', (ftc_failing | map('int') | first) if (ftc_failing | length) > 0 else 10 ** 9)
+             | list }}
