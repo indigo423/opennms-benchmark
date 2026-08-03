@@ -181,6 +181,7 @@ Descriptor component order: `es mm vm ch ak rp rs rr pg sn kf on mn nl6`.
 | `vm-cluster-es` | `1es-3vm-1pg-1on` | VictoriaMetrics cluster plus ES flows |
 | `es-nostore` | `1es-1pg-1kf-1on-1mn` | ES flows, no metrics TSDB |
 | `kafka-exclusive` | `1pg-1kf-1on-1mn-nl6` | Kafka-exclusive metric forwarding: `baseline` minus Elasticsearch, no local TSDB. Ships an overlay and a `playbook.yml`, so **kvm/aws only** |
+| `minion-standalone` | `1kf-1mn-nl6` | **Minion in isolation**: no Core, no PostgreSQL. Traps are counted on the Kafka sink topic, so the measurement stops where the Minion's responsibility does. Every topology with a Core measures the Core, which saturates near 5,000 traps/s and hides the Minion's own ceiling. Ships a `playbook.yml` and uses `micro`, so **kvm only** |
 | `vm-cluster-minion` | `3vm-1pg-1kf-1on-1mn` | VictoriaMetrics cluster plus minion |
 | `vm-single` | `1vm-1pg-1on` | single VictoriaMetrics |
 | `mimir-single` | `1mm-1pg-1on` | single Mimir |

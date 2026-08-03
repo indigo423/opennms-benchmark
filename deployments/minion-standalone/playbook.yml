@@ -1,0 +1,41 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# deploy.sh replaces opennms-playbook.yml with this file when
+# DEPLOYMENT=minion-standalone, so the stock stack is imported rather than
+# duplicated.
+#
+# The imported playbook keys every play on a host group, so with no core and no
+# database role in the topology those plays skip and only the broker, Minion and
+# Grafana ones run. Nothing here has to suppress them.
+#
+# Deliberately absent, compared with kafka-exclusive:
+#
+#   opennms_kafka_producer   forwards Core-side metrics to Kafka; there is no Core
+#   kafka_metrics_report     consumes that metric topic; nothing writes to it
+#
+# Both would install cleanly and measure nothing.
+
+- name: Deploy the stock OpenNMS stack
+  ansible.builtin.import_playbook: ../../opennms-playbook.yml
+
+# The Minion must bind the trap port and size its receive buffer, or the
+# deployment publishes an ingress that accepts nothing and every symptom is a
+# clean zero (#206). The role also pins net.core.rmem_max, which is a control of
+# any trap measurement and has to be identical wherever one is taken.
+- name: Bind the Minion's fault-management listeners
+  hosts: minion
+  become: true
+  roles:
+    - opennms_minion_listeners
+
+# The generator's rate lives in nl6's scenario API rather than its systemd unit,
+# so driving load at all needs this. It also supplies the send-ledger, which is
+# the only ground truth for what was offered once there is no database to
+# reconcile against.
+- name: Install the nl6 load-test driver on the monitoring node
+  hosts: mon_servers
+  become: true
+  roles:
+    - nl6_loadtest
