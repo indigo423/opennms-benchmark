@@ -1,0 +1,13 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Self-contained, like kafka_offsets. Borrowing another role's virtualenv is how
+# a deployment that omits that role ends up with a probe whose interpreter is
+# missing, and the symptom is an empty reading rather than a missing dependency.
+kafka_trap_report_home: /opt/kafka-trap-report
+kafka_trap_report_owner: root
+# confluent-kafka only. The payload is XML inside the envelope, so no protobuf
+# runtime and no generated stubs are needed to count traps.
+kafka_trap_report_pip:
+  - "confluent-kafka==2.6.1"

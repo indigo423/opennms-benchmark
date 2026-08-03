@@ -49,3 +49,13 @@
   become: true
   roles:
     - kafka_offsets
+
+# The instrument the whole deployment exists to enable. An offset delta counts
+# Kafka messages, and one message carries a list of traps whose length moves
+# with offered rate — 1 at idle, 26 at 5,000/s — so only a decoded count can be
+# reconciled against the generator's ledger.
+- name: Install the sink trap counter on the monitoring node
+  hosts: mon_servers
+  become: true
+  roles:
+    - kafka_trap_report
