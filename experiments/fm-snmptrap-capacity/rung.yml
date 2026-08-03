@@ -307,13 +307,22 @@
     # behind leaves the remainder for the drain, and the shortfall here is the
     # size of the deficit.
     created_in_window: "{{ ftc_persisted.stdout_lines[1] | default(0) | int }}"
-    load_seconds: >-
-      {{ (ftc_t_load_end.stdout | default(0) | trim | float)
-         - (ftc_t0.stdout | default(0) | trim | float) }}
-    # Guarded at the division rather than in load_seconds: a lint render has no
-    # registers, so both timestamps come back empty and the span is zero.
+    # Divided by the generator's own window, not by the task's wall clock.
+    #
+    # t_load_end is stamped after the load command returns, so it carries nl6's
+    # two-second drain plus process start and the SSH round trip. Derived from
+    # the results, that is 63.7s for a 60s window, and it was identical on every
+    # rung that kept up — a constant ~6% dilution of the reported rate, sitting
+    # in a column next to the offered rate it is meant to be compared against.
+    # It read as a 6% deficit when every trap had in fact arrived.
+    #
+    # The window is the interval the generator actually offered load over, so
+    # dividing by it makes achieved directly comparable to offer/s. Guarded at
+    # the division because a lint render has no registers and the ledger is empty.
+    window_seconds: >-
+      {{ ledger.request.window_seconds | default(0) | float }}
     achieved: >-
-      {{ ((created_in_window | int) / ([load_seconds | float, 1] | max)) | round | int }}
+      {{ ((created_in_window | int) / ([window_seconds | float, 1] | max)) | round | int }}
     # How far behind the pipeline ran. Bounded means it kept up; growing into
     # minutes means Kafka is holding a backlog the Core has not reached yet.
     lag_p99: "{{ ftc_persisted.stdout_lines[2] | default(0) | int }}"
@@ -364,6 +373,8 @@
         {{ (ftc_lag_after.stdout | trim | int)
            <= (ftc_lag_before.stdout | trim | int) + (ftc_drain_tolerance | int) }}
       # Tier 3: fidelity held and did not decay across the window.
+      created_in_window: "{{ created_in_window }}"
+      window_seconds: "{{ window_seconds }}"
       achieved: "{{ achieved }}"
       lag_p99: "{{ lag_p99 }}"
       tier3: "{{ (tier3_fidelity | bool) and (tier3_keptup | bool) }}"
