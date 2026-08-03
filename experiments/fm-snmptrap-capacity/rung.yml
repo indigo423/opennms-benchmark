@@ -196,13 +196,10 @@
              where eventtime >= to_timestamp({{ ftc_t0.stdout | trim }})
                and eventtime <  to_timestamp({{ ftc_t1.stdout | trim }})
                and eventsource = 'trapd'" \
-        -c "select round(count(*) / greatest(extract(epoch from
-                     (to_timestamp({{ ftc_t_load_end.stdout | trim }})
-                      - to_timestamp({{ ftc_t0.stdout | trim }}))), 1))::text
-             from events
-            where eventcreatetime >= to_timestamp({{ ftc_t0.stdout | trim }})
-              and eventcreatetime <  to_timestamp({{ ftc_t_load_end.stdout | trim }})
-              and eventsource = 'trapd'" \
+        -c "select count(*) from events
+             where eventcreatetime >= to_timestamp({{ ftc_t0.stdout | trim }})
+               and eventcreatetime <  to_timestamp({{ ftc_t_load_end.stdout | trim }})
+               and eventsource = 'trapd'" \
         -c "select coalesce(round(percentile_cont(0.99) within group
                      (order by extract(epoch from (eventcreatetime - eventtime)))::numeric)::text, '0')
              from events
@@ -309,7 +306,14 @@
     # lands inside the window and this equals the offered rate. One that falls
     # behind leaves the remainder for the drain, and the shortfall here is the
     # size of the deficit.
-    achieved: "{{ ftc_persisted.stdout_lines[1] | default(0) | int }}"
+    created_in_window: "{{ ftc_persisted.stdout_lines[1] | default(0) | int }}"
+    load_seconds: >-
+      {{ (ftc_t_load_end.stdout | default(0) | trim | float)
+         - (ftc_t0.stdout | default(0) | trim | float) }}
+    # Guarded at the division rather than in load_seconds: a lint render has no
+    # registers, so both timestamps come back empty and the span is zero.
+    achieved: >-
+      {{ ((created_in_window | int) / ([load_seconds | float, 1] | max)) | round | int }}
     # How far behind the pipeline ran. Bounded means it kept up; growing into
     # minutes means Kafka is holding a backlog the Core has not reached yet.
     lag_p99: "{{ ftc_persisted.stdout_lines[2] | default(0) | int }}"
@@ -330,8 +334,14 @@
     # sink absorbs whatever the Minion accepts, so everything is eventually
     # persisted at any rate the generator can reach. The rate that matters is
     # the one eventcreatetime spans, and it must track what was offered.
+    # Against what the generator sent, not against a nominal rate. Both sides
+    # then describe the same traps and share no denominator: comparing a count
+    # taken over wall-clock against rate x devices mismatched them by the
+    # generator's own drain and the task overhead, a steady ~6% that read as a
+    # failure on rungs whose p99 wait was one second.
     tier3_keptup: >-
-      {{ (achieved | int) >= (offered | int) * (ftc_keepup_floor | float) }}
+      {{ (created_in_window | int)
+         >= ([ledger.delivered.sent | default(0) | int, 1] | max) * (ftc_keepup_floor | float) }}
     rung:
       rate: "{{ ftc_rate }}"
       devices: "{{ ftc_device_count }}"
