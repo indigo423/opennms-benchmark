@@ -10,7 +10,7 @@
 #
 # Bounded on purpose: --replay against a previous sidecar re-reads exactly the
 # same offsets and produces exactly the same numbers, which a live tail cannot
-# promise. Retention has to outlive the benchmark; the kfk-exclusive deployment
+# promise. Retention has to outlive the benchmark; the kafka-exclusive deployment
 # sets 24 h for this.
 #
 # Two clocks are tracked and never conflated:

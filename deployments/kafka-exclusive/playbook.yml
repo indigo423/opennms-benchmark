@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # deploy.sh replaces opennms-playbook.yml with this file when
-# DEPLOYMENT=kfk-exclusive, so the stock stack is imported rather than
+# DEPLOYMENT=kafka-exclusive, so the stock stack is imported rather than
 # duplicated — the plays stay in one place and cannot drift.
 #
 # The Kafka Producer has no variable in the pinned indigo423.opennms

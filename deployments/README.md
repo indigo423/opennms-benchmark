@@ -86,7 +86,7 @@ Each provider owns the class to SKU/flavour mapping (Azure `Standard_D*`, Hetzne
 Disk sizes come from the provider's `disk_sizes_gb`, keyed by role.
 
 Size is part of the experiment, not decoration.
-A component that gains work relative to `baseline` usually needs a class with it: `kfk-exclusive` raises `kafka` to `medium` because that broker carries the entire metric stream on top of the IPC traffic, and a broker that saturates first makes the benchmark measure Kafka instead of OpenNMS.
+A component that gains work relative to `baseline` usually needs a class with it: `kafka-exclusive` raises `kafka` to `medium` because that broker carries the entire metric stream on top of the IPC traffic, and a broker that saturates first makes the benchmark measure Kafka instead of OpenNMS.
 
 ### Subnets
 
@@ -180,7 +180,7 @@ Descriptor component order: `es mm vm ch ak rp rs rr pg sn kf on mn nl6`.
 | `rrd-minimal` | `1rr-1pg-1kf-1on-1mn` | RRDTool on core, minimal |
 | `vm-cluster-es` | `1es-3vm-1pg-1on` | VictoriaMetrics cluster plus ES flows |
 | `es-nostore` | `1es-1pg-1kf-1on-1mn` | ES flows, no metrics TSDB |
-| `kfk-exclusive` | `1pg-1kf-1on-1mn-nl6` | Kafka-exclusive metric forwarding: `baseline` minus Elasticsearch, no local TSDB. Ships an overlay and a `playbook.yml`, so **kvm/aws only** |
+| `kafka-exclusive` | `1pg-1kf-1on-1mn-nl6` | Kafka-exclusive metric forwarding: `baseline` minus Elasticsearch, no local TSDB. Ships an overlay and a `playbook.yml`, so **kvm/aws only** |
 | `vm-cluster-minion` | `3vm-1pg-1kf-1on-1mn` | VictoriaMetrics cluster plus minion |
 | `vm-single` | `1vm-1pg-1on` | single VictoriaMetrics |
 | `mimir-single` | `1mm-1pg-1on` | single Mimir |
@@ -193,7 +193,7 @@ Descriptor component order: `es mm vm ch ak rp rs rr pg sn kf on mn nl6`.
 
 **Reading the index.**
 `rrd-minimal` lists RRDTool without a Core, but RRD is a Core storage strategy, so it and `baseline` both include `core` with the strategy set at the Ansible layer.
-`kfk-exclusive` lists no TSDB component at all for the same reason inverted: its metrics leave via the Kafka Producer, so the `metrics` topic is the store.
+`kafka-exclusive` lists no TSDB component at all for the same reason inverted: its metrics leave via the Kafka Producer, so the `metrics` topic is the store.
 
 **Test beds are not benchmarks.**
 The four entries marked above exist to prove a component forms a cluster or a topology wires up on hardware that fits the lab.

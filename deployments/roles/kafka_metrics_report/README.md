@@ -2,7 +2,7 @@
 
 Installs a batch consumer on the monitoring node that counts OpenNMS metric samples on a Kafka topic and writes a self-contained HTML report.
 
-Built for the `kfk-exclusive` deployment, where the Kafka `metrics` topic **is** the time-series store.
+Built for the `kafka-exclusive` deployment, where the Kafka `metrics` topic **is** the time-series store.
 `EmptyResourceStorageDao` means the OpenNMS UI shows no graphs, so the topic is the only measurement point a performance-management benchmark has.
 
 ## What the report answers
@@ -45,7 +45,7 @@ A tail can offer neither.
 
 The bound is enforced per record, not merely tracked. A partition that drains early keeps receiving newly produced messages while its siblings catch up; counting those would make the totals disagree with the offsets the report prints.
 
-The cost is that retention must outlive the benchmark. `kfk-exclusive` sets `log.retention.hours: 24` with a byte cap for exactly this reason.
+The cost is that retention must outlive the benchmark. `kafka-exclusive` sets `log.retention.hours: 24` with a byte cap for exactly this reason.
 
 ## Counting: what "a metric" means
 

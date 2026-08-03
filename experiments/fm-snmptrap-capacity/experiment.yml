@@ -5,7 +5,7 @@
 # Fault management: the maximum sustained SNMP trap rate this deployment
 # accepts without data loss.
 #
-#   make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kfk-exclusive \
+#   make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kafka-exclusive \
 #     EXTRA_VARS='{"ftc_rates":[5,25,50,100,250],"ftc_window":"60s"}'
 #
 # Distinct from fm-snmptrap, which sweeps a fixed ladder at 30s windows and
@@ -71,7 +71,7 @@
 # creation and reduction on the hot path, so the benchmark would still be timing
 # alarmd; and it mutates a stock definition that outlives the run.
 #
-# Not the Event Correlator, which kfk-exclusive already ships disabled
+# Not the Event Correlator, which kafka-exclusive already ships disabled
 # (CORE_SERVICE_CORRELATOR_ENABLED="false"), so the deletions happened with the
 # correlator off. Nor the EventTranslator, which does not delete rows — it is
 # pinned off here for isolation rather than correctness, being per-event work
@@ -175,7 +175,7 @@
     # Built here rather than through the opennms_requisition role on purpose.
     # That role runs nl6's onms-provision.sh, which always emits a
     # gNMI-Telemetry monitored service plus oc.* meta-data. TELEMETRYD is
-    # enabled on kfk-exclusive, so those nodes would have an OpenConfig
+    # enabled on kafka-exclusive, so those nodes would have an OpenConfig
     # connector streaming from them for the whole sweep: uncontrolled load in a
     # benchmark whose entire point is one independent variable.
     #

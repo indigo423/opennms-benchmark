@@ -1,5 +1,5 @@
 ---
-# Deployment overlay for kfk-exclusive. Layered by deploy.sh after the root
+# Deployment overlay for kafka-exclusive. Layered by deploy.sh after the root
 # opennms-lab-vars.yml, for the kvm and aws providers only.
 #
 # IMPORTANT: Ansible's default hash behaviour is `replace`, not `merge`, and

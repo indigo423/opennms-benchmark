@@ -3,7 +3,7 @@
 Enables and configures the northbound Kafka Producer on an OpenNMS Core.
 
 The pinned `indigo423.opennms` collection has no variable for this feature, so it lives here rather than in the collection.
-Everything else the `kfk-exclusive` deployment needs is expressed as collection variables.
+Everything else the `kafka-exclusive` deployment needs is expressed as collection variables.
 
 ## What it does
 
@@ -25,7 +25,7 @@ The assertion turns a silent, measurable-looking failure into a loud one at depl
 
 It lives in `tasks/validate.yml` rather than inline so a playbook can run it *before* the stock stack is imported.
 Run only as part of `main.yml`, the assert would fire after the core role had already applied `strategy=osgi` and restarted OpenNMS — aborting onto a hung lab instead of refusing to build one.
-`deployments/kfk-exclusive/playbook.yml` does exactly that in its first play.
+`deployments/kafka-exclusive/playbook.yml` does exactly that in its first play.
 
 ## Variables
 

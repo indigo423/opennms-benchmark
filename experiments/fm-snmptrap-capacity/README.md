@@ -54,7 +54,7 @@ The correction moves with load, which is the independent variable, so no referen
 | `ALARMD` | Performs auto-clean, which deletes the rows the sweep counts | Correctness |
 | `EVENTTRANSLATOR` | Per-event hot-path work unrelated to trap ingestion | Isolation |
 
-Neither is the **Event Correlator**, which `kfk-exclusive` already ships disabled (`CORE_SERVICE_CORRELATOR_ENABLED="false"`) — the deletions happened with the correlator off.
+Neither is the **Event Correlator**, which `kafka-exclusive` already ships disabled (`CORE_SERVICE_CORRELATOR_ENABLED="false"`) — the deletions happened with the correlator off.
 Both default to `true` in the shipped `service-configuration.xml`, so both are in the path unless pinned.
 
 Disabling daemons rather than editing the event definition is deliberate.
@@ -74,7 +74,7 @@ The reference rung, run at the lowest sweep rate before the sweep and again insi
 ## Controls
 
 Sources are **provisioned** (foreign source `nl6-ft`, ICMP and SNMP only), so trapd resolves each trap against a cached node instead of paying a lookup miss per trap.
-The requisition is built here rather than through the `opennms_requisition` role, because that role emits a `gNMI-Telemetry` service and `oc.*` meta-data, and TELEMETRYD is enabled on `kfk-exclusive` — an OpenConfig connector streaming from every node would be uncontrolled load.
+The requisition is built here rather than through the `opennms_requisition` role, because that role emits a `gNMI-Telemetry` service and `oc.*` meta-data, and TELEMETRYD is enabled on `kafka-exclusive` — an OpenConfig connector streaming from every node would be uncontrolled load.
 
 **The fleet's syslog is silent** (`ftc_syslog_collector: ""`), so this measures the trap path and only the trap path.
 Left on, the fleet emits syslog every 10 seconds per device down the same Minion sink, Kafka topic, eventd queue and Postgres table the traps use.
@@ -104,20 +104,20 @@ Each phase is one run with an explicit ladder.
 **Phase A — bracket.** Coarse ladder, 60s windows. Makes no claims; finds the two adjacent rates spanning the first tier-3 failure.
 
 ```bash
-make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kfk-exclusive
+make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kafka-exclusive
 ```
 
 **Phase B — bisect.** 15-minute steady state between the Phase A bracket. Expect at least one rate that passed Phase A to fail here; that gap quantifies how much burst the deployment absorbs.
 
 ```bash
-make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kfk-exclusive \
+make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kafka-exclusive \
   EXTRA_VARS='{"ftc_rates":[25,50,75,100],"ftc_window":"15m"}'
 ```
 
 **Phase C — confirm.** Three trials at the surviving rate and three at the next step above. The upper set must fail for R_max to mean anything: a confirmed maximum needs a repeatable pass *and* a repeatable failure one step up.
 
 ```bash
-make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kfk-exclusive \
+make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kafka-exclusive \
   EXTRA_VARS='{"ftc_rates":[75,75,75,100,100,100],"ftc_window":"15m"}'
 ```
 

@@ -2,7 +2,7 @@
 # Fault management: how many SNMP traps a second can this deployment accept
 # before it stops keeping up.
 #
-#   make experiment EXPERIMENT=fm-snmptrap DEPLOYMENT=kfk-exclusive
+#   make experiment EXPERIMENT=fm-snmptrap DEPLOYMENT=kafka-exclusive
 #
 # Sweeps a list of rates. Each rung reports what left the generator and what
 # the Core persisted, read against a measured reference rather than against an

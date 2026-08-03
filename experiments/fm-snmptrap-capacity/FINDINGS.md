@@ -2,9 +2,9 @@
 Copyright 2026 Ronny Trommer <ronny@no42.org>
 SPDX-License-Identifier: Apache-2.0
 -->
-# SNMP trap capacity on kfk-exclusive — investigation record
+# SNMP trap capacity on kafka-exclusive — investigation record
 
-**Question.** What is the maximum number of SNMP traps per second the `kfk-exclusive` deployment accepts on `kvm` without data loss?
+**Question.** What is the maximum number of SNMP traps per second the `kafka-exclusive` deployment accepts on `kvm` without data loss?
 
 **Status: measurement harness complete and trusted; the headline number is not yet calibrated.**
 Investigation paused 2026-08-03. Issue [#216](https://github.com/indigo423/opennms-benchmark/issues/216), branch `feat/216-snmptrap-capacity`.
@@ -77,7 +77,7 @@ Worse than a fixed loss, the deletion is **asynchronous**, so the surviving coun
 
 **Fix:** pin `CORE_SERVICE_ALARMD_ENABLED=false` (correctness) and `CORE_SERVICE_EVENTTRANSLATOR_ENABLED=false` (isolation). With alarmd off: **1,133,649 persisted / 1,133,400 sent = 1.0002**.
 
-Not the Event Correlator — `kfk-exclusive` already ships that disabled, so the deletions happened with it off.
+Not the Event Correlator — `kafka-exclusive` already ships that disabled, so the deletions happened with it off.
 
 ### 2. The Minion never sized its trap receive buffer
 
@@ -143,7 +143,7 @@ The recurring pattern: *a buffer converts a rate problem into a latency problem,
 - **Event quiescence** closes the bracket, defined against the measured background (the fleet never stops emitting).
 - **Single-protocol fleets** — `nl6_fleet` omits a collector when its value is empty, so a trap benchmark is not also measuring syslog.
 - **`EXTRA_VARS`** on `make experiment`, so phases run without editing a vars file.
-- **`micro` size class** (1 vCPU / 2 GiB, kvm) and `kfk-exclusive-minion-micro`, differing from `kfk-exclusive` by one line, with playbook and vars **symlinked** so controls cannot drift.
+- **`micro` size class** (1 vCPU / 2 GiB, kvm) and `kafka-exclusive-minion-micro`, differing from `kafka-exclusive` by one line, with playbook and vars **symlinked** so controls cannot drift.
 
 ## Pinned controls
 
@@ -175,7 +175,7 @@ Spreading load across more devices is what bought headroom. A healthy run is sho
 
 1. **Calibrated bracket at 2,000–10,000/s.** The one thing needed for a quotable R_max. ~20 min:
    ```bash
-   make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kfk-exclusive \
+   make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kafka-exclusive \
      EXTRA_VARS='{"ftc_rates":[20,40,50,60,80,100]}'
    ```
 2. **Phase B / C** — sustained 15-minute windows and repeat trials. Phase A makes no claims by design.

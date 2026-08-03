@@ -1,11 +1,11 @@
 ---
-name: kfk-exclusive-minion-micro
+name: kafka-exclusive
 description: >-
-  kfk-exclusive with the Minion starved to one vCPU and 2 GiB. The paired
-  variant for a Minion-sizing comparison: every other role, subnet, size and
-  variable is identical to kfk-exclusive, so Minion CPU and memory are the only
-  thing that differs and a delta between the two is attributable to it.
-  kvm only — micro is a kvm size class.
+  Kafka-exclusive metric forwarding. Collectd/SNMP performance-management
+  benchmarking with metrics leaving Core only via the Kafka Producer, plus
+  Pollerd/Trapd/Syslogd fault-management load. No local time-series store —
+  the measurement point is the Kafka metrics topic, not the OpenNMS UI.
+  Subnet wiring matches baseline; Elasticsearch is omitted. kvm/aws only.
 roles:
   database:
     count: 1
@@ -28,7 +28,7 @@ roles:
     groups: [message_broker, docker_engine, kafka_ui]
   minion:
     count: 1
-    size: micro    # <- the independent variable; kfk-exclusive has small (2 vCPU / 4 GiB)
+    size: small
     subnets: [mgmt, kafka, sim]
     routes: { sim: net_sim }
     groups: [minion]

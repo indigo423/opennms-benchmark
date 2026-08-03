@@ -2,7 +2,7 @@
 # Performance management: how many nodes can this deployment collect from
 # before collection stops completing within its interval.
 #
-#   make experiment EXPERIMENT=pm-snmp DEPLOYMENT=kfk-exclusive
+#   make experiment EXPERIMENT=pm-snmp DEPLOYMENT=kafka-exclusive
 #
 # Sweeps fleet size. At each rung the fleet grows, is provisioned, and a full
 # collection interval is measured on the Kafka metrics topic. The column to read
