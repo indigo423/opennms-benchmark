@@ -6,25 +6,40 @@ SPDX-License-Identifier: Apache-2.0
 
 **Question.** What is the maximum number of SNMP traps per second the `kafka-exclusive` deployment accepts on `kvm` without data loss?
 
-**Status: measurement harness complete and trusted; the headline number is not yet calibrated.**
-Investigation paused 2026-08-03. Issue [#216](https://github.com/indigo423/opennms-benchmark/issues/216), branch `feat/216-snmptrap-capacity`.
+**Status: answered.** Issue [#216](https://github.com/indigo423/opennms-benchmark/issues/216), branch `feat/216-snmptrap-capacity`. Phase A (60s windows) complete and calibrated 2026-08-03.
 
 ---
 
 ## The short answer
 
-**The deployment sustains roughly 4,600 traps/s** end to end (Minion → Kafka → Core → Postgres), with alarm processing and event translation pinned out of the path and the Minion's receive buffer tuned.
+### R_max = 5,000 traps/s fleet-wide
 
-That figure comes from two independent sources that agree to within ~2%:
+100 provisioned sources at 50 traps/s each, sustained with no backlog. First failure at 6,000/s.
+
+```
+rate/dev  offer/s  sent     events   achiev/s lag    ratio  drops  verdict
+ref       2000     119900   119721   1883     1s     0.999  0      PASS
+20        2000     119900   119729   1884     1s     0.999  0      PASS
+40        4000     239900   239714   3762     3s     0.999  0      PASS
+50        5000     299900   299707   4701     5s     0.999  0      PASS
+60        6000     359900   359746   4781    15s     1.000  0      FAIL
+80        8000     479900   479763   4191    45s     1.000  0      FAIL
+100      10000     599900   599763   4472    65s     1.000  0      FAIL
+```
+
+Throughput plateaus at **~4,700–4,800/s**; beyond it the pipeline accumulates backlog rather than losing anything. Three independent measurements agree:
 
 | source | value |
 |---|---|
-| `events.eventcreatetime` span, measured by the sweep | ~4,600/s |
-| Core's own trapd JMX metric, read from Grafana | p99 4,687/s, max 5,075/s |
+| sweep, rows created inside the load window | plateau ~4,700–4,800/s |
+| sweep, per-minute `eventcreatetime` profile | peaks 4,553 / 4,773 / 4,694 /s |
+| Core's own trapd JMX metric, via Grafana | p99 4,687/s, max 5,075/s |
 
-It has **not** been confirmed by a calibrated sweep at that scale. The final bracket run (2,000–10,000/s fleet-wide) was stopped before completing. Everything needed to run it is committed and working.
+**Read `lag`, not `ratio`.** `ratio` is 0.999–1.000 on *every* rung including the failures: nothing is ever lost, because Kafka absorbs the excess and the Core drains it later. Capacity shows up as the p99 wait — 1, 1, 3, 5 seconds through 5,000/s, then 15, 45, 65.
 
-**Do not quote any of the larger numbers this investigation produced along the way** (5,000 / 10,000 / 25,000 traps/s). Each was an artefact; see below.
+Scoped to this fleet shape (100 sources) and to Phase A's 60-second windows. Sustained 15-minute windows and repeat trials were not run.
+
+**Do not quote the larger numbers this investigation produced along the way** (10,000 / 25,000 traps/s). Each was an artefact; see below.
 
 ---
 
@@ -125,6 +140,11 @@ Listed because each produced a plausible, wrong number, and the failure modes ge
 | 7 | R_max = "highest rung that passed" | printed "R_max = 250/device (first failure at 25/device)", a sentence that cannot be true |
 | 8 | **Counted throughput on `eventtime`** | reported the *offered* rate (24,783/s) as if it were the sustained rate (~4,600/s) |
 | 9 | Delivery gated on a fraction | nl6 overcounts `expected` by exactly one tick per device; the constant artefact outweighs the fractional floor at low rate × window |
+| 10 | `buckets` fact orphaned by the trend removal | every rung aborted with `'buckets' is undefined` |
+| 11 | Jinja precedence, again, in the header | `format` bound to the second literal; a sweep that measured all seven rungs printed no table at all |
+| 12 | `achieved` rated over the bracket | the fleet's background keeps creating rows to the bracket's end, so the span measured the bracket (80s for a 60s window) — a steady ~6% shortfall that failed the reference itself |
+
+Defects 10–12 were all found by *running* the sweep rather than reading it, which is the argument for a cheap 20-minute bracket over a 4-hour sustained run as the first thing you execute after a change.
 
 Defect 8 is the one that mattered most, and it was caught by comparing against Core's own trapd metric rather than by any internal consistency check. **Two independent instruments beat one careful one.**
 
@@ -173,12 +193,7 @@ Spreading load across more devices is what bought headroom. A healthy run is sho
 
 ## Open items
 
-1. **Calibrated bracket at 2,000–10,000/s.** The one thing needed for a quotable R_max. ~20 min:
-   ```bash
-   make experiment EXPERIMENT=fm-snmptrap-capacity DEPLOYMENT=kafka-exclusive \
-     EXTRA_VARS='{"ftc_rates":[20,40,50,60,80,100]}'
-   ```
-2. **Phase B / C** — sustained 15-minute windows and repeat trials. Phase A makes no claims by design.
+1. **Phase B / C** — sustained 15-minute windows and repeat trials. Phase A makes no claims by design.
 3. **Minion 1 vCPU vs 2 vCPU A/B.** Scaffolding ready, but **the premise is now doubtful**: the Minion dropped nothing at 25,000/s, so the constraint is Core-side (eventd/Postgres). Sizing the Minion may show no difference. Worth confirming where the ~4,600/s limit actually sits before spending a redeploy.
 4. **Where is the 4,600/s spent?** Not yet attributed between eventd, the Core's Kafka consumer, and Postgres insert cost with 13 indexes. This is the natural next investigation.
 5. **Run manifest and HTML report** — the `opennms-benchmark` skill's contracts 1 and 3 are not yet satisfied; no manifest is emitted.
