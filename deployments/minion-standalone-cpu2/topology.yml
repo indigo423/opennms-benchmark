@@ -1,0 +1,44 @@
+---
+name: minion-standalone-cpu2
+description: >-
+  Minion trap reception at 2 vCPU / 2 GiB, one arm of a CPU sweep. Memory is
+  pinned so vCPU is the only variable; the isolation is minion-standalone's, so
+  no Core and no PostgreSQL cap the result. trapd derives its thread pool from
+  available cores when threads="0", which is the shipped default, so this is the
+  knob the sweep is actually turning. kvm only.
+roles:
+  # Not the system under test, and sized so it cannot become one. The trap sink
+  # is the only traffic here — no metric stream, no RPC of consequence — but a
+  # broker that saturates first would make this measure Kafka instead of the
+  # Minion, which is the mistake this whole deployment exists to avoid.
+  kafka:
+    count: 1
+    size: medium
+    subnets: [mgmt, kafka]
+    groups: [message_broker, docker_engine, kafka_ui]
+  # The system under test, deliberately starved. trapd derives its thread count
+  # from available cores when threads="0", which is the shipped default, so one
+  # vCPU is the tightest the pipeline can be asked to run.
+  minion:
+    count: 1
+    size: cpu2
+    subnets: [mgmt, kafka, sim]
+    routes: { sim: net_sim }
+    groups: [minion]
+  # The generator. nl6 caps --rate at 1000 per device, so fleet-wide load is a
+  # function of device count; this needs headroom to outrun the Minion, which is
+  # the opposite of the usual concern.
+  loadgen:
+    count: 1
+    size: small
+    subnets: [mgmt, sim]
+    groups: [net_sim, docker_engine]
+  # Jump host and tooling: nl6-loadtest drives the load, kafka-offsets and the
+  # trap counter read the sink. On the kafka subnet because the measurement
+  # point is the topic.
+  monitoring:
+    count: 1
+    size: small
+    subnets: [mgmt, kafka, external]
+    public_ip: true
+    groups: [mon_servers, docker_engine, grafana]

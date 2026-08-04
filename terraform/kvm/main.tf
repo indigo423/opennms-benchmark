@@ -24,6 +24,14 @@ locals {
     # the question is what a component can still carry when it is starved. Do
     # not reach for it to make a lab fit — that is what tiny is for.
     micro = { memory = 2048, vcpu = 1 }
+    # A CPU-sweep family: same 2 GiB, varying vCPU. The t-shirt classes above
+    # deliberately move CPU and memory together, which is right for sizing a
+    # component and wrong for asking what one more core buys. These exist so
+    # vCPU can be the only variable — cpu2 is tiny's shape, restated here so a
+    # sweep reads as one family rather than one t-shirt and two specials.
+    cpu2 = { memory = 2048, vcpu = 2 }
+    cpu4 = { memory = 2048, vcpu = 4 }
+    cpu8 = { memory = 2048, vcpu = 8 }
     # tiny exists for wiring/shape test beds only — enough to start a service,
     # not enough to measure one. See deployments/README.md.
     tiny   = { memory = 2048, vcpu = 2 }
