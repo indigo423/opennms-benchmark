@@ -1,6 +1,6 @@
 # KVM Terraform Root
 
-Deploys the OpenNMS benchmark lab on a KVM/libvirt host. For setup and deployment instructions see the [main README](../../README.md#kvmlibvirt).
+Deploys the OpenNMS benchmark lab on a KVM/libvirt host. For setup and deployment instructions see the [main README](../../README.md#-quick-start-kvm).
 
 ## Deploying to Multiple KVM Hosts
 

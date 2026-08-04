@@ -1,185 +1,49 @@
-![Alt](https://repobeats.axiom.co/api/embed/6db86e481086f29ed11e5a869d2c2ddf48e2cd1d.svg "Repobeats analytics image")
-
 # 👩‍🔬 Benchmark Lab
 
-Running OpenNMS components in various environments and workloads, makes it complicated to size and scale.
-Especially when you want to size it for extremely large deployments.
-There are various challenges that make this a complicated task:
+![Repobeats analytics](https://repobeats.axiom.co/api/embed/6db86e481086f29ed11e5a869d2c2ddf48e2cd1d.svg "Repobeats analytics image")
 
-External service dependencies that OpenNMS relies on and where we don't have control about it:
+Sizing and scaling [OpenNMS](https://www.opennms.com/) is hard because the environment dominates the numbers: network latency between components, agent latency on the monitored side, and the availability of realistic load sources.
+This repository builds reproducible lab environments so those variables are controlled instead of guessed.
 
-* Network latency between OpenNMS internal components and the monitored devices
-* Agent or network service latency for the services you want to monitor
-* Availability of services you want to test or agents you gather insights from your systems
+Terraform provisions the VMs, Ansible configures them, and experiments drive measured load against the result.
+Results and experiment write-ups live in the [Wiki](https://github.com/opennms-forge/opennms-benchmark/wiki).
 
-## 🎯 Goals
-
-This repository is an approach to build a lab environment as a tool to build reproducible environments for benchmarking or testing purposes.
-There is a [Wiki](https://github.com/opennms-forge/opennms-benchmark/wiki) with a collection of experiments and results.
-
-## 🧟 Non-Goals
-
-* This repository is not intended to deploy or build production environments
+> [!IMPORTANT]
+> This lab is a benchmarking tool. It is not intended to deploy or build production environments.
 
 ## 📐 Lab Design
 
-![](assets/ck1m.svg)
+![Lab topology: Core, Minion, Kafka, PostgreSQL, Elasticsearch, SNMP simulator and monitoring stack on isolated subnets](assets/ck1m.svg)
 
-## ⚙️ Requirements
+Three axes combine into one lab run:
 
-The lab deploys 7 virtual machines. Each VM needs at least 2 NICs (management + one functional subnet); Core and Minion need 3.
+| Axis | Question it answers | Where it lives |
+|:-----|:--------------------|:---------------|
+| **Provider** | Where do the VMs run? | `terraform/<provider>/` |
+| **Deployment** | What topology is under test? | `deployments/<slug>/` |
+| **Experiment** | What workload is driven against it? | `experiments/<name>/` |
 
-### Compute
+`make` is the front door for everything.
+CI calls the same targets, so do not invoke `terraform` or `ansible-playbook` directly.
+`make help` lists all targets.
 
-Default VM sizes map to Azure SKUs. For other providers (KVM, Proxmox, VMware) you set these values directly in the provider's `.tfvars`.
+## 🚀 Quick Start (KVM)
 
-| VM | Role | Azure size | vCPU | RAM | NICs |
-|:---|:-----|:-----------|-----:|----:|-----:|
-| `db-benchmark-01` | PostgreSQL | `Standard_B2ms` | 2 | 8 GB | 2 |
-| `core-benchmark-01` | OpenNMS Core (8 GB JVM heap) | `Standard_B4ms` | 4 | 16 GB | 3 |
-| `kafka-benchmark-01` | Apache Kafka + Kafka UI | `Standard_B2ms` | 2 | 8 GB | 2 |
-| `minion-benchmark-01` | OpenNMS Minion | `Standard_B2ms` | 2 | 8 GB | 3 |
-| `netsim-benchmark-01` | SNMP Simulator (nl6) | `Standard_B2ms` | 2 | 8 GB | 2 |
-| `mon-benchmark-01` | Monitoring stack (Prometheus, Grafana, Jaeger, …) | `Standard_B2ms` | 2 | 8 GB | 2 |
-| `es-benchmark-01` | Elasticsearch | `Standard_B2ms` | 2 | 8 GB | 2 |
-| **Total** | | | **16** | **64 GB** | |
+Prerequisites: a KVM host with `libvirtd` running, and on your workstation Terraform ≥ 1.5, Ansible, and Python 3.
 
-### Storage
-
-OS disk sizes below are the defaults used by the non-Azure Terraform providers. Azure provisions the Ubuntu 24.04 LTS image default (~30 GB) unless overridden.
-
-| VM | OS disk |
-|:---|--------:|
-| `db-benchmark-01` | 50 GB |
-| `core-benchmark-01` | 100 GB |
-| `kafka-benchmark-01` | 50 GB |
-| `minion-benchmark-01` | 20 GB |
-| `netsim-benchmark-01` | 20 GB |
-| `mon-benchmark-01` | 30 GB |
-| `es-benchmark-01` | 50 GB |
-| **Total** | **320 GB** |
-
-### Network
-
-The lab uses four isolated subnets inside `192.0.2.0/24` plus one DHCP/public interface on the monitoring VM. Only the monitoring VM (`mon-benchmark-01`) requires a publicly routable IP — it acts as the SSH jump host and Traefik reverse proxy entry point for the entire lab. All other VMs are reachable only via the management subnet.
-
-| Subnet | CIDR | Purpose |
-|:-------|:-----|:--------|
-| Management | `192.0.2.192/26` | Operator SSH, Ansible, out-of-band access to all VMs |
-| Database | `192.0.2.0/26` | PostgreSQL and Elasticsearch traffic |
-| Kafka | `192.0.2.64/26` | Kafka broker, OpenNMS IPC (Core ↔ Kafka ↔ Minion) |
-| Simulation | `192.0.2.128/26` | SNMP simulation (Minion ↔ NetSim, `10.42.0.0/16` route) |
-
-**Inbound firewall rules required on the monitoring VM:**
-
-| Port | Protocol | Source | Purpose |
-|-----:|:---------|:-------|:--------|
-| 22 | TCP | operator CIDR | SSH access / jump host into the lab |
-| 443 | TCP | operator CIDR | HTTPS (Traefik — all web UIs) |
-
-All inter-VM communication stays on the internal subnets and requires no additional inbound rules.
-
-## ⛓️ Networking
-
-With the given network layout we give you good visibility which traffic goes to which service by isolating them.
-The network IP space is chosen from the private 192.0.2/24 range which is not public and should reduce IP address conflicts with existing 192.168/16 private networks.
-
-### Network address plan for Testing
-
-| Host       | Interface | IP Address       | Default gateway | Description               |
-|:-----------|:----------|:-----------------|:----------------|:--------------------------|
-| database   | ens0      | `192.0.2.4/26`   | 192.0.2.1       | PostgreSQL database       |
-| core       | ens2      | `192.0.2.5/26`   | 192.0.2.1       | Core to PostgreSQL        |
-| elasticsearch | ens0   | `192.0.2.6/26`   | 192.0.2.1       | Elasticsearch             |
-| kafka      | ens0      | `192.0.2.76/26`  | 192.0.2.65      | Kafka Broker              |
-| core       | ens0      | `192.0.2.69/26`  | 192.0.2.65      | Core to Kafka             |
-| minion     | ens2      | `192.0.2.70/26`  | 192.0.2.65      | Minion to Kafka           |
-| minion     | ens0      | `192.0.2.133/26` | 192.0.2.129     | Minion to SNMP simulator  |
-| netsim     | ens0      | `192.0.2.152/26` | 192.0.2.129     | SNMP Simulator            |
-
-### Network address plan for out of band management
-
-| Host       | Interface | IP Address       | Default gateway | Description               |
-|:-----------|:----------|:-----------------|:----------------|:--------------------------|
-| database   | ens1      | `192.0.2.196/26` | 192.0.2.193     | PostgreSQL Managament     |
-| core       | ens1      | `192.0.2.200/26` | 192.0.2.193     | OpenNMS Core Managament   |
-| kafka      | ens1      | `192.0.2.204/26` | 192.0.2.193     | Kafka Broker Managament   |
-| minion     | ens1      | `192.0.2.208/26` | 192.0.2.193     | OpenNMS Minion Managament |
-| monitoring | ens1      | `192.0.2.200/26` | 192.0.2.193     | Monitoring Managament     |
-| netsim     | ens1      | `192.0.2.201/26` | 192.0.2.193     | SNMP Simulator            |
-| elasticsearch | ens1   | `192.0.2.220/26` | 192.0.2.193     | Elasticsearch Management  |
-
-
-### Network for simulation
-
-| Network      | Gateway Address | Default gateway | Description              |
-|:-------------|:----------------|:----------------|:-------------------------|
-| 10.42.0.0/16 | `192.0.2.201`   | `192.0.2.129`   | Network with SNMP Agents |
-
-The netsim VM's nl6 simulator emits three baseline event streams to the Minion's sim-facing NIC (`192.0.2.133`): IPFIX flows to `9999/udp`, SNMP traps to `10162/udp`, and UDP syslog (RFC 5424) to `10514/udp`.
-
-## 🕹️ Usage
-
-### Clone the repository
+One-time workstation setup:
 
 ```bash
-git clone https://github.com/opennms-forge/opennms-benchmark.git
-cd opennms-benchmark
+ansible-galaxy collection install -r bootstrap/requirements.yml
+export ANSIBLE_VAULT_PASSWORD_FILE=$PWD/vault_pass.secret   # file containing the lab vault password
 ```
 
-## 🚀 Lab Deployment
+The deploy installs the OpenNMS stack collections from the root `requirements.yml` itself, but the bootstrap collections and the vault password are your job.
+Provisioning uses the SSH key at `ssh_key_path` in the provider `.tfvars` (default `~/.ssh/id_rsa`), so point it at an existing keypair.
 
-The lab is deployed using Terraform. Four providers are supported: **Azure**, **KVM/libvirt**, **Proxmox VE**, and **VMware vSphere**.
-
-All providers share a common `terraform/lab.tfvars` for network layout, IP addresses, and VM names. Each provider adds its own `<provider>.tfvars` for host-specific settings.
-
-### Azure
-
-**Requirements:** `az` CLI, Azure subscription with contributor access, Terraform ≥ 1.5
-
-**1. Authenticate**
-
-```bash
-az login
-```
-
-**2. Configure**
-
-Edit `terraform/azure/azure.tfvars` and set your values:
-
-```hcl
-location       = "eastus"
-environment    = "prod"
-project_name   = "benchmark"
-vm_size_small  = "Standard_B2ms"
-vm_size_medium = "Standard_B4ms"
-priority       = "Regular"       # or "Spot" for cheaper preemptible VMs
-operator_cidr  = "203.0.113.5/32" # your public IP — SSH access is restricted to this
-ssh_key_path   = "~/.ssh/id_rsa"
-```
-
-> [!NOTE]
-> `operator_cidr` controls the NSG rule that allows SSH to the monitoring VM. Set it to your public IP in CIDR notation (e.g. `"203.0.113.5/32"`). Leave it empty to allow SSH from anywhere (not recommended).
-
-**3. Deploy**
-
-```bash
-./deploy.sh --provider azure
-```
-
-The script detects your public IP automatically and passes it as `operator_cidr`. It runs `terraform init` and `terraform apply`, then bootstraps the VMs and deploys the full OpenNMS stack. The monitoring VM receives a public IP — all other VMs are accessible only through the management network.
-
----
-
-### KVM/libvirt
-
-**Requirements:** KVM host with libvirtd running, Terraform ≥ 1.5, Ubuntu 24.04 LTS cloud image
-
-See [`terraform/kvm/README.md`](terraform/kvm/README.md) for full documentation including remote host deployment and multi-host Terraform workspaces.
-
-**0. Create the external bridge (`br0`)** on the KVM host
-
-The monitoring VM gets its public IP via a bridge to your LAN. Create `br0` using Netplan on the KVM host (Ubuntu 24.04):
+**1. Create the external bridge (`br0`) on the KVM host.**
+The monitoring VM gets its routable IP via a bridge to your LAN.
+On Ubuntu 24.04 with Netplan:
 
 ```bash
 sudo tee /etc/netplan/01-br0.yaml > /dev/null <<'EOF'
@@ -199,59 +63,129 @@ EOF
 sudo netplan apply
 ```
 
-> [!NOTE]
-> Replace `enp1s0` with your actual interface name (`ip link` to check). After `netplan apply` your host's IP moves to `br0` — SSH sessions may drop briefly.
+Replace `enp1s0` with your interface name (`ip link`).
+After `netplan apply` the host IP moves to `br0`, so SSH sessions may drop briefly.
 
-**1. Download the Ubuntu 24.04 cloud image** onto the KVM host
-
-```bash
-sudo wget -O /var/lib/libvirt/images/noble-server-cloudimg-amd64.img \
-  https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
-```
-
-**2. Ensure the default storage pool is active**
+**2. Ensure the default storage pool is active.**
 
 ```bash
 virsh pool-list --all
 virsh pool-start default   # if inactive
 ```
 
-**3. Configure**
+Terraform fetches the Ubuntu 24.04 cloud image from `cloud-images.ubuntu.com` by default.
+To use a local copy, download it onto the KVM host and point `ubuntu_cloud_image` in `kvm.tfvars` at the file.
+
+**3. Configure.**
 
 ```bash
 cp terraform/kvm/kvm.tfvars.example terraform/kvm/kvm.tfvars
 ```
 
-Edit `kvm.tfvars` and set `libvirt_uri`:
+Set `libvirt_uri` in `kvm.tfvars`: `qemu:///system` for a local daemon, or `qemu+ssh://user@your-kvm-host/system` for a remote host.
+`kvm.tfvars` is gitignored, so your local settings are never committed.
 
-| Target | URI |
-|--------|-----|
-| Local KVM daemon | `qemu:///system` |
-| Remote KVM host  | `qemu+ssh://user@your-kvm-host/system` |
-
-`kvm.tfvars` is gitignored — your local settings are never committed.
-
-**4. Deploy**
+**4. Deploy.**
 
 ```bash
-./deploy.sh --provider kvm
+make deploy PROVIDER=kvm DEPLOYMENT=baseline
 ```
 
-The script runs `terraform init` and `terraform apply`, then automatically discovers the monitoring VM's external DHCP address (via SSH through the hypervisor) and re-applies to regenerate the Ansible inventory with the correct `jump_host`. It then bootstraps the VMs and deploys the full OpenNMS stack.
+This provisions the VMs, discovers the monitoring VM's DHCP address, regenerates the Ansible inventory with the correct jump host, bootstraps the base tooling (Docker, Traefik, Prometheus, Grafana, Jaeger, nl6), deploys the full OpenNMS stack, and publishes the `lab-endpoints.yml` manifest that experiments consume.
 
----
+Tear down with:
+
+```bash
+make destroy PROVIDER=kvm      # prompts; add CONFIRM=yes to skip
+```
+
+For multi-host workspaces and remote-host details see [`terraform/kvm/README.md`](terraform/kvm/README.md).
+
+## 🧪 Run an Experiment
+
+The deployment is the system under test; the experiment is the workload.
+List both, then run one:
+
+```bash
+make deployments                # topology specs with descriptions
+make experiments                # runnable workloads
+make experiment EXPERIMENT=smoke DEPLOYMENT=baseline
+```
+
+`DEPLOYMENT` layers the topology's variable overlay onto the experiment.
+Available experiments include `smoke`, `pm-snmp`, `fm-syslog`, `fm-snmptrap`, and `fm-snmptrap-capacity`.
+See [`experiments/README.md`](experiments/README.md) for how experiments consume the generated inventory and the `lab-endpoints.yml` manifest, and [`deployments/README.md`](deployments/README.md) for the topology spec format.
+
+> [!NOTE]
+> The `DEPLOYMENT` topology axis shapes provisioning on `kvm` and `aws`.
+> The other providers deploy the baseline topology.
+
+## ☁️ Providers
+
+Five providers are supported.
+All share `terraform/lab.tfvars` for network layout and VM names; each adds its own `<provider>.tfvars` for host-specific settings.
+The `kvm`, `aws`, `proxmox` and `vmware` `.tfvars` files are gitignored, so credentials never land in git.
+`terraform/azure/azure.tfvars` is tracked; keep secrets out of it (Azure authentication comes from `az login`).
+
+| Provider | `PROVIDER=` | Notes |
+|:---------|:------------|:------|
+| KVM/libvirt | `kvm` | Reference provider, consumes `DEPLOYMENT` specs |
+| AWS | `aws` | Consumes `DEPLOYMENT` specs; statically verified only so far ([#174](https://github.com/opennms-forge/opennms-benchmark/issues/174)) |
+| Azure | `azure` | Fixed baseline topology |
+| Proxmox VE | `proxmox` | Fixed baseline topology |
+| VMware vSphere | `vmware` | Fixed baseline topology |
+
+### Azure
+
+Requirements: `az` CLI, a subscription with contributor access, Terraform ≥ 1.5.
+
+```bash
+az login
+```
+
+Edit `terraform/azure/azure.tfvars`:
+
+```hcl
+location       = "eastus"
+environment    = "prod"
+project_name   = "benchmark"
+vm_size_small  = "Standard_B2ms"
+vm_size_medium = "Standard_B4ms"
+priority       = "Regular"        # or "Spot" for cheaper preemptible VMs
+ssh_key_path   = "~/.ssh/id_rsa"
+```
+
+```bash
+make deploy PROVIDER=azure
+```
+
+The deploy detects your public IP (via the `host` utility) and restricts SSH on the monitoring VM to it (`operator_cidr`).
+If detection fails the Azure NSG falls back to allowing SSH and HTTPS from anywhere, so verify the rule after deploy.
+Only the monitoring VM receives a public IP; every other VM is reachable through the management network.
+
+### AWS
+
+Requirements: `aws` CLI, Terraform ≥ 1.5, and an `AWS_PROFILE` (the deploy refuses to run against default credentials).
+
+```bash
+cp terraform/aws/aws.tfvars.example terraform/aws/aws.tfvars
+aws login                       # or aws configure sso / aws configure
+aws sts get-caller-identity     # confirm you are signed in
+AWS_PROFILE=<your-profile> make deploy PROVIDER=aws DEPLOYMENT=baseline
+```
+
+The default `cost_profile=smoke` deploys cheap instances for pipeline validation; numbers from it are not benchmark results.
+Use `TF_ARGS="-var cost_profile=benchmark"` for measurement-grade instances.
+See [`terraform/aws/README.md`](terraform/aws/README.md) for credentials details, the optional scoped `benchmark-lab` IAM role (`docs/aws-iam/`), cost tables, and current limitations.
 
 ### Proxmox VE
 
-**Requirements:** Proxmox VE host, API token with VM.Allocate permissions, Terraform ≥ 1.5
+Requirements: a Proxmox VE host, an API token with VM.Allocate permissions, Terraform ≥ 1.5.
 
-**1. Create the Ubuntu 24.04 cloud-init template** (one-time setup on the Proxmox host)
+**1. Create the Ubuntu 24.04 cloud-init template** (one-time, on the Proxmox host):
 
 ```bash
-# Download the cloud image on the Proxmox host
 wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
-
-# Create the template VM
 qm create 9000 --name ubuntu-24.04-cloud --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0
 qm importdisk 9000 noble-server-cloudimg-amd64.img local-lvm
 qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
@@ -262,173 +196,123 @@ qm set 9000 --ipconfig0 ip=dhcp
 qm template 9000
 ```
 
-**2. Configure Proxmox bridges** in the Proxmox UI under *Node > Network*:
+**2. Create the bridges** in the Proxmox UI under *Node > Network*:
 
-| Bridge   | Subnet            | Description                             |
-|:---------|:------------------|:----------------------------------------|
-| `vmbr0`  | 192.0.2.192/26    | Management — operator SSH access        |
-| `vmbr1`  | 192.0.2.0/26      | Database subnet                         |
-| `vmbr2`  | 192.0.2.64/26     | Kafka subnet                            |
-| `vmbr3`  | 192.0.2.128/26    | SNMP simulation subnet                  |
-| `vmbr4`  | external (DHCP)   | Monitoring VM external routable IP      |
+| Bridge | Subnet | Purpose |
+|:-------|:-------|:--------|
+| `vmbr0` | `192.0.2.192/26` | Management |
+| `vmbr1` | `192.0.2.0/26` | Database |
+| `vmbr2` | `192.0.2.64/26` | Kafka |
+| `vmbr3` | `192.0.2.128/26` | SNMP simulation |
+| `vmbr4` | external (DHCP) | Monitoring VM routable IP |
 
-**3. Configure**
+**3. Configure and deploy:**
 
 ```bash
 cp terraform/proxmox/proxmox.tfvars.example terraform/proxmox/proxmox.tfvars
+# edit endpoint, API token, node, template_vm_id, storage pools, ssh_key_path
+make deploy PROVIDER=proxmox
 ```
-
-Edit `proxmox.tfvars` with your values:
-
-```hcl
-proxmox_endpoint     = "https://192.168.1.10:8006/"
-proxmox_api_token    = "user@realm!token-name=00000000-0000-0000-0000-000000000000"
-proxmox_insecure     = false   # set true for self-signed certificates
-proxmox_ssh_username = "root"
-proxmox_node         = "pve"
-template_vm_id       = 9000
-storage_pool         = "local-lvm"
-snippets_datastore   = "local"
-ssh_key_path         = "~/.ssh/id_rsa"
-```
-
-`proxmox.tfvars` is gitignored — your credentials are never committed.
-
-**4. Deploy**
-
-```bash
-./deploy.sh --provider proxmox
-```
-
-The script runs `terraform init` and `terraform apply`, then automatically discovers the monitoring VM's external DHCP address on `vmbr4` (via SSH through the Proxmox host) and re-applies to regenerate the Ansible inventory with the correct `jump_host`. It then bootstraps the VMs and deploys the full OpenNMS stack.
-
----
 
 ### VMware vSphere
 
-**Requirements:** vCenter Server, account with VM create/clone permissions, Terraform ≥ 1.5, [`govc`](https://github.com/vmware/govmomi/tree/main/govc) (optional, for OVA import)
+Requirements: vCenter Server, an account with VM create/clone permissions, Terraform ≥ 1.5, optionally [`govc`](https://github.com/vmware/govmomi/tree/main/govc) for OVA import.
 
-See [`terraform/vmware/README.md`](terraform/vmware/README.md) for full documentation including cloud-init delivery via guestinfo and network interface naming.
+**1. Create port groups** (`pg_mgmt`, `pg_db`, `pg_kafka`, `pg_sim`, `pg_ext`) matching the subnet plan above.
+Internal port groups carry only lab traffic and need no uplinks; `pg_mgmt` and `pg_ext` do.
 
-**1. Create port groups** on a vSwitch or dvSwitch in the vSphere UI:
+**2. Build a template VM** from the Ubuntu 24.04 cloud image with `open-vm-tools` and `cloud-init` installed, run `cloud-init clean --logs`, shut it down, and convert it to a template named to match `template_name`.
 
-| Variable | Purpose | Subnet |
-|:---------|:--------|:-------|
-| `pg_mgmt` | Management — static IPs, operator SSH | `192.0.2.192/26` |
-| `pg_db` | Database traffic between Core and PostgreSQL | `192.0.2.0/26` |
-| `pg_kafka` | Kafka coordination (Core, Kafka, Minion) | `192.0.2.64/26` |
-| `pg_sim` | SNMP simulation network (Minion ↔ NetSim) | `192.0.2.128/26` |
-| `pg_ext` | External DHCP — monitoring VM gets a routable IP here | _(DHCP)_ |
-
-Internal port groups (`pg_db`, `pg_kafka`, `pg_sim`) carry only lab traffic and do not require uplinks. `pg_mgmt` and `pg_ext` need uplinks for operator SSH access.
-
-**2. Build a template VM** (one-time setup)
-
-```bash
-# Import Ubuntu 24.04 cloud image OVA
-govc import.ova noble-server-cloudimg-amd64.ova
-
-# Boot the VM and install required packages
-apt install -y open-vm-tools cloud-init
-
-# Generalize — clear cloud-init state before converting to template
-cloud-init clean --logs
-sudo shutdown -h now
-```
-
-In the vSphere UI, right-click the VM → **Convert to Template**. The template name must match `template_name` in `vmware.tfvars`.
-
-**3. Configure**
+**3. Configure and deploy:**
 
 ```bash
 cp terraform/vmware/vmware.tfvars.example terraform/vmware/vmware.tfvars
-```
-
-Edit `vmware.tfvars` with your values:
-
-```hcl
-vsphere_server   = "vcenter.example.com"
-vsphere_user     = "administrator@vsphere.local"
-vsphere_password = ""                            # or set TF_VAR_vsphere_password
-vsphere_insecure = false                         # set true for self-signed certificates
-datacenter       = "dc1"
-cluster          = "cluster1"
-datastore        = "datastore1"
-template_name    = "ubuntu-2404-cloud-init"
-ssh_key_path     = "~/.ssh/id_rsa"
-pg_mgmt          = "PG-LAB-MGMT"
-pg_db            = "PG-LAB-DB"
-pg_kafka         = "PG-LAB-KAFKA"
-pg_sim           = "PG-LAB-SIM"
-pg_ext           = "PG-LAB-EXT"
-```
-
-`vmware.tfvars` is gitignored — your credentials are never committed.
-
-**4. Deploy**
-
-```bash
-./deploy.sh --provider vmware
+# edit vCenter endpoint, credentials, datacenter/cluster/datastore, template and port group names
+make deploy PROVIDER=vmware
 
 # With a self-signed vCenter certificate:
-./deploy.sh --provider vmware --tf-args "-var vsphere_insecure=true"
+make deploy PROVIDER=vmware TF_ARGS="-var vsphere_insecure=true"
 ```
 
-The script runs `terraform init` and `terraform apply`, then automatically discovers the monitoring VM's external DHCP address on `pg_ext` and re-applies to regenerate the Ansible inventory with the correct `jump_host`. It then bootstraps the VMs and deploys the full OpenNMS stack.
+See [`terraform/vmware/README.md`](terraform/vmware/README.md) for cloud-init delivery via guestinfo and interface naming.
 
----
+## ⚙️ Sizing (baseline topology)
 
-### Tools for Measurements
+The baseline deployment provisions 7 VMs.
+Each role carries a size class in the topology spec; what a class resolves to (vCPU, RAM, instance type, disk) is provider-specific.
+`make deployment DEPLOYMENT=baseline` prints the resolved spec; disk sizes for the non-Azure providers live in `terraform/disk-sizes.tfvars`.
 
-To monitor the components we are using Prometheus, the Node Exporter, Kafka Web UI and Grafana.
-You can deploy the components with Ansible using
+| VM | Role | Size class | NICs |
+|:---|:-----|:-----------|-----:|
+| `db-benchmark-01` | PostgreSQL | small | 2 |
+| `core-benchmark-01` | OpenNMS Core | xlarge | 3 |
+| `kafka-benchmark-01` | Apache Kafka + Kafka UI | small | 2 |
+| `minion-benchmark-01` | OpenNMS Minion | small | 3 |
+| `netsim-benchmark-01` | SNMP simulator (nl6) | small | 2 |
+| `mon-benchmark-01` | Monitoring stack (Prometheus, Grafana, Jaeger, …) | small | 2 |
+| `es-benchmark-01` | Elasticsearch | large | 2 |
 
-```bash
-cd bootstrap
-ansible-playbook -i inventory site.yml
-```
+## ⛓️ Network
 
-### Deploy the OpenNMS Stack
+The lab isolates traffic on four subnets inside `192.0.2.0/24`, the RFC 5737 TEST-NET-1 documentation range, chosen to avoid conflicts with common `192.168.0.0/16` home and office networks.
+Only the monitoring VM gets a routable IP; it is the SSH jump host and the Traefik entry point for every web UI.
 
-OpenNMS Core, Minion and Kafka are installed using the `indigo423.opennms` Ansible Galaxy collection, sourced from [opennms-forge/ansible-opennms](https://github.com/opennms-forge/ansible-opennms) and pinned by git SHA in `requirements.yml` at the repo root.
+| Subnet | CIDR | Purpose |
+|:-------|:-----|:--------|
+| Management | `192.0.2.192/26` | Operator SSH, Ansible, out-of-band access to all VMs |
+| Database | `192.0.2.0/26` | PostgreSQL and Elasticsearch traffic |
+| Kafka | `192.0.2.64/26` | Kafka broker, OpenNMS IPC (Core ↔ Kafka ↔ Minion) |
+| Simulation | `192.0.2.128/26` | SNMP simulation (Minion ↔ NetSim, `10.42.0.0/16` route) |
 
-Install the collections, then run the deployment playbook:
+Inbound rules required on the monitoring VM: `22/tcp` (SSH jump host) and `443/tcp` (Traefik HTTPS), both restricted to the operator's CIDR.
+All inter-VM traffic stays on the internal subnets.
 
-```bash
-ansible-galaxy collection install -r requirements.yml --force-with-deps
+> [!WARNING]
+> Per-host addresses are provider-dependent ([#161](https://github.com/opennms-forge/opennms-benchmark/issues/161)).
+> Never hardcode a VM address; read the generated `ansible-inventory.yml` instead.
 
-ansible-playbook --user labuser --become -i ansible-inventory.yml opennms-playbook.yml --extra-vars="@opennms-lab-vars.yml"
-```
+The Minion listens on two ingestion ports for simulated load: SNMP traps on `10162/udp` and UDP syslog (RFC 5424) on `10514/udp`.
+The nl6 simulator on the netsim VM emits nothing by default; each experiment creates its own devices, protocols and rates through the nl6 API.
 
-> [!IMPORTANT]
-> The Prometheus JMX exporter requires right now to restart Core manually, see [issue#57](https://github.com/opennms-forge/ansible-opennms/issues/57).
-
-### Applications
+## 🕹️ Applications
 
 All applications are served by Traefik on the monitoring VM's public IP over HTTPS.
-Replace `<monitoring-public-ip>` with the actual public IP assigned to the monitoring VM.
+Replace `<monitoring-public-ip>` with the monitoring VM's address from the generated `ansible-inventory.yml`.
 
 > [!NOTE]
-> Traefik uses a self-signed certificate. Your browser will show a certificate warning — accept it to proceed.
+> Traefik uses a self-signed certificate; accept the browser warning to proceed.
+> Routes exist only for components the deployment includes: on a topology without Core, Kafka UI or nl6, those paths return 404.
 
-| Application          | URL                                         | Credentials                 |
-|:---------------------|:--------------------------------------------|:----------------------------|
-| OpenNMS UI           | `https://<monitoring-public-ip>/opennms`    | admin / admin               |
-| Grafana              | `https://<monitoring-public-ip>/grafana`    | admin / admin               |
-| Prometheus           | `https://<monitoring-public-ip>/prometheus` | no login required           |
-| Jaeger               | `https://<monitoring-public-ip>/jaeger`     | no login required           |
-| Kafka UI             | `https://<monitoring-public-ip>/kafka`      | no login required           |
-| pgAdmin              | `https://<monitoring-public-ip>/pgadmin`    | admin@benchmark.lab / admin |
-| Kibana               | `https://<monitoring-public-ip>/kibana`     | no login required           |
-| SNMP Sim (nl6) | `https://<monitoring-public-ip>/nl6`        | no login required           |
+| Application | URL | Credentials |
+|:------------|:----|:------------|
+| Landing page (app starter) | `https://<monitoring-public-ip>/` | no login required |
+| OpenNMS UI | `https://<monitoring-public-ip>/opennms` | admin / admin |
+| Grafana | `https://<monitoring-public-ip>/grafana` | admin / admin |
+| Prometheus | `https://<monitoring-public-ip>/prometheus` | no login required |
+| Jaeger | `https://<monitoring-public-ip>/jaeger` | no login required |
+| Kafka UI | `https://<monitoring-public-ip>/kafka` | no login required |
+| pgAdmin | `https://<monitoring-public-ip>/pgadmin` | admin@benchmark.lab / admin |
+| Kibana | `https://<monitoring-public-ip>/kibana` | no login required |
+| SNMP Sim (nl6) | `https://<monitoring-public-ip>/nl6` | no login required |
+
+> [!IMPORTANT]
+> The Prometheus JMX exporter currently requires a manual Core restart after deploy, see [ansible-opennms#57](https://github.com/opennms-forge/ansible-opennms/issues/57).
 
 > [!TIP]
-> To reach every VM on the management network (`192.0.2.192/26`) without a bastion host, install [Tailscale](https://tailscale.com) on the monitoring VM and advertise the subnet:
+> To reach every VM on the management network without hopping through the jump host, install [Tailscale](https://tailscale.com) on the monitoring VM and advertise the subnet:
 >
 > ```bash
-> # On the monitoring VM
 > sudo sysctl -w net.ipv4.ip_forward=1
 > sudo tailscale up --accept-routes --advertise-routes=192.0.2.192/26
 > ```
 >
-> Then approve the advertised route in the Tailscale web UI. Once active, all lab VMs are reachable directly from your local machine.
+> Approve the advertised route in the Tailscale web UI, and all lab VMs are reachable directly from your machine.
+
+## 📖 Further Reading
+
+- [`docs/architecture.md`](docs/architecture.md) — the four-layer pipeline in detail
+- [`docs/deployment-guide.md`](docs/deployment-guide.md) — step-by-step deployment reference
+- [`docs/development-guide.md`](docs/development-guide.md) — contributing, linting, conventions
+- [`deployments/README.md`](deployments/README.md) — topology spec format and validation
+- [`experiments/README.md`](experiments/README.md) — experiment contract and layout
+- [Wiki](https://github.com/opennms-forge/opennms-benchmark/wiki) — experiments and results
