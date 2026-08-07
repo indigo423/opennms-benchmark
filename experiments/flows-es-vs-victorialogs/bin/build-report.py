@@ -15,18 +15,21 @@ BASELINE = "es-painless"
 WINDOWS = ["w1", "w2", "w3"]
 
 METRIC_DEFS = [
-    {"id": "ingest-rate", "label": "Sustained IPFIX ingest, persisted flows/s (3x15 min windows)", "unit": "flows/s", "better": "higher"},
+    {"id": "ingest-rate", "label": "Sustained IPFIX ingest, persisted flows/s (3x15 min windows)",
+     "unit": "flows/s", "better": "higher"},
     {"id": "app-series-topn", "label": "Dense app series topN=10 (288 buckets)", "unit": "ms", "better": "lower"},
-    {"id": "conv-series-topn", "label": "Dense conversation series topN=10 (288 buckets)", "unit": "ms", "better": "lower"},
+    {"id": "conv-series-topn", "label": "Dense conversation series topN=10 (288 buckets)",
+     "unit": "ms", "better": "lower"},
     {"id": "app-totals", "label": "App totals topN=10 (whole window)", "unit": "ms", "better": "lower"},
     {"id": "app-series-fine", "label": "Sparse app series N=3 (4500 buckets)", "unit": "ms", "better": "lower"},
-    {"id": "conv-series-fine", "label": "Sparse conversation series N=3 (4500 buckets)", "unit": "ms", "better": "lower"},
+    {"id": "conv-series-fine", "label": "Sparse conversation series N=3 (4500 buckets)",
+     "unit": "ms", "better": "lower"},
     {"id": "app-totals-fine", "label": "App totals N=3 (whole window)", "unit": "ms", "better": "lower"},
 ]
 
 
 def query_stats(vdir):
-    rows = [json.loads(l) for l in (vdir / "queries" / "timings.jsonl").read_text().splitlines()]
+    rows = [json.loads(line) for line in (vdir / "queries" / "timings.jsonl").read_text().splitlines()]
     out, attempted, completed = {}, 0, 0
     by_name = {}
     for r in rows:
@@ -133,8 +136,14 @@ def main():
 
     data = {
         "experiment": {
-            "question": "OpenNMS flow backend A/B on identical hardware: Elasticsearch (post-NMS-20027 Painless path) vs. VictoriaLogs (LogsQL) - IPFIX ingest capacity and flow-query latency",
-            "hypothesis": "VictoriaLogs sustains at least the same ingest rate at lower store-side footprint and answers dense query shapes within the same order of magnitude.",
+            "question": (
+                "OpenNMS flow backend A/B on identical hardware: Elasticsearch (post-NMS-20027 "
+                "Painless path) vs. VictoriaLogs (LogsQL) - IPFIX ingest capacity and flow-query latency"
+            ),
+            "hypothesis": (
+                "VictoriaLogs sustains at least the same ingest rate at lower store-side footprint "
+                "and answers dense query shapes within the same order of magnitude."
+            ),
             "independent_variable": "sut.config_delta",
             "baseline_variant": BASELINE,
             "claim_class": "relative A/B and absolute capacity (KVM lab, nl6 generator off-box on monkey-head)",
@@ -146,7 +155,8 @@ def main():
     }
 
     html = TEMPLATE.read_text()
-    start = html.index('<script id="benchmark-data" type="application/json">') + len('<script id="benchmark-data" type="application/json">')
+    marker = '<script id="benchmark-data" type="application/json">'
+    start = html.index(marker) + len(marker)
     end = html.index("</script>", start)
     out = html[:start] + "\n" + json.dumps(data, indent=2) + "\n" + html[end:]
     out_path = EXP / "results" / "report.html"

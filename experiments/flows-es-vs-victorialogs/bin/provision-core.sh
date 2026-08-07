@@ -6,7 +6,7 @@
 # tarball to the core VM once, unpack to /opt/opennms, configure the
 # datasource, run the installer, and record the SUT identity. The sha256 is
 # taken from the LOCAL file before scp — hash what you shipped.
-# shellcheck disable=SC1091,SC2029,SC2086,SC2087,SC2153
+# shellcheck disable=SC1091,SC2015,SC2029,SC2086,SC2087,SC2153
 # env.sh resolves at runtime; $SSH_OPTS must word-split; ssh commands
 # expand on the client by design - the heredocs carry only local values.
 set -euo pipefail
