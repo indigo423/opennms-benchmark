@@ -36,6 +36,17 @@
   roles:
     - opennms_kafka_producer
 
+# Thresholding runs inside Collectd's persistence path and issues
+# metadata-scope database calls per evaluation (NMS-19537) — on the smoke lab
+# it burned a full thread while the only persistence target was the Kafka
+# topic no threshold ever reads. Removed as a controlled variable of this
+# deployment: parameter off, definitions deleted, packages deleted.
+- name: Remove thresholding from Core
+  hosts: core
+  become: true
+  roles:
+    - opennms_thresholding_off
+
 # The deployment publishes syslog and trap ingress in lab-endpoints.yml, so it
 # has to bind them. The pinned collection's opennms_minion role configures Kafka
 # IPC and the firewall and nothing else, so without this the ports are open, the

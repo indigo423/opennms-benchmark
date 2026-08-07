@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright 2026 Ronny Trommer <ronny@no42.org>
+SPDX-License-Identifier: Apache-2.0
+
+Deliberately empty: every threshold group deleted. Thresholding runs inside
+Collectd's persistence path and issues metadata-scope database calls per
+evaluation (NMS-19537); on a benchmark SUT whose only output is the Kafka
+metrics topic that is pure overhead, so it is removed as a controlled
+variable of the deployment. Record it in every run manifest.
+-->
+<thresholding-config xmlns="http://xmlns.opennms.org/xsd/config/thresholding"/>

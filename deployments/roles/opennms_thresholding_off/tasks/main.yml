@@ -1,0 +1,39 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Removes thresholding from the SUT entirely (NMS-19537: per-evaluation
+# metadata-scope database calls make it a measurable CPU tax inside
+# Collectd). Three layers, because any one alone leaves work behind:
+# the per-service collectd parameter stops scheduling evaluation, the
+# emptied thresholds.xml deletes every definition, and the emptied
+# threshd-configuration.xml removes every package. All three are controlled
+# variables of this deployment and belong in every run manifest.
+
+- name: Disable thresholding on every collectd service
+  ansible.builtin.replace:
+    path: /opt/opennms/etc/collectd-configuration.xml
+    regexp: '(<parameter\s+key="thresholding-enabled"\s+value=")true("\s*/>)'
+    replace: '\1false\2'
+  notify: Restart opennms core
+  tags: ["thresholding"]
+
+- name: Delete all threshold definitions
+  ansible.builtin.copy:
+    src: thresholds.xml
+    dest: /opt/opennms/etc/thresholds.xml
+    owner: opennms
+    group: opennms
+    mode: "0644"
+  notify: Restart opennms core
+  tags: ["thresholding"]
+
+- name: Delete all thresholding packages
+  ansible.builtin.copy:
+    src: threshd-configuration.xml
+    dest: /opt/opennms/etc/threshd-configuration.xml
+    owner: opennms
+    group: opennms
+    mode: "0644"
+  notify: Restart opennms core
+  tags: ["thresholding"]
