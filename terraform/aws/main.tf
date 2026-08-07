@@ -39,10 +39,10 @@ locals {
   spec_role_for = { for srole, prole in local.provider_role : prole => srole }
 
   role_shortname = {
-    database   = "db", core = "core", kafka = "kafka", minion = "minion"
-    netsim     = "netsim", monitoring = "mon", elasticsearch = "es"
-    sentinel   = "sentinel", mimir = "mimir", victoriametrics = "vm"
-    clickhouse = "ch", rrd = "rrd", rustfs = "rustfs"
+    database = "db", core = "core", kafka = "kafka", minion = "minion"
+    netsim   = "netsim", monitoring = "mon", elasticsearch = "es"
+    sentinel = "sentinel", mimir = "mimir", victoriametrics = "vm"
+    rrd      = "rrd", rustfs = "rustfs"
   }
 
   subnet_cidr = {
@@ -61,7 +61,7 @@ locals {
   role_order = [
     "database", "core", "kafka", "minion", "monitoring", "netsim",
     "elasticsearch", "sentinel", "rrd", "mimir", "victoriametrics",
-    "clickhouse", "rustfs",
+    "rustfs",
   ]
   ip_offset = {
     for i, role in local.role_order : role => local.role_block_base + i * local.role_block_size

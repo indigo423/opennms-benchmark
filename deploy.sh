@@ -81,7 +81,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # picks it up from the current directory. Every path below is absolute, so the
 # caller's cwd is otherwise irrelevant — but without this, invoking the script
 # from anywhere other than the repo root loses deployments/roles and fails with
-# "the role 'clickhouse' was not found".
+# "the role 'rustfs' was not found".
 export ANSIBLE_CONFIG="$REPO_ROOT/ansible.cfg"
 TF_DIR="$REPO_ROOT/terraform/$PROVIDER"
 TFVARS_FILE="$TF_DIR/${PROVIDER}.tfvars"

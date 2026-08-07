@@ -22,7 +22,6 @@ ROLE_CODES = {
     "elasticsearch": "es",
     "mimir": "mm",
     "victoriametrics": "vm",
-    "clickhouse": "ch",
     "rustfs": "rs",
     "loadgen": "nl6",
 }
@@ -32,7 +31,7 @@ ROLE_CODES = {
 # topologies share a fingerprint.
 EXCLUDED_ROLES = {"monitoring"}
 # Fixed emit order for a stable, comparable descriptor.
-ORDER = ["es", "mm", "vm", "ch", "rs", "rr", "pg", "sn", "kf", "on", "mn", "nl6"]
+ORDER = ["es", "mm", "vm", "rs", "rr", "pg", "sn", "kf", "on", "mn", "nl6"]
 KNOWN_SIZES = {"tiny", "small", "medium", "large", "xlarge"}
 KNOWN_SUBNETS = {"mgmt", "db", "kafka", "sim", "external", "lab"}
 

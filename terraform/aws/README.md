@@ -66,8 +66,8 @@ this problem across the board; here it is contained to the tier where nothing is
 being measured. `cost_profile = "benchmark"` uses `m6i` throughout.
 
 **Storage is a sizing decision.** `gp3`'s 3000 IOPS baseline bottlenecks the
-`database` and `clickhouse` roles well before CPU does. Raise `root_volume_iops`
-for disk-bound work rather than accepting the default silently.
+`database` role well before CPU does. Raise `root_volume_iops` for disk-bound
+work rather than accepting the default silently.
 
 ## Which account this builds in
 

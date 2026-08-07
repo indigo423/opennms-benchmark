@@ -58,9 +58,9 @@ Each role maps to a stable 2–3 character code used in the canonical descriptor
 | `core` | `on` | `elasticsearch` | `es` |
 | `minion` | `mn` | `mimir` | `mm` |
 | `sentinel` | `sn` | `victoriametrics` | `vm` |
-| `database` | `pg` | `clickhouse` | `ch` |
-| `kafka` | `kf` | `rustfs` | `rs` |
-| `rrd` | `rr` | `loadgen` (nl6) | `nl6` |
+| `database` | `pg` | `rustfs` | `rs` |
+| `kafka` | `kf` | `loadgen` (nl6) | `nl6` |
+| `rrd` | `rr` | | |
 
 `monitoring` is always-present infrastructure (Grafana, Prometheus, Jaeger) and is **excluded** from the descriptor.
 `loadgen` is the nl6 generator, included by default; opt out by omitting the role or setting `count: 0`.
@@ -97,7 +97,7 @@ Two escape hatches exist for hosts that something outside the lab has to reach:
 
 ```yaml
 roles:
-  clickhouse:
+  elasticsearch:
     subnets: [lab]                                       # physical bridge, not a NAT network
     addresses: { lab: ["192.168.11.33"] }                # pin per subnet, one entry per node
     routes: { lab: { to: "10.42.0.0/16", via: "192.168.11.73" } }   # inline route…
@@ -196,5 +196,5 @@ The four entries marked above exist to prove a component forms a cluster or a to
 They are sized to boot, not to measure, and a number taken from one means nothing.
 
 **Not every component deploys yet.**
-Specs naming mimir, victoriametrics, clickhouse or sentinel are valid data now, but their Ansible roles and provider translation are still to come.
+Specs naming mimir, victoriametrics or sentinel are valid data now, but their Ansible roles and provider translation are still to come.
 Such a spec will validate and will not yet deploy.
