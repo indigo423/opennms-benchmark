@@ -123,7 +123,7 @@ resource "libvirt_domain" "vm" {
   # with no SSE4.2, AVX or AVX2. Two consequences, both bad for this lab.
   #
   # ClickHouse requires SSE4.2 and dies at package configuration time with
-  # "Illegal instruction (core dumped)" — Deployment H cannot install at all.
+  # "Illegal instruction (core dumped)" — it cannot install at all.
   #
   # More quietly, every number this lab has ever produced was measured on a
   # CPU without vector instructions. JVM intrinsics, Kafka and Elasticsearch

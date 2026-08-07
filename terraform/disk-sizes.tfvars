@@ -11,5 +11,4 @@ disk_sizes_gb = {
   monitoring    = 30
   elasticsearch = 50
   clickhouse    = 100
-  riptide       = 40
 }

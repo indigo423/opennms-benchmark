@@ -51,10 +51,9 @@ experiments/
   legacy/                  # pre-rebuild, reference only — see below
   inventory/               # requisition and fleet helpers, not an experiment
   nms-20027-painless-flows/    # standalone harness with its own runner
-  riptide-flow-capacity/       # standalone harness with its own runner
 ```
 
-`make experiments` lists only the playbook-driven ones. The two standalone harnesses predate this structure, carry their own scripts and reports, and are run directly rather than through the front door.
+`make experiments` lists only the playbook-driven ones. The standalone harness predates this structure, carries its own scripts and reports, and is run directly rather than through the front door.
 
 No `ansible.cfg`, no `inventory`, no `opennms-lab-inventory.yml`. The repository root owns all three.
 

@@ -2,8 +2,8 @@
 
 Deployment-under-test role: installs a single-node ClickHouse from the upstream
 apt repository and runs it as a systemd service on `:8123` (HTTP) and `:9000`
-(native). It is the flow-storage backend for `akvorado`, which creates and
-migrates its own schema, so this role deliberately does no schema work.
+(native). It is a flow-storage backend for an engine that creates and migrates
+its own schema, so this role deliberately does no schema work.
 
 Lives here rather than in the `indigo423.opennms` collection because OpenNMS has
 no wire to ClickHouse — nothing in OpenNMS reads from or writes to it. It exists
@@ -22,7 +22,7 @@ ClickHouse deployment.
 
 ## Not production
 
-- Listens on `0.0.0.0` so a separate Akvorado host can reach it. Acceptable only
+- Listens on `0.0.0.0` so a separate flow-engine host can reach it. Acceptable only
   because the lab sits on a private subnet.
 - Keeps the packaged `default` user with no password and applies no resource
   limits, quotas or TLS.

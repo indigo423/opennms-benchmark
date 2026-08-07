@@ -38,8 +38,7 @@ locals {
     database   = "db", core = "core", kafka = "kafka", minion = "minion"
     netsim     = "netsim", monitoring = "mon", elasticsearch = "es"
     sentinel   = "sentinel", mimir = "mimir", victoriametrics = "vm"
-    clickhouse = "ch", akvorado = "akvorado", rrd = "rrd"
-    rustfs     = "rustfs", riptide = "riptide"
+    clickhouse = "ch", rrd = "rrd", rustfs = "rustfs"
   }
 
   subnet_cidr = {
@@ -70,7 +69,7 @@ locals {
   role_order = [
     "database", "core", "kafka", "minion", "monitoring", "netsim",
     "elasticsearch", "sentinel", "rrd", "mimir", "victoriametrics",
-    "clickhouse", "akvorado", "rustfs", "riptide",
+    "clickhouse", "rustfs",
   ]
   ip_offset = {
     for i, role in local.role_order : role => local.role_block_base + i * local.role_block_size
@@ -249,7 +248,7 @@ locals {
   jump_host_name = local.jump_node_key != null ? local.topology[local.jump_node_key].vm_name : ""
 
   # Canonical opennms_stack membership. TSDB/flow backends (mimir, victoriametrics,
-  # clickhouse, akvorado) are intentionally excluded — OpenNMS writes to them; they
+  # clickhouse) are intentionally excluded — OpenNMS writes to them; they
   # are not orchestrated as part of the stack group. Children absent from the
   # selected deployment are dropped by the inventory module.
   onms_stack_children = ["database", "core", "message_broker", "elasticsearch", "minion", "sentinel", "grafana"]

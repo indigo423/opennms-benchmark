@@ -307,12 +307,12 @@ extending it.
 
 ## Unsupported specs
 
-`clickhouse-riptide` uses the `lab` subnet — a physical bridge on the KVM host
-with site-pinned addresses and a route via a named machine on that LAN. There is
-no VPC equivalent, so the plan fails with a message pointing at `PROVIDER=kvm`
-rather than approximating something that does not match the spec.
+A spec that uses the `lab` subnet cannot run here. `lab` is a physical bridge on
+the KVM host with site-pinned addresses and a route via a named machine on that
+LAN. There is no VPC equivalent, so the plan fails with a message pointing at
+`PROVIDER=kvm` rather than approximating something that does not match the spec.
 
-The other 13 specs are supported.
+All 13 shipped specs are supported.
 
 ## Known gaps
 

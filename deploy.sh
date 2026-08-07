@@ -393,9 +393,9 @@ ansible-galaxy collection install \
   --force-with-deps
 
 # A deployment may ship its own playbook when it stands up a different stack.
-# Deployment H (clickhouse-akvorado) deploys no OpenNMS at all, so bolting its
-# plays into opennms-playbook.yml would hide a second stack inside a playbook
-# named for the first. Every OpenNMS deployment ships no playbook.yml and gets
+# A deployment that stands up no OpenNMS at all would, if its plays were bolted
+# into opennms-playbook.yml, hide a second stack inside a playbook named for the
+# first. Every OpenNMS deployment ships no playbook.yml and gets
 # the shared one, which keeps its play order — the stack's dependency graph —
 # in exactly one place.
 # Gated on kvm for the same reason as the vars overlay above: only kvm is

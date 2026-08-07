@@ -24,12 +24,6 @@ collections:
   - name: grafana.grafana
     version: "6.1.0"
 
-  # Used by the repo-local deployments/roles/akvorado role, which drives
-  # Akvorado's Docker Compose stack via community.docker.docker_compose_v2.
-  # Not a dependency of the OpenNMS deployment roles.
-  - name: community.docker
-    version: "4.5.0"
-
   # Used by the repo-local deployments/roles/rustfs role to create the S3
   # buckets Mimir needs; S3 PutObject fails against a bucket that does not
   # exist and Mimir does not create its own. Not a dependency of the OpenNMS
