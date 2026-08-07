@@ -133,10 +133,16 @@ locals {
       disk_gb = local.smoke ? min(lookup(var.disk_sizes_gb, n.prole, 30), var.smoke_max_disk_gb) : lookup(var.disk_sizes_gb, n.prole, 30)
       public  = try(n.cfg.public_ip, false)
       subnets = n.cfg.subnets
-      # netsim must accept traffic for the whole simulated range without an
-      # address per device: `ip route add local <cidr> dev lo` does that. This
-      # is the first consumer of modules/cloud-init's local_routes.
-      local_routes = n.prole == "netsim" ? [var.net_sim_cidr] : []
+      # nl6 owns the simulated range's host routing: it runs privileged with
+      # host networking and routes the range into its namespace via a veth
+      # pair. Do NOT add `ip route add local <cidr> dev lo` for netsim — the
+      # kernel consults the local table before the main table, so that route
+      # swallows every SNMP packet on the loopback and nl6's devices never
+      # see it. The signature: snmpget times out even on netsim itself while
+      # the nl6 API reports the fleet running, and the pm sweep's nodes_seen
+      # sticks at 2 while the fleet grows. Verified empirically on the first
+      # AWS deploy (2026-08-07); deleting the route made SNMP answer at once.
+      local_routes = []
       interfaces = [
         for si, subnet in n.cfg.subnets : {
           subnet  = subnet
