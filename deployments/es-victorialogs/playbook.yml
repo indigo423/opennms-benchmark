@@ -1,0 +1,39 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Flow-backend A/B stack. Replaces opennms-playbook.yml entirely (the
+# clickhouse-riptide precedent): the SUT is a source-branch assembly
+# tarball installed over SSH by the experiment harness
+# (experiments/flows-es-vs-victorialogs/bin/provision-core.sh), so the
+# collection's opennms_core role — which installs the packaged release —
+# must NOT run here. Everything the tarball needs from the platform
+# (PostgreSQL + iplike, JDK, jicmp/jrrd2) is provisioned below.
+
+- name: Manage PostgreSQL database
+  hosts: database
+  become: true
+  roles:
+    - indigo423.opennms.common
+    - indigo423.opennms.stub_pgsql
+
+- name: Manage Elasticsearch
+  hosts: elasticsearch
+  become: true
+  roles:
+    - indigo423.opennms.common
+    - indigo423.opennms.stub_elasticsearch
+
+- name: Manage VictoriaLogs
+  hosts: victorialogs
+  become: true
+  roles:
+    - victorialogs
+
+- name: Prepare the core host for the tarball SUT
+  hosts: core
+  become: true
+  roles:
+    - indigo423.opennms.common
+    - indigo423.opennms.opennms_repositories
+    - opennms_tarball_prereqs

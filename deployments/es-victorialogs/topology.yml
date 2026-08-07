@@ -1,0 +1,36 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+name: es-victorialogs
+description: >-
+  Flow-backend A/B benchmark: 1 OpenNMS Core (tarball SUT, not the
+  packaged release — see experiments/flows-es-vs-victorialogs), 1
+  PostgreSQL, and one flow-store VM that carries BOTH Elasticsearch and
+  VictoriaLogs; the experiment starts exactly one of them per variant so
+  the two backends run on identical hardware. All VMs sit directly on the
+  physical lab bridge with static addresses so the off-hypervisor nl6 on
+  monkey-head can reach the core's IPFIX ingest — required for absolute
+  capacity claims (generator off-box). The core routes the
+  simulated-exporter net (10.42.0.0/16) via monkey-head.
+roles:
+  elasticsearch:
+    count: 1
+    size: large
+    subnets: [lab]
+    addresses: { lab: ["192.168.11.36"] }
+    # No docker_engine: Elasticsearch installs as a native .deb and
+    # VictoriaLogs as a release binary under systemd.
+    groups: [elasticsearch, victorialogs]
+  database:
+    count: 1
+    size: small
+    subnets: [lab]
+    addresses: { lab: ["192.168.11.37"] }
+    groups: [database]
+  core:
+    count: 1
+    size: xlarge
+    subnets: [lab]
+    addresses: { lab: ["192.168.11.35"] }
+    routes: { lab: { to: "10.42.0.0/16", via: "192.168.11.73" } }
+    groups: [core]

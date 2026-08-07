@@ -1,0 +1,21 @@
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+# Managed by Ansible (deployments/roles/victorialogs)
+[Unit]
+Description=VictoriaLogs single-node log database
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=victorialogs
+Group=victorialogs
+ExecStart=/usr/local/bin/victoria-logs-prod \
+  -storageDataPath={{ victorialogs_data_path }} \
+  -httpListenAddr=:{{ victorialogs_http_port }} \
+  -retentionPeriod={{ victorialogs_retention }}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# es-victorialogs overlay — layered onto the root opennms-lab-vars.yml as
+# extra-vars by deploy.sh.
+
+# All VMs of this deployment sit on the physical lab bridge, not the NAT
+# subnets the root vars assume; without this the core's JDBC connections
+# are rejected by pg_hba.
+postgres_hba_permissions_v4: "192.168.11.0/24"

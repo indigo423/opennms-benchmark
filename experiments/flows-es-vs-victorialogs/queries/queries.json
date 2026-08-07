@@ -1,0 +1,11 @@
+{
+  "_comment": "Fixed query set (SPDX-License-Identifier: Apache-2.0 — JSON carries no header). Order is the trial order — do not reorder between variants. Tokens substituted by bin/run-trials.sh from the seeded window: T0/T1 (epoch ms), STEP_DENSE=(T1-T0)/288, STEP_SPARSE=(T1-T0)/4500. Shape selection is bucket-count-driven in the PR (ProportionalSumQuery.DENSE_BUCKET_LIMIT=4096): 288 buckets -> dense scripted_metric (nBuckets array), 4500 -> sparse (HashMap). Sparse uses N=3 because the DRIFT PLUGIN materializes real ES buckets (nBuckets x N x 2 directions) and dies with too_many_buckets_exception above search.max_buckets=65536 — measured: 6000 buckets x N=10 -> HTTP 500 on variant B, a capability delta recorded for the report. Both shapes scan the SAME whole-window doc set.",
+  "queries": [
+    { "shape": "dense",  "name": "app-series-topn",   "path": "/rest/flows/applications/series?start=${T0}&end=${T1}&step=${STEP_DENSE}&N=10" },
+    { "shape": "dense",  "name": "conv-series-topn",  "path": "/rest/flows/conversations/series?start=${T0}&end=${T1}&step=${STEP_DENSE}&N=10" },
+    { "shape": "dense",  "name": "app-totals",        "path": "/rest/flows/applications?start=${T0}&end=${T1}&N=10" },
+    { "shape": "sparse", "name": "app-series-fine",   "path": "/rest/flows/applications/series?start=${T0}&end=${T1}&step=${STEP_SPARSE}&N=3" },
+    { "shape": "sparse", "name": "conv-series-fine",  "path": "/rest/flows/conversations/series?start=${T0}&end=${T1}&step=${STEP_SPARSE}&N=3" },
+    { "shape": "sparse", "name": "app-totals-fine",   "path": "/rest/flows/applications?start=${T0}&end=${T1}&N=3" }
+  ]
+}
