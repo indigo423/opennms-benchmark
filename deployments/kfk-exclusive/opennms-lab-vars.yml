@@ -92,11 +92,16 @@ kafka_server_properties:
   # caps at ~3 GiB, and a realistic topic set (metrics, events, alarms, nodes,
   # the Sink.* and rpc-* IPC topics) stays well inside the disk.
   #
-  # CALIBRATE: 512 MiB may bound the metrics topic below 24 h, in which case
-  # bytes and not hours is the effective retention. Measure per-hour volume on
-  # a first run and raise it if the disk allows.
+  # CALIBRATED 2026-08-08: bytes are the effective retention, and the segment
+  # size decides whether they can enforce at all. Retention deletes only
+  # CLOSED segments, so with 1 GiB segments each partition holds up to
+  # ~1.5 GiB before anything is eligible — a 1,500-device fleet (~8k
+  # samples/s) filled the smoke profile's 19 GB root in about an hour and
+  # took the broker offline mid-run, exactly the silent-stop this comment
+  # warned about. 128 MiB segments cap a partition at ~640 MiB, the metrics
+  # topic at ~4 GiB across 6 partitions.
   "log.retention.hours": 24
   "log.retention.bytes": 536870912
-  "log.segment.bytes": 1073741824
+  "log.segment.bytes": 134217728
   "log.retention.check.interval.ms": 300000
   "log.dirs": /var/log/kafka/combined-logs
