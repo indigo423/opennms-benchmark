@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+{#
+Copyright 2026 Ronny Trommer <ronny@no42.org>
+SPDX-License-Identifier: Apache-2.0
+
+Foreign-source definition for the benchmark fleet. Two detectors only, so a
+scan costs two probes instead of the stock definition's full suite: at
+thousands of homogeneous simulated devices the default detectors dominate
+import time while telling us nothing we don't already know about nl6.
+
+The policy enables collection on every operationally-up SNMP interface.
+Without it only primary interfaces are collected, and a 144-port CRS-X
+counts as one interface instead of 144 - the density this benchmark scales by.
+#}
+<foreign-source xmlns="http://xmlns.opennms.org/xsd/config/foreign-source"
+                name="{{ opennms_requisition_foreign_source }}">
+  <scan-interval>1d</scan-interval>
+  <detectors>
+    <detector name="ICMP" class="org.opennms.netmgt.provision.detector.icmp.IcmpDetector"/>
+    <detector name="SNMP" class="org.opennms.netmgt.provision.detector.snmp.SnmpDetector"/>
+  </detectors>
+  <policies>
+    <policy name="CollectInterfaces" class="org.opennms.netmgt.provision.persist.policies.MatchingSnmpInterfacePolicy">
+      <parameter key="matchBehavior" value="ALL_PARAMETERS"/>
+      <parameter key="ifAdminStatus" value="1"/>
+      <parameter key="ifOperStatus" value="1"/>
+      <parameter key="action" value="ENABLE_COLLECTION"/>
+    </policy>
+  </policies>
+</foreign-source>

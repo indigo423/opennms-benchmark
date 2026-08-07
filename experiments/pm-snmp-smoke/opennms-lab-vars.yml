@@ -1,0 +1,21 @@
+---
+# Smoke-profile sweep parameters. Only this file is layered for
+# pm-snmp-smoke (make loads the *named* experiment's vars, not pm-snmp's),
+# so every pm_* variable the playbook reads is restated here.
+#
+# Rung 0 is a single device: its per-device-per-cycle column IS the CRS-X
+# density calibration that sizes the 72M-target fleet (N = 72e6 / density).
+# Later rungs ramp until coverage or per-device-cycle falls — the knee.
+#
+# Increments stay <= 250 because each rung starts at 10.42.<index>.1 and a
+# larger batch would spill into the next rung's third octet and collide.
+pm_device_increments: [1, 24, 75, 150, 250, 250]
+pm_foreign_source: nl6-pm
+# One homogeneous profile so per-device-cycle is a per-device fact rather
+# than a mixed-fleet average. cisco_crs_x is nl6's densest profile
+# (144 interfaces); rung 0 doubles as verification of the file name.
+pm_resource_file: cisco_crs_x.json
+pm_collection_interval: 300
+pm_settle_seconds: 300
+pm_window_seconds: 330
+pm_bucket_seconds: 30

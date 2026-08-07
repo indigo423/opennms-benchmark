@@ -7,6 +7,11 @@
 # be recorded on the result to mean anything.
 nl6_fleet_start_ip: "10.42.0.1"
 nl6_fleet_count: 10
+# Empty means nl6's default mixed device set. Set to one profile's file name
+# (e.g. cisco_crs_x.json) for a homogeneous fleet, which is what a scaling
+# benchmark needs: with mixed types the samples-per-device rate averages over
+# unlike devices and cannot be read as a per-device reference.
+nl6_fleet_resource_file: ""
 # Collectors are taken from the manifest by default, so an experiment names
 # where telemetry goes only if it wants something other than this deployment's
 # published ingress.

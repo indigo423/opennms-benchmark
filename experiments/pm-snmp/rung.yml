@@ -18,6 +18,7 @@
     nl6_fleet_sim_network: "{{ endpoints.generators.nl6.sim_network }}"
     nl6_fleet_start_ip: "10.42.{{ pm_rung_index }}.1"
     nl6_fleet_count: "{{ pm_rung_increment }}"
+    nl6_fleet_resource_file: "{{ pm_resource_file }}"
 
 - name: "Provision the fleet for rung {{ pm_rung_index }}"
   ansible.builtin.include_role:

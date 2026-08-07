@@ -22,15 +22,16 @@
     method: POST
     body_format: json
     status_code: [200, 201, 202]
-    body:
-      start_ip: "{{ nl6_fleet_start_ip }}"
-      device_count: "{{ nl6_fleet_count | int }}"
-      netmask: "{{ nl6_fleet_sim_network.split('/')[1] }}"
-      syslog:
-        collector: "{{ nl6_fleet_syslog_collector | trim }}"
-      traps:
-        collector: "{{ nl6_fleet_trap_collector | trim }}"
-        mode: trap
+    # resource_file is merged in only when set: sending it empty would ask nl6
+    # for a profile named "" instead of its default mixed device set.
+    body: >-
+      {{ {'start_ip': nl6_fleet_start_ip,
+          'device_count': nl6_fleet_count | int,
+          'netmask': nl6_fleet_sim_network.split('/')[1],
+          'syslog': {'collector': nl6_fleet_syslog_collector | trim},
+          'traps': {'collector': nl6_fleet_trap_collector | trim, 'mode': 'trap'}}
+         | combine({'resource_file': nl6_fleet_resource_file}
+                   if nl6_fleet_resource_file else {}) }}
   register: nl6_fleet_result
   changed_when: true
   # A 2xx is not success: nl6 wraps replies in {"success": …} and rejects a

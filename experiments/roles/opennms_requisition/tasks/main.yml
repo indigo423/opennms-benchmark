@@ -20,6 +20,22 @@
     mode: "0755"
   tags: ["requisition"]
 
+# Before the import, so the first scan already runs under it. Re-posting the
+# same definition on every rung is idempotent: OpenNMS replaces it in place.
+- name: Define the foreign source (ICMP+SNMP detectors, collect all up interfaces)
+  ansible.builtin.uri:
+    url: "{{ opennms_requisition_base }}/rest/foreignSources"
+    method: POST
+    user: "{{ opennms_requisition_user }}"
+    password: "{{ opennms_requisition_password }}"
+    force_basic_auth: true
+    headers:
+      Content-Type: application/xml
+    body: "{{ lookup('template', 'foreign-source.xml.j2') }}"
+    status_code: [200, 201, 202, 204]
+  changed_when: true
+  tags: ["requisition"]
+
 # Every endpoint comes from the manifest. Nodes are pinned to the Minion's
 # location because the simulated network is reachable from the Minion and
 # nowhere else: a node polled from the Core would simply never answer.
@@ -79,6 +95,50 @@
   until: >-
     (opennms_requisition_nodes.json.totalCount | default(0) | int)
     == (opennms_requisition_fleet.json.data | default([], true) | length)
+  retries: "{{ (opennms_requisition_timeout | int // (opennms_requisition_poll_interval | int)) | int }}"
+  delay: "{{ opennms_requisition_poll_interval }}"
+  changed_when: false
+  tags: ["requisition"]
+
+# The import wait above proves the nodes exist; it says nothing about the
+# async node scans that follow. A scan that runs while the sim network is
+# unreachable persists zero SNMP interfaces and, at the default 1d
+# scan-interval, stays that way for 24 hours — the sweep then measures an
+# empty system and reports it as a slow one. Polling the newest node — the
+# one whose scan is still in flight — until it holds SNMP interfaces converts
+# that silent zero into either a healed wait or a loud failure naming the
+# actual problem.
+- name: Find the newest node in the foreign source
+  ansible.builtin.uri:
+    url: >-
+      {{ opennms_requisition_base }}/rest/nodes?foreignSource={{
+        opennms_requisition_foreign_source }}&limit=1&orderBy=id&order=desc
+    method: GET
+    user: "{{ opennms_requisition_user }}"
+    password: "{{ opennms_requisition_password }}"
+    force_basic_auth: true
+    headers:
+      Accept: application/json
+    return_content: true
+  register: opennms_requisition_newest
+  changed_when: false
+  tags: ["requisition"]
+
+- name: Wait for the node scan to persist SNMP interfaces
+  ansible.builtin.uri:
+    url: >-
+      {{ opennms_requisition_base }}/rest/nodes/{{
+        (opennms_requisition_newest.json.node | first).id
+      }}/snmpinterfaces?limit=1
+    method: GET
+    user: "{{ opennms_requisition_user }}"
+    password: "{{ opennms_requisition_password }}"
+    force_basic_auth: true
+    headers:
+      Accept: application/json
+    return_content: true
+  register: opennms_requisition_snmpifs
+  until: (opennms_requisition_snmpifs.json.totalCount | default(0) | int) > 0
   retries: "{{ (opennms_requisition_timeout | int // (opennms_requisition_poll_interval | int)) | int }}"
   delay: "{{ opennms_requisition_poll_interval }}"
   changed_when: false

@@ -1,0 +1,14 @@
+---
+# The pm-snmp sweep, parameterized for a smoke-profile lab: a homogeneous
+# CRS-X fleet ramped until collection stops completing, to locate the knee
+# cheaply before paying for measurement-grade instances.
+#
+#   make experiment EXPERIMENT=pm-snmp-smoke DEPLOYMENT=kfk-exclusive
+#
+# Smoke results are reconnaissance, not benchmarks: t-class instances deplete
+# CPU credits under sustained load, so late rungs run on a slower machine than
+# early ones. Two readings survive that: samples per device per cycle at a
+# fleet size the lab still handles (a count, so a valid scaling reference for
+# sizing the real run), and the mechanics of the pipeline itself.
+- name: Run the pm-snmp sweep with the smoke parameters
+  ansible.builtin.import_playbook: ../pm-snmp/experiment.yml
