@@ -66,6 +66,8 @@ terraform.rc
 *.auto.tfvars
 
 # === Claude Code / BMAD ===
+.agent/
+.agents/
 .claude/
 _bmad/
 _bmad-output/
