@@ -139,7 +139,7 @@
     return_content: true
   register: opennms_requisition_snmpifs
   until: (opennms_requisition_snmpifs.json.totalCount | default(0) | int) > 0
-  retries: "{{ (opennms_requisition_timeout | int // (opennms_requisition_poll_interval | int)) | int }}"
+  retries: "{{ (opennms_requisition_scan_timeout | int // (opennms_requisition_poll_interval | int)) | int }}"
   delay: "{{ opennms_requisition_poll_interval }}"
   changed_when: false
   tags: ["requisition"]
