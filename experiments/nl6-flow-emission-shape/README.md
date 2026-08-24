@@ -6,8 +6,8 @@ nl6's reference docs came from that model. This puts it on the wire.
 
 ## Question
 
-Does nl6's flow emission on real hardware match what the synthetic-time probe
-predicted — in **rate**, in **shape**, and in whether `-flow-tick-interval` has
+Does nl6's flow emission on a real network interface match what the
+synthetic-time probe predicted — in **rate**, in **shape**, and in whether `-flow-tick-interval` has
 any effect at all?
 
 ## Design
@@ -106,10 +106,13 @@ counts alternate (`129, 20, 110, 129, 14, 128, …`) rather than settling at a
 uniform 128. With a 30s cadence against a ~29s mean lifetime the cache turns
 over wholesale each tick, so any flow whose lifetime lands just past a tick
 boundary slips a whole period. The model quantises that boundary the same way
-every time; real timing does not. This is **not** reconciled, and the honest
-reading is that the model predicts coarse-cadence rates less well than it
-predicts the default — which is also the regime the documentation now advises
-against using.
+every time; real timing does not.
+
+This is **not** reconciled. With capture loss excluded the quantisation account
+above is the remaining candidate, but it is a hypothesis rather than a finding —
+it was not tested. What can be said is that the model predicts coarse-cadence
+rates less well than it predicts the default, which is also the regime the
+documentation now advises against using.
 
 ## Reproducing
 
