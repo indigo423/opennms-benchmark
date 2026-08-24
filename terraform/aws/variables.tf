@@ -103,7 +103,7 @@ variable "spot" {
 variable "smoke_max_disk_gb" {
   type        = number
   default     = 20
-  description = "Root volume cap under the smoke profile. Ubuntu needs roughly 10 GiB; the benchmark sizes (up to 100 GiB for core and clickhouse) exist to hold data a smoke test never generates."
+  description = "Root volume cap under the smoke profile. Ubuntu needs roughly 10 GiB; the benchmark sizes (up to 100 GiB for core) exist to hold data a smoke test never generates."
 }
 
 # ── instance sizing ───────────────────────────────────────────────────────────
@@ -151,7 +151,7 @@ variable "root_volume_type" {
 variable "root_volume_iops" {
   type        = number
   default     = 3000
-  description = "Provisioned IOPS. gp3's 3000 baseline bottlenecks the database and clickhouse roles well before CPU does; raise it for disk-bound benchmarks rather than accepting the default silently."
+  description = "Provisioned IOPS. gp3's 3000 baseline bottlenecks the database role well before CPU does; raise it for disk-bound benchmarks rather than accepting the default silently."
 }
 
 variable "root_volume_throughput" {

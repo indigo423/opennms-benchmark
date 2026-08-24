@@ -200,8 +200,8 @@ experiments: ## List runnable experiments
 	  printf "  \033[36m%s\033[0m\n" "$$(basename $$(dirname $$f))"; \
 	done; \
 	echo "  (playbook-driven only; experiments/legacy/ is reference, and"; \
-	echo "   nms-20027-painless-flows / riptide-flow-capacity are standalone"; \
-	echo "   harnesses with their own runners — see experiments/README.md)"
+	echo "   nms-20027-painless-flows is a standalone harness with its own"; \
+	echo "   runner — see experiments/README.md)"
 
 .PHONY: endpoints
 endpoints: ## Publish lab-endpoints.yml for a running lab (PROVIDER=…, DEPLOYMENT=<slug>)

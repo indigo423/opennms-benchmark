@@ -10,7 +10,7 @@ output "ip_monitoring" {
 
 # ip_monitoring is a static tfvars value, so it reports 192.0.2.200 even for a
 # deployment that provisions no monitoring VM. The jump host is whichever node
-# the spec marks public_ip, which for clickhouse-akvorado is the Akvorado node —
+# the spec marks public_ip, and on such a deployment that is some other node —
 # probing ip_monitoring there just times out. Derive it from the topology
 # instead. For every OpenNMS deployment the jump node IS monitoring, so this
 # resolves to the same address ip_monitoring already returned.
