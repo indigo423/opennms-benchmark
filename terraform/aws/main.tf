@@ -39,11 +39,10 @@ locals {
   spec_role_for = { for srole, prole in local.provider_role : prole => srole }
 
   role_shortname = {
-    database   = "db", core = "core", kafka = "kafka", minion = "minion"
-    netsim     = "netsim", monitoring = "mon", elasticsearch = "es"
-    sentinel   = "sentinel", mimir = "mimir", victoriametrics = "vm"
-    clickhouse = "ch", akvorado = "akvorado", rrd = "rrd"
-    rustfs     = "rustfs", riptide = "riptide"
+    database = "db", core = "core", kafka = "kafka", minion = "minion"
+    netsim   = "netsim", monitoring = "mon", elasticsearch = "es"
+    sentinel = "sentinel", mimir = "mimir", victoriametrics = "vm"
+    rrd      = "rrd", rustfs = "rustfs"
   }
 
   subnet_cidr = {
@@ -62,7 +61,7 @@ locals {
   role_order = [
     "database", "core", "kafka", "minion", "monitoring", "netsim",
     "elasticsearch", "sentinel", "rrd", "mimir", "victoriametrics",
-    "clickhouse", "akvorado", "rustfs", "riptide",
+    "rustfs",
   ]
   ip_offset = {
     for i, role in local.role_order : role => local.role_block_base + i * local.role_block_size
@@ -301,7 +300,8 @@ module "inventory" {
 # The `lab` subnet is a libvirt physical bridge carrying site-pinned addresses
 # and a route via a named machine on that LAN. There is no VPC analogue, and
 # approximating one would silently produce a topology that does not match the
-# spec. Refuse instead. clickhouse-riptide is the only affected deployment.
+# spec. Refuse instead. No spec shipped here declares it today; the guard exists
+# so one that does fails the plan rather than provisioning something else.
 resource "terraform_data" "supported_spec" {
   input = length(local.unsupported_lab)
 

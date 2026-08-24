@@ -13,7 +13,7 @@ ssh_key_path       = "~/.ssh/id_rsa"
 admin_user         = "ubuntu" # Ubuntu cloud image default user
 bridge_name        = "br0"    # Host bridge for external DHCP access on monintoring VM
 # Only needed by deployments whose specs use the 'lab' subnet (statically
-# addressed NICs on the physical bridge above, e.g. clickhouse-riptide).
+# addressed NICs on the physical bridge above).
 # subnet_lab      = "192.168.0.0/24"          # CIDR of the LAN behind bridge_name; .1 is used as the gateway
 # lab_nameservers = ["192.168.0.53"]          # Resolvers for lab NICs; omit to use the gateway
 # jump_host        = ""      # Auto-discovered by deploy.sh from virsh domifaddr after VM boot
