@@ -8,9 +8,15 @@ description: >-
   and shape, so every component that is not the generator is a component that
   could distort the answer. The collector is a packet capture on the same
   node, which is the least that can observe a datagram.
+
+  The generator also carries an `external` address so its web console is
+  reachable from a browser. That is not needed for the capture -- tcpdump runs
+  on the node itself -- but interactive checks against a large simulated fleet
+  (the topology view, for instance) need a human to be able to load the page.
 roles:
   loadgen:
     count: 1
-    size: medium
-    subnets: [mgmt, sim]
+    size: large
+    subnets: [mgmt, sim, external]
+    public_ip: true
     groups: [net_sim, docker_engine]
