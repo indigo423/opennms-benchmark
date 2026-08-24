@@ -1,0 +1,28 @@
+=== pre @ 5s ===
+  datagrams=57  records=1669  span=275.0s
+  rate=6.07 rec/s   datagram rate=0.21/s   records/datagram=29.3
+  per-tick(5.0s): silent=40/54  peak=129  mean=100.9  peak/mean=1.28
+  inter-datagram gap: max=25.00s  median=0.000s
+  shape: [128, 128, 129, 128, 128, 1, 128, 128, 128, 1, 128, 128, 1, 128]
+  datagram sequence: 57 seen, 0 missing  -> sequence-continuous, no capture loss
+=== post @ 5s ===
+  datagrams=69  records=1214  span=295.0s
+  rate=4.12 rec/s   datagram rate=0.23/s   records/datagram=17.6
+  per-tick(5.0s): silent=0/58  peak=53  mean=20.1  peak/mean=2.64
+  inter-datagram gap: max=5.00s  median=5.000s
+  shape: [28, 40, 20, 21, 1, 24, 27, 6, 49, 3, 23, 23, 3, 24]
+  datagram sequence: 69 seen, 0 missing  -> sequence-continuous, no capture loss
+=== pre @ 30s ===
+  datagrams=61  records=1797  span=295.0s
+  rate=6.09 rec/s   datagram rate=0.21/s   records/datagram=29.5
+  per-tick(30.0s): silent=0/11  peak=257  mean=140.1  peak/mean=1.83
+  inter-datagram gap: max=25.00s  median=0.000s
+  shape: [129, 128, 257, 128, 129, 128, 128, 129, 128, 128, 129, 128]
+  datagram sequence: 61 seen, 0 missing  -> sequence-continuous, no capture loss
+=== post @ 30s ===
+  datagrams=30  records=818  span=270.0s
+  rate=3.03 rec/s   datagram rate=0.11/s   records/datagram=27.3
+  per-tick(30.0s): silent=0/8  peak=129  mean=84.1  peak/mean=1.53
+  inter-datagram gap: max=30.03s  median=0.000s
+  shape: [129, 20, 110, 129, 14, 128, 15, 128, 17]
+  datagram sequence: 30 seen, 0 missing  -> sequence-continuous, no capture loss
