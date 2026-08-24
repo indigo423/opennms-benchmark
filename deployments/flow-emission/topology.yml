@@ -1,0 +1,16 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+name: flow-emission
+description: >-
+  Generator-only topology for measuring what nl6 itself puts on the wire.
+  There is no system under test: the question is nl6's own flow emission rate
+  and shape, so every component that is not the generator is a component that
+  could distort the answer. The collector is a packet capture on the same
+  node, which is the least that can observe a datagram.
+roles:
+  loadgen:
+    count: 1
+    size: medium
+    subnets: [mgmt, sim]
+    groups: [net_sim, docker_engine]
