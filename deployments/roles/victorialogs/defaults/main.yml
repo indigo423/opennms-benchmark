@@ -1,0 +1,12 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+# renovate: datasource=github-releases depName=VictoriaMetrics/VictoriaLogs
+victorialogs_version: "1.52.0"
+victorialogs_arch: amd64
+victorialogs_pkg_url: "https://github.com/VictoriaMetrics/VictoriaLogs/releases/download/v{{ victorialogs_version }}/victoria-logs-linux-{{ victorialogs_arch }}-v{{ victorialogs_version }}.tar.gz"
+victorialogs_http_port: 9428
+victorialogs_data_path: /var/lib/victoria-logs
+# Benchmark corpora are transient; a long retention only risks filling the
+# 30 GB default disk between runs.
+victorialogs_retention: 7d

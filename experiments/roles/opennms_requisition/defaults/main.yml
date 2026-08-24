@@ -15,3 +15,9 @@ opennms_requisition_password: admin
 # the nodes exist measures nothing and reports it as a slow system.
 opennms_requisition_timeout: 300
 opennms_requisition_poll_interval: 10
+# Node scans lag the import: each one walks the agent's full ifTable through
+# the Minion, and a rung that adds hundreds of nodes queues them behind one
+# RPC path. Separate budget because it scales with rung size where the
+# import wait does not; 250 CRS-X scans through a single Minion were observed
+# to need well over the 300s import budget on the smoke lab.
+opennms_requisition_scan_timeout: 1800

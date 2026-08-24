@@ -9,4 +9,4 @@
 # group_vars sits beside ansible-inventory.yml, so Ansible loads it for every
 # play that uses the inventory, bootstrap included. It also stays below
 # extra_vars in precedence, which leaves roles free to merge against it.
-nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.21.0"
+nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.22.1"

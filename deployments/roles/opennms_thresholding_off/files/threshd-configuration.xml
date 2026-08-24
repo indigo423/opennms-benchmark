@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright 2026 Ronny Trommer <ronny@no42.org>
+SPDX-License-Identifier: Apache-2.0
+
+Deliberately inert. The schema requires at least one package
+(cvc-complex-type.2.4.b, verified against Horizon 36.0.2), so a fully empty
+document fails startup in OnmsThreshdDao. This single package's filter can
+never match an interface, so nothing is ever selected for threshold
+evaluation. Pairs with the emptied thresholds.xml and the
+thresholding-enabled=false collectd parameters (see tasks/main.yml).
+-->
+<threshd-configuration xmlns="http://xmlns.opennms.org/xsd/config/thresholding" threads="5">
+   <package name="nothing">
+      <filter>IPADDR == '0.0.0.0'</filter>
+   </package>
+</threshd-configuration>

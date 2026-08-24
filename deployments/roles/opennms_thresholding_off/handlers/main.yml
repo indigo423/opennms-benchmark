@@ -1,0 +1,13 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Restart opennms core
+  ansible.builtin.service:
+    name: opennms.service
+    state: restarted
+  # Same gate as the collection's own "Restart opennms" handler, so an image
+  # bake or config-only rerun (skip_startup=true) does not get an unwanted
+  # restart from this role alone.
+  when:
+    - skip_startup | default("false") == "false"

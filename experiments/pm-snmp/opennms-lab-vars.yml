@@ -6,6 +6,11 @@
 # octet, so cumulative fleet size here is 25, 50, 100.
 pm_device_increments: [25, 25, 50]
 pm_foreign_source: nl6-pm
+# Empty means nl6's default mixed fleet. Set to one profile (e.g.
+# cisco_crs_x.json, the densest at 144 interfaces) when the sweep's
+# per-device-per-cycle column is meant to be a scaling reference rather than a
+# mixed-fleet average.
+pm_resource_file: ""
 # One full collection interval plus margin, so every node is collected exactly
 # once inside the window. Each rung costs this much wall clock.
 pm_collection_interval: 300

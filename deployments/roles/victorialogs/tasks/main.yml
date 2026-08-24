@@ -1,0 +1,91 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# VictoriaLogs single-node, modeled on indigo423.opennms.stub_victoriametrics:
+# upstream release tarball into a version-scoped directory behind a stable
+# symlink, running under systemd.
+
+- name: Create the victorialogs system group
+  ansible.builtin.group:
+    name: victorialogs
+    system: true
+  tags:
+    - victorialogs
+
+- name: Create the victorialogs system user
+  ansible.builtin.user:
+    name: victorialogs
+    group: victorialogs
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ victorialogs_data_path }}"
+    create_home: false
+  tags:
+    - victorialogs
+
+- name: Create the VictoriaLogs data directory
+  ansible.builtin.file:
+    path: "{{ victorialogs_data_path }}"
+    state: directory
+    owner: victorialogs
+    group: victorialogs
+    mode: "0750"
+  tags:
+    - victorialogs
+
+# Unpack into a version-scoped directory and expose it through a stable
+# symlink, so bumping victorialogs_version extracts the new binary and flips
+# the symlink to trigger a restart.
+- name: Create the VictoriaLogs versioned install directory
+  ansible.builtin.file:
+    path: "/opt/victoria-logs/{{ victorialogs_version }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags:
+    - victorialogs
+
+- name: Install the victoria-logs-prod binary
+  ansible.builtin.unarchive:
+    src: "{{ victorialogs_pkg_url }}"
+    dest: "/opt/victoria-logs/{{ victorialogs_version }}"
+    remote_src: true
+    creates: "/opt/victoria-logs/{{ victorialogs_version }}/victoria-logs-prod"
+    owner: root
+    group: root
+    mode: "0755"
+  tags:
+    - victorialogs
+
+- name: Link victoria-logs-prod into PATH
+  ansible.builtin.file:
+    src: "/opt/victoria-logs/{{ victorialogs_version }}/victoria-logs-prod"
+    dest: /usr/local/bin/victoria-logs-prod
+    state: link
+  notify: Restart victorialogs
+  tags:
+    - victorialogs
+
+- name: Install the VictoriaLogs systemd unit
+  ansible.builtin.template:
+    src: victoria-logs.service.j2
+    dest: /etc/systemd/system/victoria-logs.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart victorialogs
+  tags:
+    - victorialogs
+    - systemd
+
+- name: Enable and start VictoriaLogs
+  ansible.builtin.systemd:
+    name: victoria-logs.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags:
+    - victorialogs
+    - systemd
