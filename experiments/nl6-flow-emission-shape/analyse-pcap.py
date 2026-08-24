@@ -34,14 +34,20 @@ def datagrams(path):
             payload = udp[8:]
             if len(payload) < 4: continue
             ver, count = struct.unpack('>HH', payload[:4])
-            yield ts, ver, count, len(payload)
+            # NetFlow v9 carries a per-exporter DATAGRAM sequence number at
+            # offset 12. It is the instrument that separates "the generator
+            # emitted less" from "the capture missed some" — without it a
+            # shortfall cannot be attributed, and attributing it to the model
+            # would bury a real loss signal.
+            seq = struct.unpack('>I', payload[12:16])[0] if len(payload) >= 16 else None
+            yield ts, ver, count, len(payload), seq
 
 def report(path, tick):
     rows = list(datagrams(path))
     if not rows:
         print(f"{path}: NO DATAGRAMS"); return
     t0 = rows[0][0]; t1 = rows[-1][0]; span = max(t1 - t0, 1e-9)
-    recs = sum(c for _, v, c, _ in rows if v == 9)
+    recs = sum(c for _, v, c, _, _ in rows if v == 9)
     # Recover the emission SHAPE by clustering datagrams into TICK GROUPS.
     # Fixed-width bucketing aligned to the first packet splits a single tick
     # across two buckets and invents a silent one; datagrams from one tick are
@@ -50,7 +56,7 @@ def report(path, tick):
     series, skipped = [], 0
     cur = 0
     prev = None
-    for ts, v, c, _ in rows:
+    for ts, v, c, _, _ in rows:
         if v != 9: continue
         if prev is not None and (ts - prev) > tick * 0.5:
             series.append(cur); cur = 0
@@ -65,6 +71,8 @@ def report(path, tick):
     mean = sum(steady)/len(steady) if steady else 0
     peak = max(steady) if steady else 0
     gaps = [rows[i+1][0]-rows[i][0] for i in range(len(rows)-1)]
+    seqs = [s for _, v, _, _, s in rows if v == 9 and s is not None]
+    lost = (seqs[-1] - seqs[0] + 1 - len(seqs)) if len(seqs) > 1 else 0
     print(f"  datagrams={len(rows)}  records={recs}  span={span:.1f}s")
     print(f"  rate={recs/span:.2f} rec/s   datagram rate={len(rows)/span:.2f}/s   "
           f"records/datagram={recs/len(rows):.1f}")
@@ -73,6 +81,8 @@ def report(path, tick):
     print(f"  inter-datagram gap: max={max(gaps) if gaps else 0:.2f}s  "
           f"median={sorted(gaps)[len(gaps)//2] if gaps else 0:.3f}s")
     print(f"  shape: {series[1:15]}")
+    verdict = "CAPTURE LOSS - rate is a floor, not a measurement" if lost else "sequence-continuous, no capture loss"
+    print(f"  datagram sequence: {len(seqs)} seen, {lost} missing  -> {verdict}")
 
 if __name__ == '__main__':
     report(sys.argv[1], float(sys.argv[2]))

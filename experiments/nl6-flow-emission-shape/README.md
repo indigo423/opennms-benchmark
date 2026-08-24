@@ -42,6 +42,10 @@ the exporter.
 **Scope validity.** Generator-side measurement, so co-locating the capture is
 not a contention concern — nothing is being saturated (~4 records/second).
 
+**What this is not.** A simulated fleet on a virtual machine. `cisco_ios` is an
+nl6 device *type*, not a physical router, and the claim under test is that nl6
+emits what its own model says — not that nl6 resembles Cisco hardware.
+
 ## Method
 
 `run-cell.sh <build> <tick> <window>` starts nl6, creates one device over REST
@@ -93,6 +97,8 @@ is **0.679**, against the 0.66 published in nl6's `flow-export.md`.
 The model runs slightly hot everywhere, which is expected: it advances time in
 exact tick increments with no scheduling jitter, no socket latency and no
 warm-up truncation, so it counts expiries the wire narrowly misses.
+
+**Capture-side loss is excluded, by an instrument independent of the record count.** NetFlow v9 carries a per-exporter datagram sequence number. All four captures are sequence-continuous with zero gaps, so nothing was dropped between the exporter and `tcpdump`. This check was added after review pointed out that a shortfall attributed to the model could equally be burst loss — 128 records at a 30s cadence leave as roughly five back-to-back datagrams, which is exactly the shape a socket buffer drops. Without the sequence check the conclusion below would have been unsupported.
 
 **The 30s cell is the one worth flagging.** A 16.5 % shortfall is larger than
 jitter explains, and the shape hints at why: post-change at 30s the per-tick
