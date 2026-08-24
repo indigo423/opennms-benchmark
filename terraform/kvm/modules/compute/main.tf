@@ -120,10 +120,10 @@ resource "libvirt_domain" "vm" {
   vcpu        = each.value.vcpu
 
   # Without this libvirt defaults to the qemu64 model: an x86-64 baseline CPU
-  # with no SSE4.2, AVX or AVX2. Two consequences, both bad for this lab.
+  # with no SSE4.2, AVX or AVX2.
   #
-  # ClickHouse requires SSE4.2 and dies at package configuration time with
-  # "Illegal instruction (core dumped)" — Deployment H cannot install at all.
+  # Software that requires SSE4.2 then dies outright, at package configuration
+  # time, with "Illegal instruction (core dumped)".
   #
   # More quietly, every number this lab has ever produced was measured on a
   # CPU without vector instructions. JVM intrinsics, Kafka and Elasticsearch

@@ -32,8 +32,8 @@ ssh_key_path = "~/.ssh/id_rsa"
 #   large = "m6i.xlarge", xlarge = "m6i.2xlarge"
 # }
 
-# gp3's 3000 IOPS baseline bottlenecks the database and clickhouse roles well
-# before CPU does. Raise it for disk-bound benchmarks.
+# gp3's 3000 IOPS baseline bottlenecks the database role well before CPU
+# does. Raise it for disk-bound benchmarks.
 # root_volume_iops       = 3000
 # root_volume_throughput = 125
 

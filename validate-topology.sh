@@ -66,8 +66,9 @@ printf 'ssh-rsa AAAAB3NzaC1yc2ETOPOLOGYVALIDATIONPLACEHOLDER validation@placehol
 # below are placeholders: none of them affects the invariants being asserted,
 # they exist because Terraform requires every declared variable to have a value.
 #
-# subnet_lab is the exception that matters: clickhouse-riptide renders `lab`
-# NICs from it, so it has to be a real CIDR or that spec cannot be evaluated.
+# subnet_lab is the exception that matters: a spec that declares the `lab`
+# subnet renders its NICs from it, so it has to be a real CIDR or that spec
+# cannot be evaluated.
 VAR_FILES=(
   -var-file=../lab.tfvars
   -var-file=../lab-addresses.tfvars
