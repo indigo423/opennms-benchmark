@@ -81,7 +81,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # picks it up from the current directory. Every path below is absolute, so the
 # caller's cwd is otherwise irrelevant — but without this, invoking the script
 # from anywhere other than the repo root loses deployments/roles and fails with
-# "the role 'clickhouse' was not found".
+# "the role 'rustfs' was not found".
 export ANSIBLE_CONFIG="$REPO_ROOT/ansible.cfg"
 TF_DIR="$REPO_ROOT/terraform/$PROVIDER"
 TFVARS_FILE="$TF_DIR/${PROVIDER}.tfvars"
@@ -393,9 +393,9 @@ ansible-galaxy collection install \
   --force-with-deps
 
 # A deployment may ship its own playbook when it stands up a different stack.
-# Deployment H (clickhouse-akvorado) deploys no OpenNMS at all, so bolting its
-# plays into opennms-playbook.yml would hide a second stack inside a playbook
-# named for the first. Every OpenNMS deployment ships no playbook.yml and gets
+# A deployment that stands up no OpenNMS at all would, if its plays were bolted
+# into opennms-playbook.yml, hide a second stack inside a playbook named for the
+# first. Every OpenNMS deployment ships no playbook.yml and gets
 # the shared one, which keeps its play order — the stack's dependency graph —
 # in exactly one place.
 # Gated on kvm for the same reason as the vars overlay above: only kvm is

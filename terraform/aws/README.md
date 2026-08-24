@@ -66,8 +66,8 @@ this problem across the board; here it is contained to the tier where nothing is
 being measured. `cost_profile = "benchmark"` uses `m6i` throughout.
 
 **Storage is a sizing decision.** `gp3`'s 3000 IOPS baseline bottlenecks the
-`database` and `clickhouse` roles well before CPU does. Raise `root_volume_iops`
-for disk-bound work rather than accepting the default silently.
+`database` role well before CPU does. Raise `root_volume_iops` for disk-bound
+work rather than accepting the default silently.
 
 ## Which account this builds in
 
@@ -307,12 +307,12 @@ extending it.
 
 ## Unsupported specs
 
-`clickhouse-riptide` uses the `lab` subnet — a physical bridge on the KVM host
-with site-pinned addresses and a route via a named machine on that LAN. There is
-no VPC equivalent, so the plan fails with a message pointing at `PROVIDER=kvm`
-rather than approximating something that does not match the spec.
+A spec that uses the `lab` subnet cannot run here. `lab` is a physical bridge on
+the KVM host with site-pinned addresses and a route via a named machine on that
+LAN. There is no VPC equivalent, so the plan fails with a message pointing at
+`PROVIDER=kvm` rather than approximating something that does not match the spec.
 
-The other 13 specs are supported.
+All 13 shipped specs are supported.
 
 ## Known gaps
 

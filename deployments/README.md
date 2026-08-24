@@ -58,10 +58,9 @@ Each role maps to a stable 2–3 character code used in the canonical descriptor
 | `core` | `on` | `elasticsearch` | `es` |
 | `minion` | `mn` | `mimir` | `mm` |
 | `sentinel` | `sn` | `victoriametrics` | `vm` |
-| `database` | `pg` | `clickhouse` | `ch` |
-| `kafka` | `kf` | `akvorado` | `ak` |
-| `rrd` | `rr` | `riptide` | `rp` |
-| `rustfs` | `rs` | `loadgen` (nl6) | `nl6` |
+| `database` | `pg` | `rustfs` | `rs` |
+| `kafka` | `kf` | `loadgen` (nl6) | `nl6` |
+| `rrd` | `rr` | | |
 
 `monitoring` is always-present infrastructure (Grafana, Prometheus, Jaeger) and is **excluded** from the descriptor.
 `loadgen` is the nl6 generator, included by default; opt out by omitting the role or setting `count: 0`.
@@ -98,7 +97,7 @@ Two escape hatches exist for hosts that something outside the lab has to reach:
 
 ```yaml
 roles:
-  riptide:
+  elasticsearch:
     subnets: [lab]                                       # physical bridge, not a NAT network
     addresses: { lab: ["192.168.11.33"] }                # pin per subnet, one entry per node
     routes: { lab: { to: "10.42.0.0/16", via: "192.168.11.73" } }   # inline route…
@@ -183,8 +182,6 @@ Descriptor component order: `es mm vm ch ak rp rs rr pg sn kf on mn nl6`.
 | `vm-cluster-minion` | `3vm-1pg-1kf-1on-1mn` | VictoriaMetrics cluster plus minion |
 | `vm-single` | `1vm-1pg-1on` | single VictoriaMetrics |
 | `mimir-single` | `1mm-1pg-1on` | single Mimir |
-| `clickhouse-akvorado` | `1ch-1ak` | standalone flow engine (no OpenNMS) |
-| `clickhouse-riptide` | `1ch-1rp` | standalone riptide flow engine (no OpenNMS); both nodes on the physical `lab` bridge so an off-hypervisor generator can reach the UDP ingest |
 | `es-cluster-min` | `3es` | **component test bed**, verifies Elasticsearch cluster formation on a footprint that fits the lab (28 GB) |
 | `kafka-cluster-min` | `3kf` | **component test bed**, verifies KRaft cluster formation (shared cluster ID, quorum, RF 3) at 28 GB |
 | `mimir-cluster-min` | `3mm-1rs` | **component test bed**, verifies Mimir cluster formation against shared object storage at 36 GB |
@@ -199,5 +196,5 @@ The four entries marked above exist to prove a component forms a cluster or a to
 They are sized to boot, not to measure, and a number taken from one means nothing.
 
 **Not every component deploys yet.**
-Specs naming mimir, victoriametrics, clickhouse, akvorado or sentinel are valid data now, but their Ansible roles and provider translation are still to come.
+Specs naming mimir, victoriametrics or sentinel are valid data now, but their Ansible roles and provider translation are still to come.
 Such a spec will validate and will not yet deploy.
