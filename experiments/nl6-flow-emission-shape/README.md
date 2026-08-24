@@ -65,10 +65,17 @@ Wire measurements, 300s window, one device:
 
 | cell | records/s | silent ticks | shape (records per emitting tick) |
 |---|---|---|---|
-| pre @ 5s | **6.07** | **40 of 55** | `128, 128, 129, 128, …` |
+| pre @ 5s | **6.07** | **40 of 54** | `128, 128, 129, 128, …` |
 | post @ 5s | **4.12** | **0 of 58** | `28, 40, 20, 21, 1, 24, 27, 6, 49, …` |
-| pre @ 30s | **6.09** | 40 of 55 | `128, 128, 257, 128, …` |
+| pre @ 30s | **6.09** | **42 of 58** † | `1, 128, 128, 128, 1, 128, …` |
 | post @ 30s | **3.03** | **0 of 8** | `129, 20, 110, 129, 14, 128, …` |
+
+† The `pre @ 30s` row is analysed at **5s**, not 30s, because that is the cadence
+it actually ran at — the flag was inert, which is the defect being measured.
+Bucketing it at the 30s it was *asked* for reports `0 of 11` silent and hides the
+sawtooth, since a 30s window always contains one of the 5s bursts. Reporting a
+cell at a cadence it never used is how the inert flag would have escaped notice
+a second time.
 
 ### Three claims, all confirmed
 
@@ -78,7 +85,7 @@ is nl6#446 observed directly rather than inferred from a call graph.
 Post-change the same comparison gives 4.12 vs 3.03: the cadence now reaches the
 ticker.
 
-**2. The cohort sawtooth was real and is gone.** Pre-change, **40 of 55 ticks
+**2. The cohort sawtooth was real and is gone.** Pre-change, **40 of 54 ticks
 emitted nothing** — roughly 3 in 4, exactly the predicted period — and the
 emitting ticks carried the entire 128-flow cache at once. Post-change, **zero**
 silent ticks at either cadence.
