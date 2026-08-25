@@ -28,7 +28,7 @@ PROTO_UDP = 17
 
 
 def datagrams(path):
-    """Yield (timestamp, version, record_count, payload_len, sequence) per UDP datagram."""
+    """Yield (timestamp, version, record_count, payload_len, sequence, source_ip) per datagram."""
     with open(path, "rb") as handle:
         global_header = handle.read(24)
         (magic,) = struct.unpack("<I", global_header[:4])
@@ -66,7 +66,8 @@ def datagrams(path):
             sequence = None
             if len(payload) >= 16:
                 (sequence,) = struct.unpack(">I", payload[12:16])
-            yield timestamp, version, count, len(payload), sequence
+            src = ".".join(str(b) for b in ip[12:16])
+            yield timestamp, version, count, len(payload), sequence, src
 
 
 def tick_groups(rows, tick):
@@ -82,7 +83,7 @@ def tick_groups(rows, tick):
     current = 0
     previous = None
 
-    for timestamp, version, count, _, _ in rows:
+    for timestamp, version, count, _, _, _ in rows:
         if version != NETFLOW_V9:
             continue
         if previous is not None and (timestamp - previous) > tick * 0.5:
@@ -105,7 +106,7 @@ def report(path, tick):
         return
 
     span = max(rows[-1][0] - rows[0][0], 1e-9)
-    records = sum(count for _, ver, count, _, _ in rows if ver == NETFLOW_V9)
+    records = sum(count for _, ver, count, _, _, _ in rows if ver == NETFLOW_V9)
 
     series, silent = tick_groups(rows, tick)
     steady = series[1:-1] if len(series) > 2 else series
@@ -117,8 +118,18 @@ def report(path, tick):
     max_gap = max(gaps) if gaps else 0
     median_gap = sorted(gaps)[len(gaps) // 2] if gaps else 0
 
-    sequences = [seq for _, ver, _, _, seq in rows if ver == NETFLOW_V9 and seq is not None]
-    lost = (sequences[-1] - sequences[0] + 1 - len(sequences)) if len(sequences) > 1 else 0
+    # Sequence numbers are PER EXPORTER. Pooling several devices' counters
+    # produces a meaningless figure — a multi-device capture reported "-93
+    # missing", a negative loss, which is how this was found. Group by source.
+    per_source = {}
+    for _, ver, _, _, seq, src in rows:
+        if ver == NETFLOW_V9 and seq is not None:
+            per_source.setdefault(src, []).append(seq)
+    lost = 0
+    for seqs in per_source.values():
+        if len(seqs) > 1:
+            lost += max(0, max(seqs) - min(seqs) + 1 - len(seqs))
+    sequences = [s for seqs in per_source.values() for s in seqs]
     if lost:
         verdict = "CAPTURE LOSS - the rate is a floor, not a measurement"
     else:
@@ -135,7 +146,8 @@ def report(path, tick):
     )
     print(f"  inter-datagram gap: max={max_gap:.2f}s  median={median_gap:.3f}s")
     print(f"  shape: {series[1:15]}")
-    print(f"  datagram sequence: {len(sequences)} seen, {lost} missing  -> {verdict}")
+    print(f"  datagram sequence: {len(sequences)} seen across {len(per_source)} exporter(s), "
+          f"{lost} missing  -> {verdict}")
 
 
 if __name__ == "__main__":
