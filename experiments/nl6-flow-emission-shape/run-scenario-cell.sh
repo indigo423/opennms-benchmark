@@ -30,6 +30,8 @@ sudo ip link del veth-sim-host 2>/dev/null || true
 sleep 3
 
 cd /tmp
+# shellcheck disable=SC2024  # the redirect is the caller's, deliberately: only
+# the simulator needs root (TUN/netns), the log belongs to the invoking user.
 sudo ./nl6-paced -port 8080 -flow-tick-interval 5 \
   -flow-active-timeout 30 -flow-inactive-timeout 15 > "$OUT.log" 2>&1 &
 sleep 12
