@@ -1,6 +1,19 @@
 ---
+# ansible-lint installs the collections from requirements.yml into a repo-local
+# .ansible/collections/ when they are not already satisfied, then walks them like
+# our own code — so a violation inside the SHA-pinned indigo423.opennms collection
+# fails this repository's lint. Linting a pinned dependency is not our job; that
+# belongs upstream, where the finding is already visible.
+#
+# CI never hit this: ansible-lint.yml installs the collections into
+# ~/.ansible/collections first, so nothing is vendored into the tree. The
+# exclusion is what makes a local `make lint-ansible` agree with CI (#241).
+#
+# Replaces the retired `ansible-opennms/` entry, which named the git submodule
+# that the Galaxy pin superseded. That directory no longer exists, so the old
+# exclusion guarded nothing while the path that replaced it was unguarded.
 exclude_paths:
-  - ansible-opennms/
+  - .ansible/
 
 # experiments/inventory/ holds nl6 node-provisioning tooling, so ansible-lint
 # mis-detects playbooks there as inventory sources. Pin the gNMI deploy playbook
