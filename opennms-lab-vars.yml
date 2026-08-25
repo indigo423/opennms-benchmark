@@ -1,11 +1,36 @@
 ---
 opennms_distribution: Horizon
-# The OpenNMS apt "stable" dist retains only the current point release —
+# The OpenNMS apt repository retains only the current point release per major —
 # superseded versions are removed, so a stale pin fails with
 # "no available installation candidate". Keep this in sync with what
 # debian.opennms.org actually serves.
-opennms_version: "36.0.2"
+#
+# The collection derives the repository dist from this value's major
+# (opennms-36), so a major bump here moves the dist with it. It configures that
+# dist instead of the "stable" alias, which floats: it has pointed at
+# opennms-34, -35 and -36 in turn, so an `apt upgrade` could once have offered a
+# major version jump.
+#
+# Fresh deploys only. `apt_repository` runs with state: present and never
+# removes the "stable" entry an older run wrote, so re-deploying onto a host
+# provisioned before this bump leaves both dists configured. Harmless while
+# "stable" still resolves to opennms-36; drop the stale file in
+# /etc/apt/sources.list.d/ by hand if it ever diverges.
+opennms_version: "36.0.3"
 opennms_pkg_version: "{{ opennms_version }}*"
+
+# Fail the deploy on an unsynchronised clock. This is the collection's default;
+# set here so a hard failure is a decision rather than something inherited.
+#
+# Kept on because clock skew corrupts exactly what this lab measures: Kafka RPC
+# requests carry a TTL and expire, flow records land in the wrong buckets, and
+# collectors write time-series points in the future. A benchmark that silently
+# measures skew is worth less than a deploy that stops.
+#
+# The check asserts NTPSynchronized rather than requiring an NTP client, so lab
+# VMs whose clock is kept by the hypervisor (NTP=no, NTPSynchronized=yes) pass.
+# It retries 6 x 10s, which covers a host still converging right after boot.
+timesync_required: true
 
 # The db subnet exists precisely so database traffic does not share the
 # management path a benchmark also uses. This pointed at the database node's

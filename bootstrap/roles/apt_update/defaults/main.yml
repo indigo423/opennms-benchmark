@@ -7,7 +7,7 @@
 # apt refuses (#141).
 #
 #   grafana        -> grafana_version in opennms-lab-vars.yml (exact, e.g. 12.4.6)
-#   opennms-*      -> opennms_pkg_version, "36.0.2*" (patch level)
+#   opennms-*      -> opennms_pkg_version, patch level (e.g. "36.0.3*")
 #
 # jrrd2, rrdtool and iplike are deliberately absent: they pin a major version
 # ("1.*"), so an upgrade still satisfies the pin.
