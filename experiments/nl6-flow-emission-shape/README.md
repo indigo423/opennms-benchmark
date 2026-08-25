@@ -148,6 +148,40 @@ Four scenario runs measured **nl6 v0.22.1** — the released container — befor
 
 The multi-device capture also broke the loss check: NetFlow sequence numbers are per exporter, and pooling five of them reported **−93 missing** — a negative loss. Grouped by source IP now.
 
+## Part 3: records claim a last-packet time the exporter has not reached
+
+`check-timestamps.py`, template-aware (the field offsets are not fixed, so the
+template flowset is read from the capture and data records decoded against it).
+
+| capture | records | LAST_SWITCHED ahead of SysUptime | max ahead |
+|---|---|---|---|
+| `cap-post-5s` | 867 | **71.5 %** | 89.5 s |
+| `s6-rate2-w120` | 782 | **71.7 %** | 89.2 s |
+| `s6-rate8-w120` | 1296 | **69.0 %** | 89.8 s |
+
+About seven records in ten state a last-packet time the exporter had not yet
+reached when it sent them, by as much as 90 seconds.
+
+**The mechanism is the active timeout, and the 90s is exactly what it predicts.**
+A flow sampled with a 120 s duration is capped and exported at the 30 s active
+timeout, but the record still carries the `EndMs` its full duration implies —
+90 s beyond. The cap truncates the flow's residency without truncating its
+claimed extent, and the byte and packet counts are not rescaled either.
+
+A collector computing `flowEnd = exportTime − (sysUptime − lastSwitched)` gets a
+timestamp in the future, and any bytes-per-second derived from the flow's own
+duration is wrong by `duration / active-timeout`.
+
+This was carried as a deferred finding from the nl6#457 review, which estimated
+75.7 % from the emission model. Measured: 69–72 %. It is **pre-existing** — not
+introduced by the pacing work — and unfixed; the numbers are here so a fix can be
+scoped against a measurement rather than an estimate.
+
+`cap-pre-5s` decoded only 4 records and is excluded: that run used a 10-minute
+template interval and the capture began after warm-up, so almost no template
+reached the file. A data record cannot be decoded without its template, which is
+itself worth knowing before designing a capture.
+
 ## Reproducing
 
 ```bash

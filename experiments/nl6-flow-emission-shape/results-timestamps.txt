@@ -1,0 +1,8 @@
+cap-post-30s.pcap        records=83     LAST_SWITCHED ahead of SysUptime: 10     ( 12.0%)  max ahead: 83.0s
+cap-post-5s.pcap         records=867    LAST_SWITCHED ahead of SysUptime: 620    ( 71.5%)  max ahead: 89.5s
+cap-pre-30s.pcap         records=2      LAST_SWITCHED ahead of SysUptime: 1      ( 50.0%)  max ahead: 84.7s
+cap-pre-5s.pcap          records=4      LAST_SWITCHED ahead of SysUptime: 4      (100.0%)  max ahead: 90.8s
+s6-rate0.5-w180.pcap     records=385    LAST_SWITCHED ahead of SysUptime: 282    ( 73.2%)  max ahead: 89.7s
+s6-rate2-w120.pcap       records=782    LAST_SWITCHED ahead of SysUptime: 561    ( 71.7%)  max ahead: 89.2s
+s6-rate4-w120.pcap       records=722    LAST_SWITCHED ahead of SysUptime: 458    ( 63.4%)  max ahead: 89.9s
+s6-rate8-w120.pcap       records=1296   LAST_SWITCHED ahead of SysUptime: 894    ( 69.0%)  max ahead: 89.8s
