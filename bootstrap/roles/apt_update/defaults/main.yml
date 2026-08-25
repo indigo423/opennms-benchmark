@@ -12,6 +12,17 @@
 # jrrd2, rrdtool and iplike are deliberately absent: they pin a major version
 # ("1.*"), so an upgrade still satisfies the pin.
 #
+# Every OpenNMS package the collection pins is listed, Core's and the satellites'
+# alike. The collection writes its own APT preferences file per component, but
+# that pin names an exact patch level and the repository serves only the current
+# point release — so the moment 36.0.4 ships, "36.0.3*" matches no candidate and
+# constrains nothing. The dpkg hold is what still holds at that point, and
+# holding Core while leaving opennms-minion loose is how Core and Minion end up
+# on mismatched builds after `upgrade: dist`.
+#
+# Listing a package that is not installed on a host is a no-op: both the hold and
+# the release task are guarded on `item in ansible_facts.packages`.
+#
 # Kept in sync by hand. A missing entry restores the old drift, which surfaces as
 # the "Packages were downgraded" abort in #141 rather than failing silently.
 apt_update_pinned_packages:
@@ -20,3 +31,5 @@ apt_update_pinned_packages:
   - opennms-server
   - opennms-webapp-jetty
   - opennms-webapp-hawtio
+  - opennms-minion
+  - opennms-sentinel

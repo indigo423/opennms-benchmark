@@ -13,9 +13,16 @@ opennms_distribution: Horizon
 #
 # Fresh deploys only. `apt_repository` runs with state: present and never
 # removes the "stable" entry an older run wrote, so re-deploying onto a host
-# provisioned before this bump leaves both dists configured. Harmless while
-# "stable" still resolves to opennms-36; drop the stale file in
-# /etc/apt/sources.list.d/ by hand if it ever diverges.
+# provisioned before this bump leaves both dists configured. Equivalent today,
+# because "stable" still resolves to opennms-36.
+#
+# It stops being equivalent once "stable" follows opennms-37: the host then has a
+# floating major-version source enabled again, and the collection's exact-patch
+# pin will already have stopped matching anything by then (the repository serves
+# only the current point release). What still holds the line is the dpkg hold in
+# bootstrap/roles/apt_update, which is why every OpenNMS package the collection
+# pins is listed there. Drop the stale file from /etc/apt/sources.list.d/ on any
+# host provisioned before this bump.
 opennms_version: "36.0.3"
 opennms_pkg_version: "{{ opennms_version }}*"
 
@@ -194,15 +201,6 @@ kafka_server_properties:
 # Integer arithmetic (* 6 // 10) rather than a float multiply: the value is
 # quoted straight into a shell config file, where a rounding artefact has no
 # business appearing.
-# The pinned collection builds this URL with a "v" prefix for versions >= 1.6.0
-# (roles/opennms_core/defaults/main.yml). Upstream tags 1.6.0 without one, so
-# the generated URL 404s and the Core play fails at "Installing JMX Prometheus
-# Exporter". Verified: .../download/v1.6.0/... is 404, .../download/1.6.0/... is
-# 200. Overridden here rather than bumping the SHA-pinned collection, which the
-# project reserves for a deliberate PR.
-prom_jmx_exporter_url: >-
-  https://github.com/prometheus/jmx_exporter/releases/download/{{ prom_jmx_exporter_version }}/jmx_prometheus_javaagent-{{ prom_jmx_exporter_version }}.jar
-
 opennms_jvm_conf:
   JAVA_HEAP_SIZE: "{{ [ansible_memtotal_mb | int * 6 // 10, 8192] | min }}"
   JAVA_INITIAL_HEAP_SIZE: "{{ [ansible_memtotal_mb | int * 6 // 10, 8192] | min }}"
