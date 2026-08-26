@@ -79,7 +79,7 @@ collections:
   # exist and Mimir does not create its own. Not a dependency of the OpenNMS
   # deployment roles.
   - name: amazon.aws
-    version: "11.3.0"
+    version: "11.4.0"
 
   # ── transitive, declared because the resolver is off ───────────────────────
   # Required by grafana.grafana (>=1.5.4). No direct call site.
