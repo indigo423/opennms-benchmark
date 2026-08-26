@@ -186,13 +186,28 @@
   notify: Apply Proxmox network configuration
   tags: ["always"]
 
+# Each line is attributed to the stanza it belongs to before diffing, rather
+# than the diff output being grepped for interface names. Grepping only sees a
+# name on an `auto`/`iface` line, so a staged change to an *existing*
+# interface -- `address 192.168.10.99/24` under vmbr0, say -- produced a diff
+# line naming nothing, was dropped, and the guard reported that only lab
+# bridges were touched. It would then have applied an edit to the uplink
+# Ansible is connected over, which is the one thing it exists to refuse.
+#
+# Blank lines and comments are skipped, or a trailing blank before a newly
+# appended stanza attaches to the preceding one and reports it as touched.
 - name: Determine which interfaces the staged configuration touches
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail;
-      diff /etc/network/interfaces /etc/network/interfaces.new
+      stanzas() {
+      awk 'NF==0 || /^[[:space:]]*#/ {next}
+           /^[[:space:]]*(auto|allow-[^ ]+)[[:space:]]+/ {name=$2}
+           /^[[:space:]]*iface[[:space:]]+/ {name=$2}
+           {print name"\t"$0}' "$1";
+      };
+      diff <(stanzas /etc/network/interfaces) <(stanzas /etc/network/interfaces.new)
       | grep -E '^[<>]'
-      | grep -oE '(iface|auto) [a-zA-Z0-9._:-]+'
       | awk '{print $2}' | sort -u
     executable: /bin/bash
   register: proxmox_staged_ifaces
