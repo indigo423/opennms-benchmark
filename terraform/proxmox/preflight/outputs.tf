@@ -28,12 +28,12 @@ output "node_name_matches" {
 }
 
 output "datastore_content_types" {
-  value       = local.reads_host ? local.datastore_content_types : null
+  value       = local.reads_host && local.node_name_ok ? local.datastore_content_types : null
   description = "Permitted content types per datastore. The lab stack needs 'snippets' on snippets_datastore and 'images' on storage_pool."
 }
 
 output "datastore_space_available_gib" {
-  value = local.reads_host ? {
+  value = local.reads_host && local.node_name_ok ? {
     for d in local.datastores : d.id => floor(coalesce(d.space_available, 0) / 1024 / 1024 / 1024)
   } : null
   description = "Available space per datastore in GiB. Reconcile storage_pool against the lab stack's total provisioned disk before applying it: a full LVM-thin pool corrupts guests rather than failing writes."
@@ -42,11 +42,11 @@ output "datastore_space_available_gib" {
 # The explicit verdict on the blocker most likely to stop the lab stack, stated
 # rather than left for the reader to infer from the content-type map.
 output "snippets_datastore_ready" {
-  value = local.reads_host ? (
+  value = !local.reads_host ? null : !local.node_name_ok ? "unknown — proxmox_node does not resolve, so no datastore could be read" : (
     contains(try(local.datastore_content_types[var.snippets_datastore], []), "snippets")
     ? "yes — \"${var.snippets_datastore}\" permits snippets, rung 2 can run"
     : "NO — \"${var.snippets_datastore}\" permits [${join(", ", try(local.datastore_content_types[var.snippets_datastore], ["<datastore not found>"]))}]. Rung 2 will fail. Fix: pvesm set ${var.snippets_datastore} --content <existing>,snippets"
-  ) : null
+  )
   description = "Whether the configured snippets datastore can hold cloud-init snippets"
 }
 

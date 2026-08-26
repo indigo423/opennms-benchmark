@@ -10,9 +10,13 @@ locals {
 }
 
 locals {
-  # Guarded so rungs 0 collapses to empty rather than erroring on a data source
-  # that is out of scope.
-  datastores = local.reads_host ? coalesce(one(data.proxmox_datastores.this[*].datastores), []) : []
+  # Resolved from the nodes read, which needs no node_name and so cannot fail on
+  # a wrong one. Everything that requires a valid node keys off this.
+  node_name_ok = local.reads_host ? contains(one(data.proxmox_virtual_environment_nodes.this[*].names), var.proxmox_node) : false
+
+  # Guarded so rung 0, and any rung with an unresolvable node, collapses to empty
+  # rather than erroring on a data source that is out of scope or unreadable.
+  datastores = local.reads_host && local.node_name_ok ? coalesce(one(data.proxmox_datastores.this[*].datastores), []) : []
 
   datastore_content_types = { for d in local.datastores : d.id => sort(tolist(d.content_types)) }
   datastore_types         = { for d in local.datastores : d.id => d.type }
@@ -35,8 +39,14 @@ data "proxmox_virtual_environment_nodes" "this" {
   count = local.reads_host ? 1 : 0
 }
 
+# count gated on the node actually existing, not just on the rung. This data
+# source requires node_name, so with a wrong proxmox_node the read fails and
+# aborts the plan with a raw provider error -- before check "node_name_resolves"
+# or any output can say which name was wrong and what the real ones are. That
+# would make rung 1 unable to report the very failure it exists to report, in
+# the one case where the report is needed.
 data "proxmox_datastores" "this" {
-  count     = local.reads_host ? 1 : 0
+  count     = local.reads_host && local.node_name_ok ? 1 : 0
   node_name = var.proxmox_node
 }
 
@@ -52,7 +62,7 @@ check "node_name_resolves" {
 
 check "snippets_datastore_permits_snippets" {
   assert {
-    condition     = !local.reads_host || contains(try(local.datastore_content_types[var.snippets_datastore], []), "snippets")
+    condition     = !local.reads_host || !local.node_name_ok || contains(try(local.datastore_content_types[var.snippets_datastore], []), "snippets")
     error_message = "Datastore \"${var.snippets_datastore}\" does not permit the 'snippets' content type, so rung 2 cannot pass. A default PVE installation does not enable it. Fix: pvesm set ${var.snippets_datastore} --content <existing>,snippets"
   }
 }
@@ -78,7 +88,7 @@ locals {
 
 check "snippets_datastore_is_file_based" {
   assert {
-    condition     = !local.reads_host || !contains(local.block_datastore_types, try(local.datastore_types[var.snippets_datastore], "dir"))
+    condition     = !local.reads_host || !local.node_name_ok || !contains(local.block_datastore_types, try(local.datastore_types[var.snippets_datastore], "dir"))
     error_message = "Datastore \"${var.snippets_datastore}\" is type ${try(local.datastore_types[var.snippets_datastore], "unknown")}, which is block-backed and cannot hold snippets. Snippets are plain files: point snippets_datastore at a file-based store such as a dir store."
   }
 }
