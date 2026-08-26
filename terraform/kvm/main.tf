@@ -148,11 +148,28 @@ locals {
   # Broader route validation — unknown names, malformed values, routes on the
   # wrong subnet — is deliberately not here. It needs fixtures and a CI check
   # that renders every spec to be worth anything, which is #173.
+  # Routes normalised once per node, so nothing below re-guards an absent or
+  # non-mapping `routes:`. Reading n.cfg.routes inside the body was the bug:
+  # the iteration is already empty for a node without routes, but HCL evaluates
+  # the `if` clause's operands regardless of the guard in front of them, so the
+  # access still errored with "n.cfg is object with 4 attributes".
+  #
+  # It survived on Terraform 1.12 and failed on the version CI resolves for
+  # `~1.5`, so `make validate-topology` passed locally and failed in CI on the
+  # same tree. It stayed hidden until that check first ran in CI (#173) -- which
+  # is the check finding a real defect on its first run.
+  node_routes = { for key, n in local.nodes : key => try(n.cfg.routes, {}) }
+
+  # Both operands of the `&&` are evaluable without error, deliberately. The
+  # logical result is unchanged -- a route name absent from named_route_spec
+  # still yields false -- but neither side can now blow up when the other would
+  # have excluded it, whatever a given Terraform version does about
+  # short-circuiting.
   unresolved_named_routes = distinct(flatten([
     for key, n in local.nodes : [
-      for subnet in try(keys(n.cfg.routes), []) :
-      "${lookup(local.spec_role_for, n.prole, n.prole)}.${subnet} -> \"${tostring(n.cfg.routes[subnet])}\" needs a \"${lookup(local.spec_role_for, local.named_route_spec[tostring(n.cfg.routes[subnet])].role, local.named_route_spec[tostring(n.cfg.routes[subnet])].role)}\" role with a \"${local.named_route_spec[tostring(n.cfg.routes[subnet])].subnet}\" NIC"
-      if contains(keys(local.named_route_spec), try(tostring(n.cfg.routes[subnet]), "")) && local.named_routes[tostring(n.cfg.routes[subnet])].via == null
+      for subnet in keys(local.node_routes[key]) :
+      "${lookup(local.spec_role_for, n.prole, n.prole)}.${subnet} -> \"${tostring(local.node_routes[key][subnet])}\" needs a \"${lookup(local.spec_role_for, local.named_route_spec[tostring(local.node_routes[key][subnet])].role, local.named_route_spec[tostring(local.node_routes[key][subnet])].role)}\" role with a \"${local.named_route_spec[tostring(local.node_routes[key][subnet])].subnet}\" NIC"
+      if contains(keys(local.named_route_spec), try(tostring(local.node_routes[key][subnet]), "")) && try(local.named_routes[tostring(local.node_routes[key][subnet])].via, null) == null
     ]
   ]))
 
