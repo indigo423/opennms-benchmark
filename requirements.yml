@@ -1,8 +1,24 @@
 ---
-# Ansible Galaxy collections required to deploy the OpenNMS Horizon stack.
-# Install with: ansible-galaxy collection install -r requirements.yml
+# The complete Ansible collection closure for the benchmark lab.
+#
+# This file is the manifest, not a seed list. Ansible ships no lockfile —
+# `ansible-galaxy collection` has no lock or freeze subcommand — so every
+# collection that ends up installed is named here at an exact version,
+# transitive dependencies included, and installs pass --no-deps so the resolver
+# cannot substitute anything.
+#
+# Install with: make install-collections
+# Verify with:  make validate-collections
+#
+# Adding a collection means adding its dependencies too. The check will say
+# which ones; it derives them from each installed collection's own metadata
+# rather than from a copy kept here, because a copy drifts from upstream.
+#
+# Renovate keeps these current, grouped into one PR so a bump that violates a
+# sibling's floor fails as one unit. The indigo423.opennms pin is excluded.
 
 collections:
+  # ── the system under test ──────────────────────────────────────────────────
   # OpenNMS Horizon deployment roles.
   # Source: github.com/opennms-forge/ansible-opennms (published under Galaxy
   # namespace indigo423). Pinned by git SHA for benchmark reproducibility;
@@ -11,23 +27,52 @@ collections:
     type: git
     version: 52c6c01e9500f7f3642a53f9b12799bdeee39df7  # v0.9.0
 
-  # Transitive collections used by the OpenNMS deployment roles. Pinned by
-  # Galaxy version string (weaker than SHA pinning, matches the prior
-  # submodule's regime).
+  # ── consumed by the OpenNMS deployment roles ───────────────────────────────
+  # Required by indigo423.opennms (>=4.2.0). No direct call site here.
   - name: community.postgresql
     version: "4.2.0"
-  # Lags the collection's own CI pin (13.3.0 as of v0.9.0) deliberately, pending
-  # the decision in #239. The collection's galaxy metadata only requires
-  # >=12.6.0, so this resolves; the cost is that the lab runs a transitive set
-  # upstream no longer tests against. Its only usages are ufw, timezone and
-  # alternatives, so the blast radius of moving is small when we choose to.
+
+  # Direct call site: bootstrap/roles/common (timezone). Also required by
+  # indigo423.opennms (>=12.6.0), grafana.grafana (>=8.2.0) and
+  # prometheus.prometheus (>=1.0.0).
+  #
+  # 13.3.0 matches the collection's own CI pin. Checked against 13.0.0's
+  # breaking changes and removals before moving: none touch ufw, timezone or
+  # alternatives, and 13.x improved all three (locale-independent output
+  # parsing; timezone no longer needs hwclock for name-only changes on
+  # non-systemd hosts). See #239.
+  #
+  # 13.0.0 also dropped support for ansible-core 2.17, which is the floor in
+  # constraints.txt. Moving this pin can move that one.
   - name: community.general
-    version: "12.6.0"
+    version: "13.3.0"
+
+  # Required by indigo423.opennms (>=6.1.0). No direct call site here.
   # Stock Galaxy release (6.1.0). Works with the Grafana 12.x pin in
   # opennms-lab-vars.yml; the Grafana-13 grafana-cli plugin fix from the
   # non-Galaxy 6.1.1-hotfix.1 build is not needed at that Grafana version.
   - name: grafana.grafana
     version: "6.1.0"
+
+  # ── direct call sites in this repository ───────────────────────────────────
+  # bootstrap/roles/{rp_filter,ip_forwarding} (sysctl). Also required by
+  # grafana.grafana (>=1.5.4).
+  - name: ansible.posix
+    version: "2.2.2"
+
+  # bootstrap/preparation-playbook.yml (node_exporter role).
+  #
+  # The most tightly coupled entry in this closure: it is the only collection
+  # that declares a requires_ansible ceiling low enough to constrain the core
+  # pin. 0.28.0 allows <=2.18.99 and was running unpinned on core 2.21.3 —
+  # three minors outside its own supported range, undetected, because nothing
+  # checked requires_ansible. 0.30.1 allows <=2.21.99.
+  #
+  # So this pin and the ansible-core pin move together. Check both ends of
+  # every requires_ansible range before bumping either; `make
+  # validate-collections` does it.
+  - name: prometheus.prometheus
+    version: "0.30.1"
 
   # Used by the repo-local deployments/roles/rustfs role to create the S3
   # buckets Mimir needs; S3 PutObject fails against a bucket that does not
@@ -35,3 +80,17 @@ collections:
   # deployment roles.
   - name: amazon.aws
     version: "11.3.0"
+
+  # ── transitive, declared because the resolver is off ───────────────────────
+  # Required by grafana.grafana (>=1.5.4). No direct call site.
+  - name: community.grafana
+    version: "2.3.0"
+
+  # Required by community.general 13.3.0 (>=1.0.0), which split its inventory
+  # filtering into this collection; 12.6.0 did not depend on it. No direct call
+  # site, and easy to mistake for orphaned residue — before this file was the
+  # manifest it was installed on every control node with nothing declaring it,
+  # because the unpinned bootstrap install pulled community.general 13.3.0 and
+  # the pinned install then downgraded it to 12.6.0 and left this behind.
+  - name: community.library_inventory_filtering_v1
+    version: "1.1.5"

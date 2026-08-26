@@ -57,7 +57,7 @@ cd ../../bootstrap && ansible-playbook -i inventory site.yml
 
 # 4. Deploy OpenNMS stack
 cd ..
-ansible-galaxy collection install -r requirements.yml --force-with-deps
+make install-collections
 ansible-playbook --user labuser --become \
   -i ansible-inventory.yml opennms-playbook.yml \
   --extra-vars="@opennms-lab-vars.yml"

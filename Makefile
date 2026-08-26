@@ -157,8 +157,50 @@ lint-actions: ## Lint GitHub Actions workflows (actionlint + zizmor)
 	actionlint
 	zizmor --no-online-audits .github/workflows/
 
+# Ansible ships no lockfile, so requirements.yml is the manifest and nothing
+# else verifies it. This asserts the installed set matches the declared closure
+# exactly, that every collection's dependencies are declared and satisfied, and
+# that the pinned ansible-core sits inside every requires_ansible range — those
+# are two-sided, and a floor-only check misses a ceiling breach.
+#
+# COLLECTIONS_PATH mirrors what the install target and CI use.
+COLLECTIONS_PATH ?= ~/.ansible/collections
+
+# --no-deps is the point, not an optimisation: it turns off the resolver so
+# requirements.yml is authoritative rather than a starting point. With the
+# resolver on, a complete manifest and an incomplete one behave identically
+# until a rebuild months later silently resolves a transitive dependency
+# differently. --force makes the install idempotent, so a control node holding
+# a different version converges instead of being skipped.
+#
+# The version-mismatch override is deliberate and scoped to this command.
+# ansible.cfg sets collections_on_ansible_version_mismatch=error, which applies
+# to ansible-galaxy too: it loads the *currently installed* collections while
+# running, so a control node holding a collection outside its requires_ansible
+# range cannot install the manifest that fixes it. An installer that refuses to
+# run from the broken state it exists to repair is useless. Plays and
+# validate-collections keep the strict setting; converging state does not.
+.PHONY: install-collections
+install-collections: ## Install the pinned collection closure (resolver off)
+	ANSIBLE_COLLECTIONS_ON_ANSIBLE_VERSION_MISMATCH=ignore \
+	  ansible-galaxy collection install -r requirements.yml -p $(COLLECTIONS_PATH) --no-deps --force
+
+.PHONY: validate-collections
+validate-collections: ## Assert installed collections match the declared closure
+	python3 validate-collections.py --path $(COLLECTIONS_PATH)
+
+# --no-deps --force never removes anything, so dropping a collection from
+# requirements.yml leaves it installed on every existing control node forever
+# and validate-collections reports it as "installed but not declared". This is
+# the remedy, and it is destructive by design: wipe the tree and reinstall from
+# the manifest, which is the only way to be sure the two agree.
+.PHONY: clean-collections
+clean-collections: ## Remove the installed collection tree, then reinstall the manifest
+	rm -rf $(COLLECTIONS_PATH)/ansible_collections
+	$(MAKE) install-collections
+
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-topology ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-topology validate-collections ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 

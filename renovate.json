@@ -1,0 +1,74 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "description": [
+    "Renovate covers the Ansible layers only. Terraform and GitHub Actions stay with Dependabot (.github/dependabot.yml), which already works and matches the repo's SHA-plus-semver-comment pinning convention. Two bots is mild noise; migrating two working ecosystems is a separate project.",
+    "enabledManagers is an allowlist, so a manager added upstream cannot start opening PRs against terraform/ or .github/workflows/ on its own."
+  ],
+  "enabledManagers": [
+    "ansible-galaxy",
+    "pip_requirements",
+    "custom.regex"
+  ],
+  "pip_requirements": {
+    "description": "constraints.txt is not matched by default; it is the ansible-core pin.",
+    "managerFilePatterns": [
+      "/^constraints\\.txt$/"
+    ]
+  },
+  "customManagers": [
+    {
+      "description": "Activates the '# renovate: datasource=... depName=...' comments already present in role defaults (rustfs_version, rustfs_boto3_version, rustfs_botocore_version). They predate this config and nothing was acting on them.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^deployments/roles/.*/defaults/main\\.yml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)[\\s\\S]*?_version: \"(?<currentValue>[^\"]+)\""
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The collection closure is exact-pinned, so one collection moving can violate a sibling's floor or push ansible-core outside a requires_ansible ceiling. A grouped PR is the smallest unit that can be judged coherent, and `make validate-collections` gates it. Per-collection PRs would each pass lint while leaving the closure inconsistent.",
+      "matchManagers": [
+        "ansible-galaxy"
+      ],
+      "groupName": "ansible collection closure"
+    },
+    {
+      "description": "The system under test. Excluded because the pin exists for benchmark reproducibility and must only move via a deliberate, hand-authored PR. Matched by URL fragment as well as FQCN: the entry is a git source, and Renovate derives the depName from the repository URL rather than from the Galaxy name (renovatebot/renovate discussion #27022). Both forms are listed because the derived value is unverified until a dry run confirms it -- see task 6.5.",
+      "matchManagers": [
+        "ansible-galaxy"
+      ],
+      "matchPackageNames": [
+        "indigo423.opennms",
+        "/ansible-opennms/"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "boto3 and botocore move together or the SDK is half-pinned; group them so a mismatched pair cannot be merged one PR at a time.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "boto3",
+        "botocore"
+      ],
+      "groupName": "aws sdk for the rustfs role"
+    },
+    {
+      "description": "ansible-core moves only with a re-checked requires_ansible intersection; never unattended.",
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "matchPackageNames": [
+        "ansible-core"
+      ],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}

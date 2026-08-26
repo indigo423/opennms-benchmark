@@ -74,7 +74,7 @@ This installs: base packages, Docker Engine, Prometheus Node Exporter, Grafana, 
 ### 6. Deploy the OpenNMS stack
 
 ```bash
-ansible-galaxy collection install -r requirements.yml --force-with-deps
+make install-collections
 
 ansible-playbook --user labuser --become \
   -i ansible-inventory.yml \

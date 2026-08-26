@@ -1,0 +1,21 @@
+# Ansible control-plane pin.
+#
+# Collections pinned exactly with ansible-core floating is a regime that can
+# still fail to reproduce, and did — in both directions. prometheus.prometheus
+# before 0.21.0 used a string-valued `when` that core 2.20+ rejects (a floor
+# breached by an upgrade), and 0.28.0 declared requires_ansible <=2.18.99 while
+# running on 2.21.3 (a ceiling breached by the same mechanism, for months,
+# because nothing checked).
+#
+# 2.21.3 sits inside the intersection of every collection's requires_ansible in
+# requirements.yml:
+#
+#   floor    2.18.0   community.general 13.x (13.0.0 dropped core 2.17)
+#   ceiling  2.21.99  prometheus.prometheus 0.30.1
+#   also     <3.0.0   grafana.grafana 6.1.0
+#
+# Moving this pin means re-checking that intersection, in both directions.
+# `make validate-collections` does it and reads this file.
+#
+# Install with: python3 -m pip install -c constraints.txt ansible-lint==<pin>
+ansible-core==2.21.3

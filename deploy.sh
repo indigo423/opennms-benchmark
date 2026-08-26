@@ -3,8 +3,8 @@
 #
 # Workflow:
 #   1. terraform apply             — creates VMs and writes ansible-inventory.yml
-#   2. ansible-playbook bootstrap  — installs base tooling
-#   3. ansible-galaxy collection install — pulls indigo423.opennms and friends
+#   2. make install-collections    — installs the pinned closure, resolver off
+#   3. ansible-playbook bootstrap  — installs base tooling
 #   4. ansible-playbook opennms    — deploys OpenNMS stack
 #   5. ansible-playbook endpoints — writes lab-endpoints.yml, the manifest
 #                                    of what listens where on this deployment
@@ -379,18 +379,23 @@ if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" || "$PROVIDER" == "vmware
   fi
 fi
 
-step "[2/5] Bootstrapping VMs..."
+# Before bootstrap, not after: bootstrap/site.yml already needs
+# prometheus.prometheus, ansible.posix and community.general, so installing
+# collections afterwards only worked because a previous run had left them on
+# disk. Goes through the make target so the deploy path and CI install the same
+# way — with the resolver off, and with the version-mismatch escape hatch that
+# lets a control node holding an out-of-range collection install the manifest
+# that fixes it.
+step "[2/5] Installing the Ansible collection closure..."
+make -C "$REPO_ROOT" install-collections
+
+step "[3/5] Bootstrapping VMs..."
 # shellcheck disable=SC2086
 ansible-playbook \
   --become \
   -i "$REPO_ROOT/ansible-inventory.yml" \
   $ANSIBLE_VERBOSITY \
   "$REPO_ROOT/bootstrap/site.yml"
-
-step "[3/5] Installing Ansible Galaxy collections..."
-ansible-galaxy collection install \
-  -r "$REPO_ROOT/requirements.yml" \
-  --force-with-deps
 
 # A deployment may ship its own playbook when it stands up a different stack.
 # A deployment that stands up no OpenNMS at all would, if its plays were bolted

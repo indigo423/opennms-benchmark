@@ -34,11 +34,12 @@ Prerequisites: a KVM host with `libvirtd` running, and on your workstation Terra
 One-time workstation setup:
 
 ```bash
-ansible-galaxy collection install -r bootstrap/requirements.yml
+make install-collections
 export ANSIBLE_VAULT_PASSWORD_FILE=$PWD/vault_pass.secret   # file containing the lab vault password
 ```
 
-The deploy installs the OpenNMS stack collections from the root `requirements.yml` itself, but the bootstrap collections and the vault password are your job.
+`requirements.yml` is the complete collection closure, pinned exactly and installed with `--no-deps`; `make validate-collections` asserts the installed set still matches it.
+The vault password is your job.
 Provisioning uses the SSH key at `ssh_key_path` in the provider `.tfvars` (default `~/.ssh/id_rsa`), so point it at an existing keypair.
 
 **1. Create the external bridge (`br0`) on the KVM host.**

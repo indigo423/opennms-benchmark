@@ -16,6 +16,23 @@ rustfs_libc: gnu
 rustfs_pkg_url: >-
   https://github.com/rustfs/rustfs/releases/download/{{ rustfs_version }}/rustfs-linux-{{ rustfs_arch }}-{{ rustfs_libc }}-v{{ rustfs_version }}.zip
 
+# Exact, not a floor. These are installed on the target at deploy time, so a
+# floor resolves to whatever PyPI serves that day — the same drift the
+# collection closure in requirements.yml exists to remove, one layer down.
+#
+# botocore is pinned as well as boto3, and that is the point rather than
+# belt-and-braces: pinning boto3 alone leaves botocore free inside boto3's own
+# range (1.43.80 accepts >=1.43.80,<1.44.0), and botocore is the library whose
+# version amazon.aws actually checks. Pinning the amazon.aws collection
+# constrains nothing about what pip installs into the venv on the target — the
+# two are independent, which is what made the old `boto3>=1.35.0` floor
+# misleading rather than merely loose. They move as a pair; Renovate groups them.
+#
+# renovate: datasource=pypi depName=boto3
+rustfs_boto3_version: "1.43.80"
+# renovate: datasource=pypi depName=botocore
+rustfs_botocore_version: "1.43.80"
+
 rustfs_install_dir: /opt/rustfs
 rustfs_data_dir: /var/lib/rustfs
 rustfs_log_dir: /var/log/rustfs

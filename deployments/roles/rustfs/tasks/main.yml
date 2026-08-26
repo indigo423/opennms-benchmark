@@ -160,7 +160,9 @@
 # and clear of PEP 668.
 - name: Install boto3 into a virtualenv for S3 bucket management
   ansible.builtin.pip:
-    name: boto3>=1.35.0
+    name:
+      - "boto3=={{ rustfs_boto3_version }}"
+      - "botocore=={{ rustfs_botocore_version }}"
     virtualenv: "{{ rustfs_install_dir }}/venv"
     virtualenv_command: python3 -m venv
   tags:

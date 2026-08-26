@@ -46,20 +46,33 @@ jobs:
       # then comes from that same core — so lint resolves collections against
       # the core they were installed with. Pinned to match the previously used
       # ansible/ansible-lint@v26.6.0 action.
+      # -c constraints.txt pins ansible-core. Without it CI runs whatever core
+      # ansible-lint happens to resolve, which is the layer that broke twice:
+      # once on a floor (core 2.20 rejecting a collection's string `when`) and
+      # once on a ceiling (a collection running three minors past its declared
+      # requires_ansible). Verified that 26.6.0 resolves cleanly under the pin.
       - name: Install ansible-lint
-        run: python3 -m pip install ansible-lint==26.6.0
+        run: python3 -m pip install -c constraints.txt ansible-lint==26.6.0
 
       - name: Cache Ansible collections
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.ansible/collections
-          key: ansible-collections-${{ hashFiles('requirements.yml', 'bootstrap/requirements.yml') }}
+          key: ansible-collections-${{ hashFiles('requirements.yml') }}
 
-      - name: Install bootstrap collections
-        run: ansible-galaxy collection install -r bootstrap/requirements.yml -p ~/.ansible/collections --force-with-deps
+      # One install, resolver off. This replaced two sequential installs whose
+      # order silently decided which community.general won, and which left
+      # community.library_inventory_filtering_v1 behind as an orphan every run.
+      - name: Install the collection closure
+        run: make install-collections
 
-      - name: Install OpenNMS deployment collections
-        run: ansible-galaxy collection install -r requirements.yml -p ~/.ansible/collections --force-with-deps
+      # Runs before ansible-lint because a closure that does not resolve makes a
+      # lint result meaningless — lint would pass against whatever happened to be
+      # installed. This is also the only check that sees requires_ansible, which
+      # is two-sided: a collection can be too old *or* too new for the core in
+      # use, and nothing else in the pipeline looks at either end.
+      - name: Validate the collection closure
+        run: make validate-collections
 
       # No ANSIBLE_ROLES_PATH here: the env var overrides ansible.cfg's
       # roles_path, so duplicating it in CI let the two drift apart — CI kept
