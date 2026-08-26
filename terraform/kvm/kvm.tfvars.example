@@ -8,7 +8,20 @@ libvirt_uri        = "qemu+ssh://root@your-kvm.host/system" # Remote: "qemu+ssh:
 project_name       = "benchmark"
 environment        = "dev"
 storage_pool       = "default"
-ubuntu_cloud_image = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+# Pinned to a dated release rather than the noble/current/ alias, which
+# Canonical republishes on every point release. An OS image change is silent —
+# every play succeeds and the numbers describe a different kernel — and point
+# releases roll the HWE kernel, which is what throughput measurements react to.
+#
+# Note the filename differs between the two paths: noble-server-cloudimg-amd64.img
+# under the alias, ubuntu-24.04-server-cloudimg-amd64.img under a dated release.
+# Substituting only the directory gives a 404.
+#
+# Newer builds: https://cloud-images.ubuntu.com/releases/noble/ — each dated
+# directory is a distinct build, so the date identifies the contents. Bump
+# deliberately, at a campaign boundary; the volume name derives from this date,
+# so changing it replaces the base image rather than silently reusing the old.
+ubuntu_cloud_image = "https://cloud-images.ubuntu.com/releases/noble/release-20260814/ubuntu-24.04-server-cloudimg-amd64.img"
 ssh_key_path       = "~/.ssh/id_rsa"
 admin_user         = "ubuntu" # Ubuntu cloud image default user
 bridge_name        = "br0"    # Host bridge for external DHCP access on monintoring VM

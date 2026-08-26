@@ -166,8 +166,40 @@ variable "placement_group_strategy" {
   description = "Placement strategy for the benchmark profile. 'cluster' packs instances for consistent low inter-node latency, which a distributed benchmark depends on. No placement group is created under the smoke profile: burstable types do not support cluster placement, and a wiring test does not need latency guarantees."
 }
 
+# The base image, pinned. AWS is where the campaigns run, so it is the one
+# provider where an image change lands on live results rather than on a test
+# bed -- and an image change is silent: every play succeeds, the lab collects,
+# and the numbers describe a different kernel, sysctl baseline and libc.
+#
+# This replaced a data source reading the SSM alias below, which resolved to
+# whatever Canonical had most recently published. That was a deliberate choice
+# for portability over pinning; two things answer it. The lab is already
+# region-bound -- all subnets live in one availability zone because an ENI is
+# bound to one -- so a region-bound AMI costs nothing it has not already paid.
+# And "rots" assumes nobody bumps the pin, which stopped being true of anything
+# else in this repository.
+#
+# Resolve the current value with the alias this replaced:
+#
+#   aws ssm get-parameter --region <region> \
+#     --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id \
+#     --query Parameter.Value --output text
+#
+# Pinned value is what that returned on 2026-08-26, so pinning changed nothing
+# about what deploys:
+#   ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20260714
+#   created 2026-07-14, owner 099720109477 (Canonical)
+#
+# An AMI ID is region-specific. Changing `region` without changing this fails
+# the precondition in main.tf rather than failing obscurely at instance launch.
+variable "ami_id" {
+  type        = string
+  default     = "ami-052355af2a014bd2c"
+  description = "Ubuntu 24.04 AMI, pinned so the benchmark substrate does not move between campaigns. Region-specific; see ami_ssm_parameter for how to resolve a new value."
+}
+
 variable "ami_ssm_parameter" {
   type        = string
   default     = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
-  description = "SSM public parameter resolving the Ubuntu 24.04 AMI, so the image is not a hardcoded per-region ID that rots."
+  description = "SSM public parameter resolving the current Ubuntu 24.04 AMI. No longer selects the image -- ami_id does. Kept as the documented way to find the value to pin, and to prove a pinned AMI is a real Canonical image."
 }

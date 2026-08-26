@@ -17,14 +17,39 @@ locals {
     external = var.network_external_id
     lab      = var.network_external_id
   }
+
+  # Identity of the base image, derived from its source so the volume name
+  # changes whenever the pin does. See the comment on libvirt_volume.ubuntu_base
+  # for why the name has to carry this.
+  #
+  # A dated release URL yields its date; anything else (a local qcow2 path, or
+  # the old floating alias) yields a hash of the string. Both change when the
+  # input changes, though only the dated form ties the name to actual content —
+  # which is the alias's fundamental problem, not a shortcoming of the hash.
+  ubuntu_image_tag = try(
+    regex("release-([0-9]+)", var.ubuntu_cloud_image)[0],
+    substr(sha256(var.ubuntu_cloud_image), 0, 12),
+  )
 }
 
 # Ubuntu 24.04 LTS cloud image — must be the cloud image (qcow2), NOT the server installer ISO.
-# Download before running terraform apply:
-#   wget -O /var/lib/libvirt/images/noble-server-cloudimg-amd64.img \
-#     https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+#
+# The volume name carries the image identity, and that is load-bearing rather
+# than cosmetic. With a constant name, Terraform compares the name and the URL
+# *string* — never the downloaded bytes — so on a host that already holds this
+# volume, changing the URL produces no diff and the new image is never fetched.
+# The pin would land in the repository and never on the machine.
+#
+# That also made the pre-pin state worse than merely floating: the substrate was
+# a function of when a given host first ran apply, which Terraform does not
+# track and the repository cannot see. Two hosts running identical code held
+# different Ubuntu builds and nothing reported it.
+#
+# Consequence worth expecting: the first apply after the pin changes creates a
+# new volume and leaves the old one orphaned in the pool. It is unreferenced and
+# safe to remove by hand; it is not an unexplained recreation.
 resource "libvirt_volume" "ubuntu_base" {
-  name = "ubuntu-24.04-base"
+  name = "ubuntu-24.04-base-${local.ubuntu_image_tag}"
   pool = var.storage_pool
 
   target = {

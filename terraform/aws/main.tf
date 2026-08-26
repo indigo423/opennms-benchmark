@@ -5,8 +5,29 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-data "aws_ssm_parameter" "ubuntu" {
-  name = var.ami_ssm_parameter
+# The AMI is pinned in var.ami_id, not resolved here -- see the comment on that
+# variable. This asserts the pinned image actually exists in the configured
+# region, because an AMI ID is region-specific and the failure otherwise
+# surfaces at instance launch as something unhelpful.
+#
+# aws_ami_ids rather than aws_ami deliberately: the singular data source errors
+# with a generic "your query returned no results" before any postcondition can
+# run, so a custom message is unreachable. The plural returns an empty list and
+# lets the postcondition say what is actually wrong.
+data "aws_ami_ids" "pinned" {
+  owners = ["099720109477"] # Canonical
+
+  filter {
+    name   = "image-id"
+    values = [var.ami_id]
+  }
+
+  lifecycle {
+    postcondition {
+      condition     = contains(self.ids, var.ami_id)
+      error_message = "Pinned AMI ${var.ami_id} does not exist in region ${var.region}. An AMI ID is region-specific: changing `region` requires resolving a new AMI for it. Get one with:  aws ssm get-parameter --region ${var.region} --name ${var.ami_ssm_parameter} --query Parameter.Value --output text"
+    }
+  }
 }
 
 # One lookup per distinct instance type in play, so the ENI ceiling is read from
@@ -267,7 +288,7 @@ module "compute" {
   source = "./modules/compute"
 
   name_prefix    = local.name_prefix
-  ami_id         = data.aws_ssm_parameter.ubuntu.value
+  ami_id         = var.ami_id
   admin_user     = var.admin_user
   ssh_public_key = trimspace(file(pathexpand("${var.ssh_key_path}.pub")))
   instance_types = local.instance_types
