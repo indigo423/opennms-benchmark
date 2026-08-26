@@ -130,6 +130,7 @@
     --comments "OpenNMS benchmark lab; no uplink"
     {% endif %}
   loop: "{{ proxmox_lab_bridges }}"
+  register: proxmox_bridge_create
   changed_when: true
   when: item not in proxmox_existing_ifaces
   notify: Apply Proxmox network configuration
@@ -148,7 +149,20 @@
     and (proxmox_network_raw.stdout | from_json
          | selectattr('iface', 'equalto', proxmox_mgmt_bridge)
          | map(attribute='cidr') | first | default('')) != proxmox_mgmt_gateway_cidr
+  register: proxmox_mgmt_addr_set
   notify: Apply Proxmox network configuration
+  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+
+# Answers "did this run stage anything?", which is what separates our pending
+# changes from someone else's. Both tasks above are skipped on a converged host,
+# and a skipped task reports changed=false.
+- name: Record whether this run staged network changes
+  ansible.builtin.set_fact:
+    proxmox_bridges_changed: >-
+      {{ (proxmox_bridge_create.results | default([])
+          | selectattr('changed', 'defined')
+          | selectattr('changed') | list | length > 0)
+         or (proxmox_mgmt_addr_set.changed | default(false)) }}
   tags: ["proxmox-hypervisor", "proxmox-bridges"]
 
 # `pvesh get /nodes/<node>/network` returns the STAGED configuration, so the
@@ -164,6 +178,27 @@
   register: proxmox_network_pending
   changed_when: proxmox_network_pending.stat.exists
   notify: Apply Proxmox network configuration
+  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+
+# Staging an edit in the UI and applying it in a maintenance window is a normal
+# PVE workflow, so interfaces.new is not necessarily ours. The apply above is
+# keyed on the file existing rather than on this run's own changes -- which is
+# what lets the role converge after an interrupted run, and is also what would
+# push an unrelated pending edit live, on the interface Ansible is connected
+# over. Refuse that unless the operator says otherwise.
+- name: Refuse to apply a staged network configuration this run did not create
+  ansible.builtin.assert:
+    that:
+      - not proxmox_network_pending.stat.exists
+        or proxmox_bridges_changed | default(false) | bool
+        or proxmox_apply_foreign_network | bool
+    fail_msg: >-
+      /etc/network/interfaces.new already held staged changes before this run
+      made any, so applying it would push an edit this role did not write --
+      possibly someone else's, on the uplink. Review it with
+      `diff /etc/network/interfaces /etc/network/interfaces.new`, then either
+      apply it yourself or re-run with -e proxmox_apply_foreign_network=true.
+    quiet: true
   tags: ["proxmox-hypervisor", "proxmox-bridges"]
 
 # Handlers normally run at the end of the play, but dnsmasq below binds to an

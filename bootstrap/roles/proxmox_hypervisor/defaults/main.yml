@@ -65,5 +65,15 @@ proxmox_mgmt_gateway_address: "{{ proxmox_mgmt_gateway_cidr | split('/') | first
 proxmox_manage_dns: true
 
 # Reapply network configuration after changing it. Set false to stage the
-# changes and apply them yourself during a maintenance window.
+# changes and apply them yourself during a maintenance window; the services that
+# bind to lab-network addresses are deferred with it.
 proxmox_apply_network: true
+
+# Apply a staged network configuration this role did not create.
+#
+# The apply is keyed on /etc/network/interfaces.new existing rather than on this
+# run's own changes, so that an interrupted run converges. The cost is that an
+# unrelated pending edit — staged in the UI for a maintenance window, say —
+# would be pushed live too, on the interface Ansible is connected over. The role
+# refuses that by default; set true once you have reviewed the diff.
+proxmox_apply_foreign_network: false
