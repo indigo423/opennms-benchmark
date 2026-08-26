@@ -39,15 +39,26 @@
       "groupName": "ansible collection closure"
     },
     {
-      "description": "The system under test. Excluded because the pin exists for benchmark reproducibility and must only move via a deliberate, hand-authored PR. Matched by URL fragment as well as FQCN: the entry is a git source, and Renovate derives the depName from the repository URL rather than from the Galaxy name (renovatebot/renovate discussion #27022). Both forms are listed because the derived value is unverified until a dry run confirms it -- see task 6.5.",
+      "description": "The system under test. Excluded because the pin exists for benchmark reproducibility and must only move via a deliberate, hand-authored PR. The derived depName was read off a `renovate --platform=local --dry-run` and is 'github.com/opennms-forge/ansible-opennms' -- not the Galaxy name, because the entry is a git source (renovatebot/renovate discussion #27022). The regex is kept alongside the exact name so a change in how Renovate normalises the URL cannot silently re-enable the pin. Renovate also skips this dep natively with skipReason 'unspecified-version', since a SHA is not a version it can range over; that is a second layer, not the reason this rule exists.",
       "matchManagers": [
         "ansible-galaxy"
       ],
       "matchPackageNames": [
+        "github.com/opennms-forge/ansible-opennms",
         "indigo423.opennms",
         "/ansible-opennms/"
       ],
       "enabled": false
+    },
+    {
+      "description": "Lab component versions (rustfs, victorialogs) pinned in role defaults. These are the versions a benchmark campaign is measuring, so an unattended PR bumping one mid-experiment is a correctness hazard rather than hygiene -- it invalidates an in-flight A/B. Surfaced on the dependency dashboard for explicit approval instead. boto3/botocore stay automatic: they are deploy-time tooling, not a measured component.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDatasources": [
+        "github-releases"
+      ],
+      "dependencyDashboardApproval": true
     },
     {
       "description": "boto3 and botocore move together or the SDK is half-pinned; group them so a mismatched pair cannot be merged one PR at a time.",
