@@ -323,6 +323,50 @@ The declared tree in `~/.ansible/collections` comes first in `COLLECTIONS_PATHS`
 ansible-doc -j community.general.timezone | jq -r '.[].doc.filename'
 ```
 
+## The substrate: VM base images
+
+The layer under everything else. Collections are pinned, the software they install is pinned, `ansible-core` is pinned — and none of that matters if the OS moves, because an image change brings a different kernel, sysctl baseline, glibc and apt set. Within 24.04, point releases roll the HWE kernel, which is exactly what a throughput or CPU-headroom number reacts to.
+
+That failure is **silent**: every play succeeds, the lab collects, and the numbers describe a different substrate. Unlike a module that disappears, nothing fails to tell you.
+
+| Provider | Where the pin lives | Resolve a new value with |
+|---|---|---|
+| `aws` | `var.ami_id` in `terraform/aws/variables.tf` | `aws ssm get-parameter --region <region> --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id --query Parameter.Value --output text` |
+| `azure` | `locals.image.version` in `terraform/azure/modules/compute/main.tf` | `az vm image list --publisher Canonical --offer ubuntu-24_04-lts --sku server --all --query "[?sku=='server'].{urn:urn,ver:version}" -o tsv` |
+| `kvm` | `ubuntu_cloud_image` in your `kvm.tfvars` | pick a dated build from `https://cloud-images.ubuntu.com/releases/noble/` |
+| `proxmox` | **not pinned** — clones a hypervisor template | n/a, see below |
+| `vmware` | **not pinned** — clones a hypervisor template | n/a, see below |
+
+Bump deliberately, at a campaign boundary. These carry no `# renovate:` annotation and that is intentional: Renovate's `aws-machine-image` datasource is experimental, has no dedicated manager and needs AWS credentials the hosted app does not have, and Azure marketplace versions have no datasource at all — but more importantly, an automated PR proposes exactly the wrong timing for a value a running comparison depends on.
+
+### Two traps worth knowing
+
+**`az vm image list --sku server` matches by substring.** It also returns `server-arm64` and `server-gen1` at the same version, so reading the first row is how an arm64 image gets pinned onto an x64 lab. Use the equality filter above.
+
+**The KVM cloud-image filename differs between paths.** `noble-server-cloudimg-amd64.img` under the `noble/current/` alias, `ubuntu-24.04-server-cloudimg-amd64.img` under a dated release. Substituting only the directory gives a 404.
+
+### Why the KVM volume name carries a date
+
+`libvirt_volume.ubuntu_base` is named `ubuntu-24.04-base-<release-date>`, derived from the image URL. That is load-bearing. With a constant name, Terraform compares the name and the URL *string* — never the downloaded bytes — so on a host that already holds the volume, changing the URL produces no diff and the new image is never fetched. The pin would land in the repo and never on the machine.
+
+Before this, the KVM substrate was a function of *when a given host first ran apply*: two hosts running identical code held different Ubuntu builds and nothing reported it.
+
+Expect the first apply after a bump to create a new volume and leave the old one orphaned in the pool. It is unreferenced and safe to remove by hand.
+
+### Proxmox and vmware are not pinnable here
+
+Both clone a hypervisor template built by hand, so the repository names an *object*, not an image — pinning is unavailable rather than unfinished. The mechanism that covers them is recording what a clone actually came from, tracked in #249, and for Proxmox the template's source image is specified as part of host preparation.
+
+### What pinning does and does not buy
+
+It buys comparability **within a provider, across time**. It does not buy comparability across providers, and nothing would: the three are on different builds and different publish cadences.
+
+```
+aws     20260714      azure   20260807      kvm   20260814
+```
+
+Do not try to align them to a single date — it will not hold.
+
 ## Iterating on the OpenNMS Galaxy Collection
 
 The OpenNMS deployment automation lives in the `indigo423.opennms` Ansible Galaxy collection (source repo: `github.com/opennms-forge/ansible-opennms`). It is pinned by git SHA in `requirements.yml` so that benchmark runs are bit-for-bit reproducible.

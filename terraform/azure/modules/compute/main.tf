@@ -11,11 +11,34 @@ terraform {
 locals {
   # Ubuntu 24.04 LTS — Azure marketplace cloud image (cloud-init pre-installed)
   # Do not change to a non-cloud image variant
+  #
+  # version is pinned rather than "latest". An OS image change is silent: every
+  # play succeeds, the lab collects, and the numbers describe a different
+  # kernel, sysctl baseline and libc. Point releases roll the HWE kernel, which
+  # is exactly what a throughput measurement is sensitive to.
+  #
+  # Resolve a new value with the sku *equality* filter:
+  #
+  #   az vm image list --publisher Canonical --offer ubuntu-24_04-lts \
+  #     --sku server --all --query "[?sku=='server'].{urn:urn,ver:version}" -o tsv
+  #
+  # Not `--sku server` alone: that matches by substring and also returns
+  # server-arm64 and server-gen1 at the same version, so reading the first row
+  # is how an arm64 image gets pinned onto an x64 lab.
+  #
+  # Pinned value is what that returned on 2026-08-26, so pinning changed
+  # nothing about what deploys:
+  #   Canonical:ubuntu-24_04-lts:server:24.04.202608070   (build 2026-08-07)
+  #
+  # Bump deliberately, at a campaign boundary. The three providers cannot be
+  # aligned to one Ubuntu build in any case — aws is on 20260714 and the kvm
+  # cloud image on 20260814 — so pinning buys comparability across time within
+  # a provider, never across providers.
   image = {
     publisher = "Canonical"
     offer     = "ubuntu-24_04-lts"
     sku       = "server"
-    version   = "latest"
+    version   = "24.04.202608070"
   }
 }
 
