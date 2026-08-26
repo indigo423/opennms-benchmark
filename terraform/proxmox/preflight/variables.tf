@@ -97,6 +97,9 @@ variable "preflight_vm_id" {
   default     = 9999
   description = "VM ID for the preflight VM. Must not collide with the lab stack's vm_ids (196-202) or the template (9000)."
 
+  # The template collision the description also promises is asserted as a
+  # lifecycle precondition on the VM in main.tf, not here: cross-variable
+  # validation needs Terraform 1.9 and this root declares >= 1.5.
   validation {
     condition     = var.preflight_vm_id < 196 || var.preflight_vm_id > 202
     error_message = "preflight_vm_id must sit outside 196-202, which the lab stack's vm_ids claim."

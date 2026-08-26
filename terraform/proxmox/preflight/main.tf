@@ -57,10 +57,29 @@ check "snippets_datastore_permits_snippets" {
   }
 }
 
+# Snippets are plain files, so any block-backed store has nowhere to put them.
+# Checking only lvmthin let a ZFS pool or an RBD store pass rung 1 clean and
+# then fail at rung 2 with an opaque upload error -- the exact
+# failure-cannot-be-attributed outcome this ladder exists to prevent.
+#
+# The same list lives in the hypervisor role as proxmox_block_datastore_types.
+# Duplicated rather than shared because the two are in different languages;
+# they have to agree, so change both together.
+#
+# A blocklist fails open: a PVE storage type in neither list passes this check
+# and would surface at rung 2 instead. Kept as a blocklist anyway, to stay
+# consistent with the role, and because the preceding check is the real gate --
+# PVE will not accept the snippets content type on a block-backed store, so a
+# datastore that passes that one is file-based by construction. This check
+# exists to say so in a sentence rather than through an upload failure.
+locals {
+  block_datastore_types = ["lvm", "lvmthin", "zfspool", "rbd", "iscsi", "iscsidirect"]
+}
+
 check "snippets_datastore_is_file_based" {
   assert {
-    condition     = !local.reads_host || try(local.datastore_types[var.snippets_datastore], "dir") != "lvmthin"
-    error_message = "Datastore \"${var.snippets_datastore}\" is lvmthin. Snippets require a file-based datastore; an LVM-thin pool cannot hold them."
+    condition     = !local.reads_host || !contains(local.block_datastore_types, try(local.datastore_types[var.snippets_datastore], "dir"))
+    error_message = "Datastore \"${var.snippets_datastore}\" is type ${try(local.datastore_types[var.snippets_datastore], "unknown")}, which is block-backed and cannot hold snippets. Snippets are plain files: point snippets_datastore at a file-based store such as a dir store."
   }
 }
 
@@ -148,6 +167,19 @@ resource "proxmox_virtual_environment_vm" "preflight" {
   name      = local.preflight_vm_name
   node_name = var.proxmox_node
   vm_id     = var.preflight_vm_id
+
+  # preflight_vm_id's own validation excludes the lab stack's 196-202 but cannot
+  # reference another variable: cross-variable validation needs Terraform 1.9 and
+  # this root declares >= 1.5. So the template collision -- which the variable's
+  # description already promises to prevent -- is asserted here instead, where
+  # both values are in scope. Without it, preflight_vm_id = template_vm_id plans
+  # cleanly and then tries to clone the template into its own ID.
+  lifecycle {
+    precondition {
+      condition     = var.preflight_vm_id != var.template_vm_id
+      error_message = "preflight_vm_id (${var.preflight_vm_id}) is the template's own VM ID. Rung 3 clones the template, so the source and destination cannot be the same."
+    }
+  }
 
   # Distinct from the lab stack's "opennms-benchmark" tag so preflight leftovers
   # are identifiable at a glance in the Proxmox UI.
