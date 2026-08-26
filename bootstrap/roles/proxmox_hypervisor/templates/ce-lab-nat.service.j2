@@ -1,0 +1,28 @@
+{{ ansible_managed | comment }}
+# Masquerades the OpenNMS benchmark lab management subnet out of the
+# hypervisor's uplink, so lab VMs on an uplink-less bridge can reach the
+# internet through their default gateway.
+#
+# A systemd oneshot rather than a post-up hook in /etc/network/interfaces: the
+# lab bridges are created through the PVE API, which owns that file and does not
+# carry arbitrary hook lines. Same pattern the lab VMs already use for
+# lab-static-routes.service.
+#
+# iptables rather than nft because this node runs iptables in legacy mode with
+# an empty nat table and no active proxmox-firewall ruleset, so there is nothing
+# to conflict with. Revisit if the PVE firewall is ever enabled here.
+
+[Unit]
+Description=Masquerade the OpenNMS benchmark lab management subnet
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# -C first so a restart is a no-op rather than stacking duplicate rules.
+ExecStart=/bin/sh -ec 'iptables -t nat -C POSTROUTING -s {{ proxmox_mgmt_subnet }} -o {{ proxmox_uplink_bridge }} -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s {{ proxmox_mgmt_subnet }} -o {{ proxmox_uplink_bridge }} -j MASQUERADE'
+ExecStop=/bin/sh -c 'iptables -t nat -D POSTROUTING -s {{ proxmox_mgmt_subnet }} -o {{ proxmox_uplink_bridge }} -j MASQUERADE || true'
+
+[Install]
+WantedBy=multi-user.target

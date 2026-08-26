@@ -181,39 +181,94 @@ See [`terraform/aws/README.md`](terraform/aws/README.md) for credentials details
 
 ### Proxmox VE
 
-Requirements: a Proxmox VE host, an API token with VM.Allocate permissions, Terraform ≥ 1.5.
+Requirements: a Proxmox VE host, an API token, a PAM account reachable from your SSH agent, Terraform ≥ 1.5.
+Verified against PVE 9.2.2 with `bpg/proxmox` 0.111.1.
 
-**1. Create the Ubuntu 24.04 cloud-init template** (one-time, on the Proxmox host):
+Two things about credentials.
+The available privilege list changed in PVE 9.0, so pre-9.0 recipes such as "a token with `VM.Allocate`" no longer transfer; start from `root@pam` with privilege separation off and tighten afterwards.
+And the token alone is not sufficient: the Proxmox API refuses `snippets` uploads, so the provider opens an SSH session and writes cloud-init files over SFTP.
+That session cannot inherit a password from a token, so a key for a **PAM** account must be loaded in your SSH agent — non-PAM accounts cannot upload snippets at all.
+Keep the token out of `proxmox.tfvars` by exporting `PROXMOX_VE_API_TOKEN` instead; the provider reads it from the environment.
+
+**1. Prepare the hypervisor:**
 
 ```bash
-wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
-qm create 9000 --name ubuntu-24.04-cloud --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0
-qm importdisk 9000 noble-server-cloudimg-amd64.img local-lvm
-qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
+make prepare-hypervisor HYPERVISOR=<proxmox-host>
+```
+
+This enables the `snippets` content type, creates the lab bridges, makes the host route and resolve for the management subnet, and is idempotent.
+It edits network configuration on the host it connects over and applies it, so have out-of-band access first.
+`-e proxmox_apply_network=false` stages the changes without applying them.
+
+Two prerequisites it handles that are easy to miss, and whose absence does not look like its own cause:
+
+- **The management subnet has no gateway unless the hypervisor is one.** `terraform/proxmox` gives every VM a default gateway of `cidrhost(subnet_mgmt, 1)`. Azure supplies a subnet gateway and libvirt supplies a NAT network; on Proxmox a bridge is a layer 2 switch and nothing answers. Without egress, cloud-init cannot install `qemu-guest-agent`, so Terraform blocks and then times out — a provider timeout that says nothing about routing.
+- **Every VM's resolver is that same gateway address.** `modules/cloud-init` defaults an interface's nameservers to its gateway and no provider overrides it. libvirt runs dnsmasq on its NAT gateway for KVM; Proxmox runs nothing, so NAT alone gives connectivity without name resolution and apt still fails.
+
+**2. Create the Ubuntu 24.04 cloud-init template** (one-time, on the Proxmox host):
+
+```bash
+# A dated release path, not noble/current, which upstream republishes on every
+# point release. Note the filename differs between the two paths.
+IMG=ubuntu-24.04-server-cloudimg-amd64.img
+curl -fsSLO https://cloud-images.ubuntu.com/releases/noble/release-20260814/$IMG
+sha256sum $IMG   # check against .../release-20260814/SHA256SUMS
+
+# Do NOT pass --machine q35. Guest NIC names depend on the machine type: the
+# PVE default (i440fx) yields ens18, ens19, ens20, which is what the lab stack
+# expects; q35 yields enp6s18 and every VM silently comes up with no network.
+qm create 9000 --name ubuntu-24.04-cloud --memory 2048 --cores 2 \
+  --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-pci
+qm set 9000 --scsi0 local-lvm:0,import-from=$PWD/$IMG   # qm importdisk is deprecated
 qm set 9000 --ide2 local-lvm:cloudinit
 qm set 9000 --serial0 socket --vga serial0
-qm set 9000 --boot c --bootdisk scsi0
-qm set 9000 --ipconfig0 ip=dhcp
+qm set 9000 --boot order=scsi0
+qm set 9000 --agent enabled=1
 qm template 9000
 ```
 
-**2. Create the bridges** in the Proxmox UI under *Node > Network*:
+Record which image the template was built from, in `qm set 9000 --description` and in your notes.
+On this provider the template *is* the substrate — the stack clones it, so every VM inherits its kernel and apt baseline — and no Terraform value selects an image, so it cannot be pinned in this repository ([#248](https://github.com/indigo423/opennms-benchmark/issues/248)).
+The same question for KVM is already unanswerable.
 
-| Bridge | Subnet | Purpose |
-|:-------|:-------|:--------|
-| `vmbr0` | `192.0.2.192/26` | Management |
-| `vmbr1` | `192.0.2.0/26` | Database |
-| `vmbr2` | `192.0.2.64/26` | Kafka |
-| `vmbr3` | `192.0.2.128/26` | SNMP simulation |
-| `vmbr4` | external (DHCP) | Monitoring VM routable IP |
+**3. Bridges.**
+`make prepare-hypervisor` creates these; the table is here so the mapping is reviewable.
+Note that it is shifted one place from what you might expect: the bridge holding the hypervisor's own address is `bridge_ext`, **not** `bridge_mgmt`.
+Claiming it for a lab subnet cuts off the host.
 
-**3. Configure and deploy:**
+| Variable | Bridge | Subnet | Uplink |
+|:---------|:-------|:-------|:-------|
+| `bridge_ext` | `vmbr0` | site LAN (DHCP) | the physical uplink; monitoring VM only, and its lease is the jump host |
+| `bridge_mgmt` | `vmbr1` | `192.0.2.192/26` | none; host holds `.193` and routes, NATs and resolves for it |
+| `bridge_db` | `vmbr2` | `192.0.2.0/26` | none |
+| `bridge_kafka` | `vmbr3` | `192.0.2.64/26` | none |
+| `bridge_sim` | `vmbr4` | `192.0.2.128/26` | none |
+
+**4. Verify the provider path before deploying the lab** (optional, recommended on a new host):
+
+```bash
+cd terraform/proxmox/preflight && terraform init
+terraform apply -var-file=../proxmox.tfvars -var rung=0   # auth
+terraform apply -var-file=../proxmox.tfvars -var rung=1   # host facts
+terraform apply -var-file=../proxmox.tfvars -var rung=2   # snippet upload over SSH
+```
+
+One mechanism per apply, so a failure names its own cause.
+Rungs 0 and 1 create nothing; rung 2 creates one file.
+See [`terraform/proxmox/preflight/README.md`](terraform/proxmox/preflight/README.md).
+
+**5. Configure and deploy:**
 
 ```bash
 cp terraform/proxmox/proxmox.tfvars.example terraform/proxmox/proxmox.tfvars
-# edit endpoint, API token, node, template_vm_id, storage pools, ssh_key_path
+# edit endpoint, node, template_vm_id, storage pools, bridges, ssh_key_path
+export PROXMOX_VE_API_TOKEN='user@realm!token-name=UUID'
 make deploy PROVIDER=proxmox
 ```
+
+Reconcile `disk_sizes_gb` against the target datastore first.
+The baseline provisions 320 GB; a thin pool that fills during a run corrupts guests rather than failing writes.
+Rung 1 reports available space per datastore.
 
 ### VMware vSphere
 

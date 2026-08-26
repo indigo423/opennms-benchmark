@@ -1,0 +1,27 @@
+{{ ansible_managed | comment }}
+# Resolver for the OpenNMS benchmark lab management subnet.
+#
+# modules/cloud-init defaults an interface's nameservers to its gateway, and no
+# provider overrides it, so every lab VM asks {{ proxmox_mgmt_gateway_address }}
+# for DNS. libvirt supplies this for the KVM provider by running dnsmasq on its
+# NAT gateway; Proxmox supplies nothing, so this replaces it.
+
+# Bind only to the management gateway address. Without bind-interfaces dnsmasq
+# would listen on every interface including the hypervisor's uplink, which would
+# expose a resolver to the site LAN.
+interface={{ proxmox_mgmt_bridge }}
+listen-address={{ proxmox_mgmt_gateway_address }}
+bind-interfaces
+
+# Resolver only. Lab VMs get their addresses from cloud-init, so a DHCP server
+# on a lab bridge would be a source of surprise rather than a service.
+no-dhcp-interface={{ proxmox_mgmt_bridge }}
+
+# Upstream is whatever the hypervisor itself uses, read from /etc/resolv.conf.
+# Not pinned here: the host's resolver is site configuration and duplicating it
+# would rot independently.
+
+# Do not forward names without a dot, or reverse lookups for RFC1918 space that
+# has no delegation, to the upstream resolver.
+domain-needed
+bogus-priv

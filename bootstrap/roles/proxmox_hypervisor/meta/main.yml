@@ -1,0 +1,6 @@
+---
+# ip_forwarding is reused rather than reimplemented: it already sets IPv4
+# forwarding persistently via sysctl.d, which is exactly what the hypervisor
+# needs to route the lab management subnet. It runs before this role's tasks.
+dependencies:
+  - role: ip_forwarding

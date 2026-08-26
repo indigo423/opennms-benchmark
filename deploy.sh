@@ -252,6 +252,16 @@ discover_jump_host() {
 
 # ── terraform wrappers ────────────────────────────────────────────────────────
 
+# proxmox: serialise resource operations. The stack creates seven full clones off
+# one thin pool, and concurrent VM creation on Proxmox raises lock errors from
+# disk I/O contention (upstream bpg/proxmox documents this and recommends
+# parallelism=1). Not left to TF_ARGS: a correctness fix must not depend on the
+# operator remembering a flag. Other providers keep terraform's default of 10.
+TF_PARALLELISM=()
+if [[ "$PROVIDER" == "proxmox" ]]; then
+  TF_PARALLELISM=(-parallelism=1)
+fi
+
 tf_init() {
   terraform -chdir="$TF_DIR" init -upgrade -input=false
 }
@@ -261,6 +271,7 @@ tf_apply() {
     "${COMMON_VAR_FILES[@]}" \
     -var-file="${PROVIDER}.tfvars" \
     "${DEPLOYMENT_VARS[@]+"${DEPLOYMENT_VARS[@]}"}" \
+    "${TF_PARALLELISM[@]+"${TF_PARALLELISM[@]}"}" \
     "$@" \
     "${TF_EXTRA_ARGS[@]+"${TF_EXTRA_ARGS[@]}"}" \
     -input=false \

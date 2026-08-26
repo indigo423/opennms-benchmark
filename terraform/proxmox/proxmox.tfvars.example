@@ -7,22 +7,34 @@
 
 # Proxmox API connection
 proxmox_endpoint     = "https://192.168.1.10:8006/" # Replace with your Proxmox host IP/FQDN
-proxmox_api_token    = "user@realm!token-name=00000000-0000-0000-0000-000000000000" # Replace with your API token
+# Prefer NOT setting this. The provider reads PROXMOX_VE_API_TOKEN from the
+# environment, which keeps the secret off disk:
+#   export PROXMOX_VE_API_TOKEN='user@realm!token-name=UUID'
+# proxmox_api_token  = "user@realm!token-name=00000000-0000-0000-0000-000000000000"
 proxmox_insecure     = false # Set true only if Proxmox has a self-signed certificate
 proxmox_ssh_username = "root"
 
 # Proxmox node name (visible in the Proxmox UI datacenter tree)
 proxmox_node = "pve"
 
-# Template VM — create once on the Proxmox host before running terraform apply:
-#   qm create 9000 --name ubuntu-24.04-cloud --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0
-#   qm importdisk 9000 noble-server-cloudimg-amd64.img local-lvm
-#   qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
+# Template VM — create once on the Proxmox host before running terraform apply.
+# Full steps, including why the machine type matters, are in the README.
+#
+#   IMG=ubuntu-24.04-server-cloudimg-amd64.img
+#   curl -fsSLO https://cloud-images.ubuntu.com/releases/noble/release-20260814/$IMG
+#   qm create 9000 --name ubuntu-24.04-cloud --memory 2048 --cores 2 \
+#     --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-pci
+#   qm set 9000 --scsi0 local-lvm:0,import-from=$PWD/$IMG
 #   qm set 9000 --ide2 local-lvm:cloudinit
 #   qm set 9000 --serial0 socket --vga serial0
-#   qm set 9000 --boot c --bootdisk scsi0
-#   qm set 9000 --ipconfig0 ip=dhcp
+#   qm set 9000 --boot order=scsi0 --agent enabled=1
 #   qm template 9000
+#
+# Do NOT pass --machine q35: guest NIC names depend on the machine type. The PVE
+# default (i440fx) gives ens18/ens19/ens20, which is what modules/compute
+# expects; q35 gives enp6s18 and every VM comes up with no network at all.
+# Use a dated release path, not noble/current, which upstream republishes on
+# every point release. The filename differs between the two paths.
 template_vm_id = 9000
 
 # Storage
@@ -32,25 +44,32 @@ snippets_datastore = "local"     # File-based datastore for cloud-init snippets 
 # SSH key for VM access
 ssh_key_path = "~/.ssh/id_rsa"
 
-# Proxmox bridges — configure these in Proxmox (Node > Network) before running terraform apply.
-# Each bridge corresponds to one lab subnet.
-# VM interface names inside Ubuntu 24.04 VMs (q35 + virtio-net): ens18, ens19, ens20, ens21.
-# Verify on your setup with: ssh ubuntu@<vm-ip> ip link
-bridge_mgmt  = "vmbr0" # Management subnet 192.0.2.192/26 — NAT or routed for operator SSH
-bridge_db    = "vmbr1" # Database subnet 192.0.2.0/26
-bridge_kafka = "vmbr2" # Kafka subnet 192.0.2.64/26
-bridge_sim   = "vmbr3" # SNMP simulation subnet 192.0.2.128/26
-bridge_ext   = "vmbr4" # External DHCP bridge — monitoring VM gets a routable IP on this bridge
+# Proxmox bridges. `make prepare-hypervisor HYPERVISOR=<host>` creates the lab
+# bridges, makes the host route/NAT/resolve for the management subnet, and is
+# idempotent.
+#
+# The mapping is shifted one place from the obvious reading: the bridge carrying
+# the hypervisor's OWN address is bridge_ext, not bridge_mgmt. Claiming it for a
+# lab subnet cuts off the host. The prep role asserts against exactly that.
+#
+# Only the monitoring VM attaches to bridge_ext; its DHCP lease is the lab's
+# jump host, and every other VM is reached by proxying through it.
+bridge_ext   = "vmbr0" # site LAN, DHCP — the hypervisor's existing uplink bridge
+bridge_mgmt  = "vmbr1" # 192.0.2.192/26 — host holds .193 and routes/NATs/resolves
+bridge_db    = "vmbr2" # 192.0.2.0/26   — no uplink
+bridge_kafka = "vmbr3" # 192.0.2.64/26  — no uplink
+bridge_sim   = "vmbr4" # 192.0.2.128/26 — no uplink
 
 # VM IDs — must be unique across your Proxmox cluster.
 # Defaults match the last octet of each VM's management IP.
 # vm_ids = {
-#   database   = 196
-#   core       = 197
-#   kafka      = 198
-#   minion     = 199
-#   monitoring = 200
-#   netsim    = 201
+#   database      = 196
+#   core          = 197
+#   kafka         = 198
+#   minion        = 199
+#   monitoring    = 200
+#   netsim        = 201
+#   elasticsearch = 202
 # }
 # VM names in Proxmox UI follow [function]-[env]-[seq] convention:
 #   db-benchmark-01, core-benchmark-01, kafka-benchmark-01,

@@ -1,0 +1,24 @@
+---
+# Prepares a Proxmox VE hypervisor so terraform/proxmox can apply against it.
+#
+# Run it through the front door:
+#   make prepare-hypervisor HYPERVISOR=lechuck.labmonkeys.tech
+#
+# IMPORTANT: this edits network configuration on the host it is connected over,
+# and applies it with `ifreload -a`. Have out-of-band access (IPMI, console,
+# physical) before running it. `-e proxmox_apply_network=false` stages the
+# changes without applying them, so you can reload during a maintenance window.
+#
+# hosts: all because a hypervisor is not in the Terraform-generated lab
+# inventory, so it is named on the command line rather than resolved from a
+# group. That also means the host must be named explicitly, which is the
+# intended safety property.
+- name: Prepare Proxmox hypervisor for the benchmark lab
+  hosts: all
+  # root, not the lab admin user: PVE tooling and network config need it, and
+  # the provider already requires a root PAM account for snippet uploads.
+  remote_user: root
+  become: false
+  gather_facts: true
+  roles:
+    - role: proxmox_hypervisor

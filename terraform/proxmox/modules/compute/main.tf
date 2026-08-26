@@ -9,9 +9,17 @@ terraform {
 }
 
 # Cloud-init configuration — rendered via the shared module (same templates as KVM and Azure).
-# Interface names inside Proxmox q35 VMs with virtio-net (Ubuntu 24.04):
-#   ens18 = first NIC, ens19 = second, ens20 = third, ens21 = fourth.
-# Verify on your Proxmox setup: ssh ubuntu@<ip> ip link
+#
+# Interface names below assume the template uses PVE's DEFAULT machine type
+# (i440fx), where virtio NICs appear as ens18, ens19, ens20, ens21. This is
+# verified against PVE 9.2.2 with Ubuntu 24.04.
+#
+# It does NOT hold for machine=q35, where the same NIC lands on a PCIe bridge
+# and appears as enp6s18. A q35 template makes netplan configure a device that
+# does not exist: the guest sends no frames, cloud-init cannot install
+# qemu-guest-agent, and Terraform times out waiting for an agent that can never
+# appear. The machine type comes from the hand-built template, so it is not
+# visible anywhere in this repository — see the README's template steps.
 
 module "cloud_init_elasticsearch" {
   source         = "../../../modules/cloud-init"

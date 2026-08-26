@@ -1,0 +1,29 @@
+---
+# PUT /nodes/<node>/network, which is what the UI's "Apply Configuration" button
+# calls. NOT `ifreload -a`: changes made through the PVE network API are staged
+# in /etc/network/interfaces.new and only become live when the API applies them
+# (or at the next boot). ifreload reads /etc/network/interfaces, so it would
+# reload the pre-change config and report success while the new bridges stayed
+# staged and absent from the kernel. That is exactly what happened on the first
+# run of this role.
+#
+# It does reapply the whole file, which is why the role documents needing
+# out-of-band access to the host.
+- name: Apply Proxmox network configuration
+  ansible.builtin.command: pvesh set /nodes/{{ proxmox_node_name }}/network
+  changed_when: true
+  when: proxmox_apply_network | bool
+  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+
+- name: Restart lab NAT
+  ansible.builtin.systemd_service:
+    name: ce-lab-nat.service
+    state: restarted
+    daemon_reload: true
+  tags: ["proxmox-hypervisor", "proxmox-nat"]
+
+- name: Restart dnsmasq
+  ansible.builtin.systemd_service:
+    name: dnsmasq
+    state: restarted
+  tags: ["proxmox-hypervisor", "proxmox-dns"]

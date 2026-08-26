@@ -17,6 +17,13 @@ SHELL := /usr/bin/env bash
 # Providers with a Terraform root under terraform/<provider>/.
 PROVIDERS := aws azure kvm proxmox vmware
 
+# Terraform roots that are not providers, relative to terraform/. Only `validate`
+# needs to know about them: `fmt` is recursive over terraform/, and `tflint-%`
+# runs `tflint --recursive` from the provider root, so both already reach a
+# nested root. These are never deployed — they carry no `make deploy` path and
+# stay out of PROVIDERS on purpose.
+EXTRA_TF_ROOTS := proxmox/preflight
+
 # Deployment library — provider-agnostic topology specs under deployments/<slug>/.
 DEPLOYMENTS_DIR := deployments
 DESCRIPTOR := python3 $(DEPLOYMENTS_DIR)/bin/topology-descriptor.py
@@ -73,6 +80,14 @@ destroy: check-provider confirm ## Tear down all lab resources for PROVIDER
 show: check-provider ## Show deployed resources for PROVIDER, and any leftovers
 	./show.sh --provider $(PROVIDER) $(_dep_flag)
 
+# Hypervisor preparation is separate from `make deploy` on purpose: it configures
+# the hypervisor rather than the lab, needs privileges the lab stack's API token
+# does not, and is a prerequisite rather than a step. It also edits network
+# configuration on the host it connects over, so have out-of-band access.
+.PHONY: prepare-hypervisor
+prepare-hypervisor: guard-HYPERVISOR ## Prepare a Proxmox hypervisor for the lab (HYPERVISOR=<host>)
+	ansible-playbook -i '$(HYPERVISOR),' bootstrap/proxmox-hypervisor-playbook.yml $(V)
+
 .PHONY: plan
 # aws only: terraform cannot read the token cache `aws login` writes, so without
 # this the target fails on credentials even when the CLI works. deploy.sh does
@@ -103,12 +118,23 @@ fmt-fix: ## Apply Terraform formatting
 # so they must NOT be listed in .PHONY — that would shadow the pattern rule.
 # They never create a file, so make re-runs them every invocation regardless.
 .PHONY: validate
-validate: $(addprefix validate-,$(PROVIDERS)) ## Validate every provider Terraform root
+validate: $(addprefix validate-,$(PROVIDERS)) validate-extra-roots ## Validate every Terraform root
 
 # -upgrade forces the community libvirt provider to download during kvm init.
 validate-%:
 	terraform -chdir=terraform/$* init -backend=false $(if $(filter kvm,$*),-upgrade)
 	terraform -chdir=terraform/$* validate
+
+# A loop rather than validate-$(EXTRA_TF_ROOTS) through the pattern rule above:
+# make strips the directory part of a target name before matching an implicit
+# rule, so `validate-proxmox/preflight` would try to match `preflight` against
+# `validate-%` and find no rule.
+.PHONY: validate-extra-roots
+validate-extra-roots: ## Validate the non-provider Terraform roots
+	@rc=0; for r in $(EXTRA_TF_ROOTS); do \
+	  terraform -chdir=terraform/$$r init -backend=false >/dev/null || { rc=1; continue; }; \
+	  terraform -chdir=terraform/$$r validate || rc=1; \
+	done; exit $$rc
 
 .PHONY: tflint
 tflint: $(addprefix tflint-,$(PROVIDERS)) ## Run TFLint on every provider Terraform root

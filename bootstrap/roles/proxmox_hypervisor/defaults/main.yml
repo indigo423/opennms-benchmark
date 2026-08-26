@@ -1,0 +1,69 @@
+---
+# Prepares a Proxmox VE hypervisor so terraform/proxmox can apply against it.
+# Targets the hypervisor itself, not the lab VMs, so it runs as root over SSH
+# rather than as the lab admin user.
+
+# Datastore that must be able to hold cloud-init snippets. A default PVE
+# installation permits iso,vztmpl,backup,import on `local` and NOT snippets, so
+# without this every VM in the lab stack fails at snippet upload.
+proxmox_snippets_datastore: local
+
+# Datastore types that cannot hold snippets, whatever their content setting.
+# Snippets are plain files; a block-backed store has nowhere to put them.
+proxmox_block_datastore_types:
+  - lvm
+  - lvmthin
+  - zfspool
+  - rbd
+  - iscsi
+  - iscsidirect
+
+# Lab bridges to create, each with no physical port so lab traffic in
+# 192.0.2.0/24 never leaves the hypervisor.
+#
+# A list rather than four named variables on purpose: `kvm` and `aws` now derive
+# their topology from deployments/<slug>/topology.yml, where the number of
+# subnets follows the spec. When Proxmox follows, this role needs a longer list
+# and no code change.
+proxmox_lab_bridges:
+  - vmbr1
+  - vmbr2
+  - vmbr3
+  - vmbr4
+
+# The bridge carrying the lab management subnet.
+proxmox_mgmt_bridge: vmbr1
+
+# The address the hypervisor holds on that bridge, and the subnet it routes.
+#
+# proxmox_mgmt_gateway_cidr MUST equal Terraform's cidrhost(subnet_mgmt, 1).
+# terraform/proxmox/main.tf hands that address to every VM as its default
+# gateway on the management interface, and on Proxmox nothing else supplies it:
+# a Linux bridge is a layer 2 switch. Azure has a subnet gateway and libvirt
+# creates a NAT network; Proxmox has neither.
+#
+# Written out as literal CIDRs because this repo does not ship ansible.utils or
+# ansible.netcommon, so there is no ipaddr filter to derive them from
+# subnet_mgmt.
+proxmox_mgmt_gateway_cidr: 192.0.2.193/26
+proxmox_mgmt_subnet: 192.0.2.192/26
+
+# The bare address, for services that bind rather than configure an interface.
+proxmox_mgmt_gateway_address: "{{ proxmox_mgmt_gateway_cidr | split('/') | first }}"
+
+# Run a resolver on the management gateway address.
+#
+# Not a convenience. modules/cloud-init defaults an interface's nameservers to
+# its gateway and no provider overrides it, so lab VMs resolve against
+# proxmox_mgmt_gateway_address whether anything listens there or not. libvirt
+# provides this for KVM by running dnsmasq on its NAT gateway; on Proxmox it has
+# to be provided explicitly, or cloud-init's apt fails on DNS even with working
+# NAT.
+#
+# Set false only if something else on this host already answers DNS on that
+# address.
+proxmox_manage_dns: true
+
+# Reapply network configuration after changing it. Set false to stage the
+# changes and apply them yourself during a maintenance window.
+proxmox_apply_network: true

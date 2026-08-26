@@ -1,0 +1,247 @@
+---
+- name: Confirm this host is a Proxmox VE node
+  ansible.builtin.command: pveversion
+  register: proxmox_pveversion
+  changed_when: false
+  failed_when: proxmox_pveversion.rc != 0
+  tags: ["proxmox-hypervisor"]
+
+- name: Resolve the node name
+  ansible.builtin.command: hostname
+  register: proxmox_node_name_cmd
+  changed_when: false
+  tags: ["proxmox-hypervisor"]
+
+- name: Record node name and uplink bridge
+  ansible.builtin.set_fact:
+    proxmox_node_name: "{{ proxmox_node_name_cmd.stdout | trim }}"
+    # The interface holding the default route is the hypervisor's own uplink.
+    # Everything below refuses to touch it.
+    proxmox_uplink_bridge: "{{ ansible_default_ipv4.interface }}"
+  tags: ["proxmox-hypervisor"]
+
+# The failure this guard prevents is losing the hypervisor. The README's bridge
+# table assigns bridge_mgmt = vmbr0, which on any single-uplink host is the
+# interface Ansible is connected over.
+- name: Refuse to claim the hypervisor's own uplink bridge for a lab subnet
+  ansible.builtin.assert:
+    that:
+      - proxmox_uplink_bridge not in proxmox_lab_bridges
+      - proxmox_mgmt_bridge != proxmox_uplink_bridge
+    fail_msg: >-
+      {{ proxmox_uplink_bridge }} carries this hypervisor's default route
+      ({{ ansible_default_ipv4.address }}). Claiming it for a lab subnet would
+      cut off the host. Assign it to bridge_ext in proxmox.tfvars and give the
+      lab subnets their own bridges.
+    success_msg: "Uplink {{ proxmox_uplink_bridge }} is not claimed by any lab bridge"
+  tags: ["proxmox-hypervisor"]
+
+- name: Require the management bridge to be one of the lab bridges
+  ansible.builtin.assert:
+    that: proxmox_mgmt_bridge in proxmox_lab_bridges
+    fail_msg: >-
+      proxmox_mgmt_bridge ({{ proxmox_mgmt_bridge }}) is not in
+      proxmox_lab_bridges, so it would never be created.
+  tags: ["proxmox-hypervisor"]
+
+# ── snippets datastore ───────────────────────────────────────────────────────
+
+- name: Read the snippets datastore configuration
+  ansible.builtin.command: >-
+    pvesh get /storage/{{ proxmox_snippets_datastore }} --output-format json
+  register: proxmox_snippets_ds_raw
+  changed_when: false
+  tags: ["proxmox-hypervisor", "proxmox-snippets"]
+
+- name: Parse the snippets datastore configuration
+  ansible.builtin.set_fact:
+    proxmox_snippets_ds: "{{ proxmox_snippets_ds_raw.stdout | from_json }}"
+  tags: ["proxmox-hypervisor", "proxmox-snippets"]
+
+- name: Require a file-based snippets datastore
+  ansible.builtin.assert:
+    that: proxmox_snippets_ds.type not in proxmox_block_datastore_types
+    fail_msg: >-
+      Datastore "{{ proxmox_snippets_datastore }}" is type
+      {{ proxmox_snippets_ds.type }}, which cannot hold snippets. Snippets are
+      plain files, so point proxmox_snippets_datastore at a file-based datastore
+      such as a dir store.
+    success_msg: >-
+      Datastore "{{ proxmox_snippets_datastore }}" is type
+      {{ proxmox_snippets_ds.type }} and can hold snippets
+  tags: ["proxmox-hypervisor", "proxmox-snippets"]
+
+# Appends rather than replaces: overwriting content would strip iso, vztmpl and
+# backup off the store the node uses for everything else.
+- name: Enable the snippets content type
+  ansible.builtin.command: >-
+    pvesm set {{ proxmox_snippets_datastore }}
+    --content {{ (proxmox_snippets_ds.content | split(',') | map('trim') | list + ['snippets']) | unique | join(',') }}
+  changed_when: true
+  when: "'snippets' not in (proxmox_snippets_ds.content | split(',') | map('trim') | list)"
+  tags: ["proxmox-hypervisor", "proxmox-snippets"]
+
+# ── lab bridges ──────────────────────────────────────────────────────────────
+
+- name: Read the node's current network configuration
+  ansible.builtin.command: >-
+    pvesh get /nodes/{{ proxmox_node_name }}/network --output-format json
+  register: proxmox_network_raw
+  changed_when: false
+  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+
+- name: Record which bridges already exist
+  ansible.builtin.set_fact:
+    proxmox_existing_ifaces: >-
+      {{ proxmox_network_raw.stdout | from_json | map(attribute='iface') | list }}
+  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+
+# Created through the PVE API rather than by writing /etc/network/interfaces.d,
+# so the bridges appear in the Proxmox UI and are validated on the way in.
+# No bridge_ports: an uplink-less bridge keeps 192.0.2.0/24, which is
+# documentation address space, off the real network.
+- name: Create the lab bridges
+  ansible.builtin.command: >-
+    pvesh create /nodes/{{ proxmox_node_name }}/network
+    --iface {{ item }}
+    --type bridge
+    --autostart 1
+    {% if item == proxmox_mgmt_bridge %}
+    --cidr {{ proxmox_mgmt_gateway_cidr }}
+    --comments "OpenNMS benchmark lab management subnet; hypervisor is the gateway"
+    {% else %}
+    --comments "OpenNMS benchmark lab; no uplink"
+    {% endif %}
+  loop: "{{ proxmox_lab_bridges }}"
+  changed_when: true
+  when: item not in proxmox_existing_ifaces
+  notify: Apply Proxmox network configuration
+  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+
+# Separate from creation so a bridge that pre-exists without an address still
+# gets one, and so a re-run of the role converges rather than skipping.
+- name: Ensure the management bridge holds the lab gateway address
+  ansible.builtin.command: >-
+    pvesh set /nodes/{{ proxmox_node_name }}/network/{{ proxmox_mgmt_bridge }}
+    --type bridge
+    --cidr {{ proxmox_mgmt_gateway_cidr }}
+  changed_when: true
+  when: >-
+    proxmox_mgmt_bridge in proxmox_existing_ifaces
+    and (proxmox_network_raw.stdout | from_json
+         | selectattr('iface', 'equalto', proxmox_mgmt_bridge)
+         | map(attribute='cidr') | first | default('')) != proxmox_mgmt_gateway_cidr
+  notify: Apply Proxmox network configuration
+  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+
+# `pvesh get /nodes/<node>/network` returns the STAGED configuration, so the
+# creation tasks above see a bridge that exists only in interfaces.new as
+# already present and skip, notifying nothing. A run that resumes after an
+# earlier failure would then never apply the changes it thinks it made, and
+# anything binding to a staged address fails with "Cannot assign requested
+# address". Keying the apply off the pending-changes file instead of off this
+# run's own changes makes the role converge from either state.
+- name: Check for staged but unapplied network changes
+  ansible.builtin.stat:
+    path: /etc/network/interfaces.new
+  register: proxmox_network_pending
+  changed_when: proxmox_network_pending.stat.exists
+  notify: Apply Proxmox network configuration
+  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+
+# Handlers normally run at the end of the play, but dnsmasq below binds to an
+# address that only exists once the network has been applied. Flush here so the
+# bridges are actually up before anything depends on them.
+- name: Apply pending network changes before binding services to them
+  ansible.builtin.meta: flush_handlers
+
+# ── routing ──────────────────────────────────────────────────────────────────
+
+# IPv4 forwarding comes from the ip_forwarding role via meta/main.yml. Without
+# it, and without the masquerade below, lab VMs have a default route to an
+# address that answers but does not forward. cloud-init then cannot install
+# qemu-guest-agent, and terraform blocks waiting for the agent and times out:
+# a provider timeout that says nothing about routing.
+- name: Install the lab NAT unit
+  ansible.builtin.template:
+    src: ce-lab-nat.service.j2
+    dest: /etc/systemd/system/ce-lab-nat.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart lab NAT
+  tags: ["proxmox-hypervisor", "proxmox-nat"]
+
+- name: Enable the lab NAT unit
+  ansible.builtin.systemd_service:
+    name: ce-lab-nat.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: ["proxmox-hypervisor", "proxmox-nat"]
+
+# ── DNS ──────────────────────────────────────────────────────────────────────
+
+# Required, not optional. modules/cloud-init defaults an interface's nameservers
+# to its gateway:
+#
+#   nameservers:
+#     addresses: [${join(", ", coalesce(iface.nameservers, [iface.gateway]))}]
+#
+# and no provider overrides it. So every lab VM is told its resolver is the
+# management gateway. On KVM that works because libvirt runs dnsmasq on its NAT
+# gateway; on Proxmox nothing listens there, so masquerading alone gives IP
+# connectivity and no name resolution, and cloud-init's apt still fails. This
+# task is what makes Proxmox match what KVM gets for free.
+# Non-fatal on purpose. A stock PVE install enables enterprise.proxmox.com,
+# which returns 401 without a subscription, so a full apt cache refresh can
+# never succeed on an unsubscribed node — which is most lab hosts. dnsmasq comes
+# from the Debian repositories, which do work, so failing the play on the
+# enterprise 401 would make this role unusable on exactly the hosts it targets.
+- name: Refresh the apt cache, tolerating unauthenticated PVE enterprise repos
+  ansible.builtin.apt:
+    update_cache: true
+  failed_when: false
+  changed_when: false
+  when: proxmox_manage_dns | bool
+  tags: ["proxmox-hypervisor", "proxmox-dns"]
+
+- name: Install dnsmasq for lab name resolution
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: present
+  when: proxmox_manage_dns | bool
+  tags: ["proxmox-hypervisor", "proxmox-dns"]
+
+# Resolver only. Lab VMs are statically addressed by cloud-init, so DHCP is
+# explicitly off: a stray DHCP server on a lab bridge would be worse than none.
+- name: Configure dnsmasq for the lab management subnet
+  ansible.builtin.template:
+    src: ce-lab-dns.conf.j2
+    dest: /etc/dnsmasq.d/ce-lab-dns.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: proxmox_manage_dns | bool
+  notify: Restart dnsmasq
+  tags: ["proxmox-hypervisor", "proxmox-dns"]
+
+- name: Enable dnsmasq
+  ansible.builtin.systemd_service:
+    name: dnsmasq
+    enabled: true
+    state: started
+  when: proxmox_manage_dns | bool
+  tags: ["proxmox-hypervisor", "proxmox-dns"]
+
+- name: Report the prepared state
+  ansible.builtin.debug:
+    msg:
+      - "node: {{ proxmox_node_name }} ({{ proxmox_pveversion.stdout | trim }})"
+      - "uplink (untouched): {{ proxmox_uplink_bridge }} {{ ansible_default_ipv4.address }}"
+      - "lab bridges: {{ proxmox_lab_bridges | join(', ') }}"
+      - "mgmt gateway: {{ proxmox_mgmt_gateway_cidr }} on {{ proxmox_mgmt_bridge }}"
+      - "masquerading {{ proxmox_mgmt_subnet }} out {{ proxmox_uplink_bridge }}"
+      - "resolver: {{ proxmox_manage_dns | bool | ternary(proxmox_mgmt_gateway_address + ' (dnsmasq)', 'not managed') }}"
+      - "snippets datastore: {{ proxmox_snippets_datastore }} ({{ proxmox_snippets_ds.type }})"
+  tags: ["proxmox-hypervisor"]
