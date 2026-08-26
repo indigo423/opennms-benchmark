@@ -1,16 +1,23 @@
 ---
+# Tag policy: everything that establishes a fact other tasks consume, and every
+# safety assert, is tagged `always`. meta/main.yml documents `--tags proxmox-nat`
+# as a supported invocation, and a sub-tag run that skipped these would render
+# ce-lab-nat.service.j2 with proxmox_uplink_bridge undefined, or call
+# `pvesh get /nodes//network` with an empty node name. `always` rather than
+# repeating every sub-tag, so adding a sub-tag later cannot silently reintroduce
+# the same hole.
 - name: Confirm this host is a Proxmox VE node
   ansible.builtin.command: pveversion
   register: proxmox_pveversion
   changed_when: false
   failed_when: proxmox_pveversion.rc != 0
-  tags: ["proxmox-hypervisor"]
+  tags: ["always"]
 
 - name: Resolve the node name
   ansible.builtin.command: hostname
   register: proxmox_node_name_cmd
   changed_when: false
-  tags: ["proxmox-hypervisor"]
+  tags: ["always"]
 
 # Asserted before the fact below dereferences it. Without this, a host with no
 # default route dies on an undefined-attribute error rather than the guard's
@@ -27,7 +34,7 @@
       identified. This role derives the interface it must never touch, and the
       NAT unit's outbound interface, from the default route.
     quiet: true
-  tags: ["proxmox-hypervisor"]
+  tags: ["always"]
 
 - name: Record node name and uplink bridge
   ansible.builtin.set_fact:
@@ -35,7 +42,7 @@
     # The interface holding the default route is the hypervisor's own uplink.
     # Everything below refuses to touch it.
     proxmox_uplink_bridge: "{{ ansible_default_ipv4.interface }}"
-  tags: ["proxmox-hypervisor"]
+  tags: ["always"]
 
 # The failure this guard prevents is losing the hypervisor. The README's bridge
 # table assigns bridge_mgmt = vmbr0, which on any single-uplink host is the
@@ -51,7 +58,7 @@
       cut off the host. Assign it to bridge_ext in proxmox.tfvars and give the
       lab subnets their own bridges.
     success_msg: "Uplink {{ proxmox_uplink_bridge }} is not claimed by any lab bridge"
-  tags: ["proxmox-hypervisor"]
+  tags: ["always"]
 
 - name: Require the management bridge to be one of the lab bridges
   ansible.builtin.assert:
@@ -59,7 +66,7 @@
     fail_msg: >-
       proxmox_mgmt_bridge ({{ proxmox_mgmt_bridge }}) is not in
       proxmox_lab_bridges, so it would never be created.
-  tags: ["proxmox-hypervisor"]
+  tags: ["always"]
 
 # ── snippets datastore ───────────────────────────────────────────────────────
 
@@ -130,7 +137,6 @@
     --comments "OpenNMS benchmark lab; no uplink"
     {% endif %}
   loop: "{{ proxmox_lab_bridges }}"
-  register: proxmox_bridge_create
   changed_when: true
   when: item not in proxmox_existing_ifaces
   notify: Apply Proxmox network configuration
@@ -149,57 +155,80 @@
     and (proxmox_network_raw.stdout | from_json
          | selectattr('iface', 'equalto', proxmox_mgmt_bridge)
          | map(attribute='cidr') | first | default('')) != proxmox_mgmt_gateway_cidr
-  register: proxmox_mgmt_addr_set
   notify: Apply Proxmox network configuration
   tags: ["proxmox-hypervisor", "proxmox-bridges"]
 
 # Answers "did this run stage anything?", which is what separates our pending
 # changes from someone else's. Both tasks above are skipped on a converged host,
 # and a skipped task reports changed=false.
-- name: Record whether this run staged network changes
-  ansible.builtin.set_fact:
-    proxmox_bridges_changed: >-
-      {{ (proxmox_bridge_create.results | default([])
-          | selectattr('changed', 'defined')
-          | selectattr('changed') | list | length > 0)
-         or (proxmox_mgmt_addr_set.changed | default(false)) }}
-  tags: ["proxmox-hypervisor", "proxmox-bridges"]
-
-# `pvesh get /nodes/<node>/network` returns the STAGED configuration, so the
-# creation tasks above see a bridge that exists only in interfaces.new as
-# already present and skip, notifying nothing. A run that resumes after an
-# earlier failure would then never apply the changes it thinks it made, and
-# anything binding to a staged address fails with "Cannot assign requested
-# address". Keying the apply off the pending-changes file instead of off this
-# run's own changes makes the role converge from either state.
+# What the staged file CONTAINS, not who staged it.
+#
+# The apply is keyed on /etc/network/interfaces.new existing rather than on this
+# run's own changes, because that is what lets an interrupted run converge. The
+# cost is that an unrelated pending edit -- staged in the UI for a maintenance
+# window, say -- would be pushed live too, on the interface Ansible is connected
+# over.
+#
+# "Did this run stage anything?" is the wrong discriminator for that, in both
+# directions. A run that both creates a missing bridge AND finds a foreign edit
+# already staged would pass it and apply the foreign edit. A run resuming after
+# an interrupted one stages nothing, because `pvesh get` reports the staged
+# bridges as existing so the create tasks skip -- and would then be refused,
+# defeating the convergence the file-keyed apply exists to provide.
+#
+# So inspect the diff instead: if every interface it touches is one of ours, the
+# staged content is ours whoever wrote it, and applying it is safe.
 - name: Check for staged but unapplied network changes
   ansible.builtin.stat:
     path: /etc/network/interfaces.new
   register: proxmox_network_pending
   changed_when: proxmox_network_pending.stat.exists
   notify: Apply Proxmox network configuration
-  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+  tags: ["always"]
 
-# Staging an edit in the UI and applying it in a maintenance window is a normal
-# PVE workflow, so interfaces.new is not necessarily ours. The apply above is
-# keyed on the file existing rather than on this run's own changes -- which is
-# what lets the role converge after an interrupted run, and is also what would
-# push an unrelated pending edit live, on the interface Ansible is connected
-# over. Refuse that unless the operator says otherwise.
-- name: Refuse to apply a staged network configuration this run did not create
+- name: Determine which interfaces the staged configuration touches
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      diff /etc/network/interfaces /etc/network/interfaces.new
+      | grep -E '^[<>]'
+      | grep -oE '(iface|auto) [a-zA-Z0-9._:-]+'
+      | awk '{print $2}' | sort -u
+    executable: /bin/bash
+  register: proxmox_staged_ifaces
+  changed_when: false
+  # diff exits 1 when the files differ, which is the expected case here.
+  failed_when: proxmox_staged_ifaces.rc > 1
+  when: proxmox_network_pending.stat.exists
+  tags: ["always"]
+
+- name: Refuse to apply staged network changes that touch anything but the lab bridges
   ansible.builtin.assert:
     that:
-      - not proxmox_network_pending.stat.exists
-        or proxmox_bridges_changed | default(false) | bool
+      - proxmox_foreign_staged_ifaces | length == 0
         or proxmox_apply_foreign_network | bool
     fail_msg: >-
-      /etc/network/interfaces.new already held staged changes before this run
-      made any, so applying it would push an edit this role did not write --
-      possibly someone else's, on the uplink. Review it with
+      /etc/network/interfaces.new has staged changes touching
+      {{ proxmox_foreign_staged_ifaces | join(', ') }}, which are not lab
+      bridges. Applying it would push an edit this role did not write -- on the
+      uplink, in the worst case. Review it with
       `diff /etc/network/interfaces /etc/network/interfaces.new`, then either
       apply it yourself or re-run with -e proxmox_apply_foreign_network=true.
+    success_msg: >-
+      {{ proxmox_network_pending.stat.exists
+         | ternary('Staged changes touch only lab bridges; safe to apply',
+                   'No staged network changes') }}
     quiet: true
-  tags: ["proxmox-hypervisor", "proxmox-bridges"]
+  vars:
+    proxmox_foreign_staged_ifaces: >-
+      {{ (proxmox_staged_ifaces.stdout_lines | default([]))
+         | reject('in', proxmox_lab_bridges) | list }}
+  # Pointless when nothing will be applied: with proxmox_apply_network false the
+  # handler is skipped, so a pre-existing foreign edit is left exactly as found.
+  # Refusing anyway would make the documented "stage without applying" escape
+  # hatch unusable on any host with a pending edit.
+  when: proxmox_apply_network | bool
+  tags: ["always"]
 
 # Handlers normally run at the end of the play, but dnsmasq below binds to an
 # address that only exists once the network has been applied. Flush here so the
@@ -217,7 +246,7 @@
 - name: Establish whether services may bind to lab-network addresses
   ansible.builtin.set_fact:
     proxmox_network_live: "{{ proxmox_apply_network | bool }}"
-  tags: ["proxmox-hypervisor", "proxmox-bridges", "proxmox-nat", "proxmox-dns"]
+  tags: ["always"]
 
 - name: Report that routing and DNS are deferred with the staged network
   ansible.builtin.debug:
