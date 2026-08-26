@@ -249,6 +249,48 @@ A collection can be too old *or too new* for the core in use.
 `prometheus.prometheus` 0.28.0 declares `requires_ansible <=2.18.99` and ran on core 2.21.3 for months — ansible printed a warning on every play and nothing failed, because `collections_on_ansible_version_mismatch` defaults to `warning`.
 `ansible.cfg` now sets it to `error`, so a real play fails fast; the check catches the same class in CI before merge.
 
+### Versions the collections install
+
+Pinning a collection exactly does not pin what its roles install. A collection version and a binary version are different things, and the second one hides inside the first: `prometheus.prometheus` 0.28.0 defaults to node_exporter 1.10.2 while 0.30.1 defaults to 1.11.1, so bumping the collection moved the measurement instrument with nothing in this repo recording it.
+
+So versions this lab measures with, or measures, are pinned here rather than inherited:
+
+| Value | Where | Why here |
+|---|---|---|
+| `opennms_version` | `opennms-lab-vars.yml` | the system under test |
+| `grafana_version`, `pg_version` | `opennms-lab-vars.yml` | installed by collection roles |
+| `kafka_version`, `es_version`, `mimir_version`, `victoriametrics_version` | `opennms-lab-vars.yml` | measured stores and brokers |
+| `node_exporter_version` | `group_vars/all/vars.yml` | the host-metrics instrument |
+
+**Which file is not a style choice.** `deploy.sh` runs `bootstrap/site.yml` with no `--extra-vars`, so a key in `opennms-lab-vars.yml` aimed at a bootstrap role is never read — it does not warn, it does not fail, and the role default silently wins. That trap is [#209](https://github.com/indigo423/opennms-benchmark/issues/209), and [#197](https://github.com/indigo423/opennms-benchmark/issues/197) is the time it defeated a version pin: the lab ran nl6 v0.9.0 for as long as the root file declared v0.21.0.
+
+```
+role invoked from a bootstrap/ play   → group_vars/
+role invoked from the OpenNMS play    → opennms-lab-vars.yml
+```
+
+Two things are deliberately **not** pinned:
+
+- `openjdk_version` is a major (21) feeding an apt glob, so the precise JVM comes from the distribution either way.
+- `prom_jmx_exporter_version` is welded to a literal `prom_jmx_exporter_sha256` that the role passes to `get_url` as `checksum`. Pinning the version without the hash would make every bump fail at download, and no update tool can compute a hash. Upstream moves both together.
+
+The rule that separates them: **pin a version here when the version alone determines what gets installed.** When a version travels with a checksum, pinning half the pair is the bug.
+
+The measured-component pins carry no `# renovate:` comment, and that is intentional — they should move when someone chooses to change what is being measured, at a campaign boundary, not when an upstream release lands mid-run. `node_exporter_version` does carry one, because it was already moving automatically via the collection pin; the choice there was never automatic-or-not but automatic-and-invisible versus automatic-and-reviewable.
+
+### Bumping the collection pin: check what its roles install
+
+The `indigo423.opennms` pin is excluded from update automation, which also excludes from scrutiny everything its roles install. Before merging a bump:
+
+```bash
+./compare-role-defaults.sh <new-ref>            # from the pin in requirements.yml
+./compare-role-defaults.sh v0.6.0 v0.9.0        # or an explicit pair
+```
+
+It sweeps every `roles/*/defaults/main.yml` at both refs and reports the `*_version` values that differ. It does not judge them — it makes sure there is nothing to judge that nobody saw.
+
+Spot-checking a few variables you already have in mind is not a substitute. On v0.6.0 → v0.9.0 a hand-check of five variables found nothing; the sweep found four changes, one of them `victoriametrics_version` 1.148.0 → 1.150.0, a measured store moving two minors unreviewed.
+
 ### Adding or bumping a collection
 
 Add its dependencies too.

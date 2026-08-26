@@ -86,6 +86,34 @@ grafana_version: "12.4.6"
 # would otherwise use to call its datasource module — rejecting plugin types).
 grafana_datasources: []
 
+# ── measured component versions ───────────────────────────────────────────────
+#
+# The stores and brokers a benchmark measures, pinned here rather than inherited
+# from the collection's role defaults.
+#
+# These were inherited until now, which meant a single indigo423.opennms SHA
+# bump could change what the lab measures and read as a routine version bump.
+# That is not hypothetical: v0.6.0 → v0.9.0 moved victoriametrics_version from
+# 1.148.0 to 1.150.0, and nobody reviewed it, because nothing surfaced it.
+# `./compare-role-defaults.sh <ref>` is what surfaces it now.
+#
+# Every value below is the collection's own default at the pinned SHA, so this
+# changes nothing about what a deploy installs. It changes who decides.
+#
+# Deliberately carrying no `# renovate:` comment, matching opennms_version,
+# grafana_version and pg_version above and below. A measured component should
+# move when someone chooses to change what is being measured — at a campaign
+# boundary — not when an upstream release happens to land mid-run. Staleness
+# here is the intended behaviour; compare-role-defaults.sh tells you upstream
+# moved without nudging you to follow.
+kafka_version: 4.2.0
+mimir_version: 3.0.4
+victoriametrics_version: 1.150.0
+
+# es_version also drives es_pkg_version ("{{ es_version }}*"), so apt still
+# chooses the patch within 8.18.2.
+es_version: 8.18.2
+
 es_jvm_options: {}
 es_configuration:
   action.destructive_requires_name: true

@@ -20,10 +20,11 @@
   },
   "customManagers": [
     {
-      "description": "Activates the '# renovate: datasource=... depName=...' comments already present in role defaults (rustfs_version, rustfs_boto3_version, rustfs_botocore_version). They predate this config and nothing was acting on them.",
+      "description": "Activates the '# renovate: datasource=... depName=...' comments in role defaults (rustfs_version, rustfs_boto3_version, rustfs_botocore_version) and in group_vars (node_exporter_version). group_vars is included because a pin for a bootstrap-invoked role must live there rather than in opennms-lab-vars.yml, which no bootstrap play reads -- an exact pin outside this pattern would trade silent drift for silent staleness.",
       "customType": "regex",
       "managerFilePatterns": [
-        "/^deployments/roles/.*/defaults/main\\.yml$/"
+        "/^deployments/roles/.*/defaults/main\\.yml$/",
+        "/^group_vars/.*\\.ya?ml$/"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)[\\s\\S]*?_version: \"(?<currentValue>[^\"]+)\""
