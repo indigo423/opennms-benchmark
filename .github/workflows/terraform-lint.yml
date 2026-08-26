@@ -123,6 +123,25 @@ jobs:
       - name: make validate-vmware
         run: make validate-vmware
 
+  # Terraform roots that are not providers, so they have no validate-<provider>
+  # job above. `make fmt` and `make tflint` already reach them recursively; only
+  # `terraform validate` needs telling, because it resolves one root per -chdir.
+  validate-extra-roots:
+    name: Validate (non-provider roots)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
+        with:
+          terraform_version: "~1.5"
+
+      - name: make validate-extra-roots
+        run: make validate-extra-roots
+
   tflint:
     name: TFLint
     runs-on: ubuntu-24.04
