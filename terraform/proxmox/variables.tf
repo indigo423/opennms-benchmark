@@ -36,7 +36,20 @@ variable "proxmox_endpoint" {
 variable "proxmox_api_token" {
   type        = string
   sensitive   = true
-  description = "Proxmox API token in the format user@realm!token-name=UUID"
+  default     = null
+  description = <<-EOT
+    Proxmox API token as user@realm!token-name=UUID.
+
+    Optional on purpose, matching the preflight root. Left null, the provider
+    falls back to its own PROXMOX_VE_API_TOKEN environment variable, which
+    keeps the secret out of proxmox.tfvars and off disk. Prefer that:
+
+      export PROXMOX_VE_API_TOKEN="$PROXMOX_TOKEN_ID=$PROXMOX_API_TOKEN"
+
+    Without a default this variable is required, and deploy.sh applies with
+    -input=false -- so following the README's environment-variable recipe gave
+    "No value for required variable" rather than a working deploy.
+  EOT
 }
 
 variable "proxmox_insecure" {

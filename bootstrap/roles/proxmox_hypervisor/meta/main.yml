@@ -2,5 +2,14 @@
 # ip_forwarding is reused rather than reimplemented: it already sets IPv4
 # forwarding persistently via sysctl.d, which is exactly what the hypervisor
 # needs to route the lab management subnet. It runs before this role's tasks.
+#
+# The tags matter. Every task in this role carries `proxmox-hypervisor` plus a
+# sub-tag, but ip_forwarding's own tasks are tagged only ipv4-/ipv6-forwarding.
+# Without repeating this role's tags here, `--tags proxmox-hypervisor` or
+# `--tags proxmox-nat` installs and starts the MASQUERADE rule while leaving
+# net.ipv4.ip_forward untouched — a gateway that answers ARP and forwards
+# nothing, which is precisely the cloud-init-hangs-then-Terraform-times-out
+# failure this role exists to prevent.
 dependencies:
   - role: ip_forwarding
+    tags: ["proxmox-hypervisor", "proxmox-nat"]

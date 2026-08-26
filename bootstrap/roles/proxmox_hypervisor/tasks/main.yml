@@ -12,6 +12,23 @@
   changed_when: false
   tags: ["proxmox-hypervisor"]
 
+# Asserted before the fact below dereferences it. Without this, a host with no
+# default route dies on an undefined-attribute error rather than the guard's
+# own message -- and the same fact is interpolated into the NAT unit's `-o`
+# flag, where an empty value renders a broken iptables rule.
+- name: Require a default route, since the uplink is derived from it
+  ansible.builtin.assert:
+    that:
+      - ansible_default_ipv4 is defined
+      - ansible_default_ipv4.interface is defined
+      - ansible_default_ipv4.interface | length > 0
+    fail_msg: >-
+      No IPv4 default route on this host, so the uplink interface cannot be
+      identified. This role derives the interface it must never touch, and the
+      NAT unit's outbound interface, from the default route.
+    quiet: true
+  tags: ["proxmox-hypervisor"]
+
 - name: Record node name and uplink bridge
   ansible.builtin.set_fact:
     proxmox_node_name: "{{ proxmox_node_name_cmd.stdout | trim }}"
@@ -155,6 +172,27 @@
 - name: Apply pending network changes before binding services to them
   ansible.builtin.meta: flush_handlers
 
+# Everything below binds to, or routes for, addresses that exist only once the
+# network has been applied. With `-e proxmox_apply_network=false` the handler
+# above is skipped and the bridges live only in interfaces.new, so dnsmasq --
+# configured with `interface=vmbr1`, a listen-address on it, and
+# bind-interfaces -- exits fatally on an unknown interface and fails the play.
+# The documented "stage without applying" flag has to mean the services wait
+# too, not just the bridges.
+- name: Establish whether services may bind to lab-network addresses
+  ansible.builtin.set_fact:
+    proxmox_network_live: "{{ proxmox_apply_network | bool }}"
+  tags: ["proxmox-hypervisor", "proxmox-bridges", "proxmox-nat", "proxmox-dns"]
+
+- name: Report that routing and DNS are deferred with the staged network
+  ansible.builtin.debug:
+    msg: >-
+      proxmox_apply_network is false, so the lab bridges remain staged in
+      /etc/network/interfaces.new. NAT and DNS are skipped: they bind to
+      addresses that do not exist yet. Re-run without the flag to apply.
+  when: not proxmox_network_live
+  tags: ["proxmox-hypervisor", "proxmox-bridges", "proxmox-nat", "proxmox-dns"]
+
 # ── routing ──────────────────────────────────────────────────────────────────
 
 # IPv4 forwarding comes from the ip_forwarding role via meta/main.yml. Without
@@ -170,6 +208,7 @@
     group: root
     mode: "0644"
   notify: Restart lab NAT
+  when: proxmox_network_live
   tags: ["proxmox-hypervisor", "proxmox-nat"]
 
 - name: Enable the lab NAT unit
@@ -178,6 +217,7 @@
     enabled: true
     state: started
     daemon_reload: true
+  when: proxmox_network_live
   tags: ["proxmox-hypervisor", "proxmox-nat"]
 
 # ── DNS ──────────────────────────────────────────────────────────────────────
@@ -203,14 +243,14 @@
     update_cache: true
   failed_when: false
   changed_when: false
-  when: proxmox_manage_dns | bool
+  when: proxmox_manage_dns | bool and proxmox_network_live
   tags: ["proxmox-hypervisor", "proxmox-dns"]
 
 - name: Install dnsmasq for lab name resolution
   ansible.builtin.apt:
     name: dnsmasq
     state: present
-  when: proxmox_manage_dns | bool
+  when: proxmox_manage_dns | bool and proxmox_network_live
   tags: ["proxmox-hypervisor", "proxmox-dns"]
 
 # Resolver only. Lab VMs are statically addressed by cloud-init, so DHCP is
@@ -222,16 +262,24 @@
     owner: root
     group: root
     mode: "0644"
-  when: proxmox_manage_dns | bool
+  when: proxmox_manage_dns | bool and proxmox_network_live
   notify: Restart dnsmasq
   tags: ["proxmox-hypervisor", "proxmox-dns"]
+
+# Installing dnsmasq starts Debian's stock configuration, which binds 0.0.0.0:53
+# on every interface -- including the hypervisor's uplink. The config above is
+# what restricts it, and handlers otherwise run at the end of the play, so any
+# failure in between would leave an open resolver on the site LAN. Flush here to
+# close that window, for the same reason the network is flushed above.
+- name: Restrict dnsmasq before anything else can fail
+  ansible.builtin.meta: flush_handlers
 
 - name: Enable dnsmasq
   ansible.builtin.systemd_service:
     name: dnsmasq
     enabled: true
     state: started
-  when: proxmox_manage_dns | bool
+  when: proxmox_manage_dns | bool and proxmox_network_live
   tags: ["proxmox-hypervisor", "proxmox-dns"]
 
 - name: Report the prepared state

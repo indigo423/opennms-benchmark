@@ -279,10 +279,16 @@ tf_apply() {
 }
 
 tf_destroy() {
+  # Same serialisation as tf_apply, and for the same reason: tearing down seven
+  # full clones off one thin pool contends for I/O exactly as creating them
+  # does, and a lock error mid-destroy leaves a half-removed lab and dirty
+  # state. Applying the flag to only half the lifecycle would have been an
+  # oversight rather than a decision.
   terraform -chdir="$TF_DIR" destroy \
     "${COMMON_VAR_FILES[@]}" \
     -var-file="${PROVIDER}.tfvars" \
     "${DEPLOYMENT_VARS[@]+"${DEPLOYMENT_VARS[@]}"}" \
+    "${TF_PARALLELISM[@]+"${TF_PARALLELISM[@]}"}" \
     "$@" \
     "${TF_EXTRA_ARGS[@]+"${TF_EXTRA_ARGS[@]}"}" \
     -input=false \
