@@ -87,12 +87,12 @@ TF_DIR="$REPO_ROOT/terraform/$PROVIDER"
 TFVARS_FILE="$TF_DIR/${PROVIDER}.tfvars"
 
 # lab.tfvars is provider-agnostic. lab-addresses.tfvars carries the legacy
-# per-host address scheme (#161); aws derives every address from the deployment
-# spec and declares none of it, so passing the file would produce a screenful of
-# "Value for undeclared variable" on every run. disk-sizes.tfvars applies to
+# per-host address scheme (#161); aws and proxmox derive every address from the
+# deployment spec and declare none of it, so passing the file would produce a
+# screenful of "Value for undeclared variable" on every run. disk-sizes.tfvars applies to
 # every provider except azure.
 COMMON_VAR_FILES=(-var-file="../lab.tfvars")
-if [[ "$PROVIDER" != "aws" ]]; then
+if [[ "$PROVIDER" != "aws" && "$PROVIDER" != "proxmox" ]]; then
   COMMON_VAR_FILES+=(-var-file="../lab-addresses.tfvars")
 fi
 if [[ "$PROVIDER" == "aws" || "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" || "$PROVIDER" == "vmware" ]]; then

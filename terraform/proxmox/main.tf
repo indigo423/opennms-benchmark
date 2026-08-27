@@ -127,9 +127,21 @@ locals {
       ansible_host = try([for i in local.topology[key].interfaces : i.address if i.subnet == "mgmt"][0], "")
       groups       = try(n.cfg.groups, [])
       host_vars = merge(
+        # lab_<subnet>_ip, matching kvm and aws, because that is what the
+        # consumers read: opennms-lab-vars.yml uses lab_db_ip and lab_kafka_ip,
+        # and bootstrap/roles/kafka_ui uses lab_kafka_ip. Emitting
+        # lab_address_<subnet> instead meant every lookup missed and fell back
+        # to lab_mgmt_ip, so OpenNMS reached Postgres and Kafka over the
+        # management subnet rather than their own -- silently, because the
+        # fallback exists and the deploy succeeds. A run like that is not
+        # comparable with kvm or aws, which is the point of the subnet split.
+        #
+        # mgmt is excluded because topology-inventory already emits it as
+        # lab_mgmt_ip; emitting it here too would duplicate the YAML key.
         {
           for i in local.topology[key].interfaces :
-          "lab_address_${i.subnet}" => i.address if i.address != null
+          "lab_${i.subnet}_ip" => i.address
+          if i.address != null && i.subnet != "mgmt"
         },
         n.prole == "netsim" ? {
           nl6_net_interface = try([for i in local.topology[key].interfaces : i.iface_name if i.subnet == "sim"][0], "")
@@ -213,7 +225,7 @@ resource "terraform_data" "vm_id_uniqueness" {
 
     precondition {
       condition     = !contains(values(local.vm_id), var.template_vm_id)
-      error_message = "A node's VM id collides with template_vm_id (${var.template_vm_id}). Move vm_id_base: with the default role blocks the highest id is vm_id_base + 52."
+      error_message = "A node's VM id collides with template_vm_id (${var.template_vm_id}). Move vm_id_base: with the default role blocks the highest id is vm_id_base + 51."
     }
   }
 }

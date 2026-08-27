@@ -1,31 +1,19 @@
-# Shared (from lab.tfvars) — declared for cross-provider tfvars compatibility; not used by this module
+# Shared, from lab.tfvars. The per-host address variables that used to live here
+# are gone: addresses derive from the deployment spec via ../modules/topology, so
+# this root no longer reads lab-addresses.tfvars at all -- the same position aws
+# is in. Declaring them "for tfvars compatibility" only made 17 dead variables
+# required and forced the caller to keep passing a file nothing consumed.
+# Declared but unused: it is in the shared lab.tfvars, which this root does
+# consume, and Terraform warns on any value in a var-file the root does not
+# declare. kvm and aws are in the same position.
 variable "lab_cidr" { type = string }
+
 variable "subnet_db" { type = string }
 variable "subnet_kafka" { type = string }
 variable "subnet_sim" { type = string }
 variable "subnet_mgmt" { type = string }
-variable "ip_database" { type = string }
-variable "ip_core" { type = string }
-variable "ip_kafka" { type = string }
-variable "ip_minion" { type = string }
-variable "ip_netsim" { type = string }
-variable "ip_monitoring" { type = string }
-variable "ip_database_db" { type = string }
-variable "ip_core_db" { type = string }
-variable "ip_core_kafka" { type = string }
-variable "ip_kafka_kafka" { type = string }
-variable "ip_minion_kafka" { type = string }
-variable "ip_minion_sim" { type = string }
-variable "ip_netsim_sim" { type = string }
 variable "net_sim_cidr" { type = string }
-variable "net_sim_gateway" { type = string }
 variable "admin_user" { type = string }
-variable "vm_names" {
-  type    = map(string)
-  default = null # accepted from lab.tfvars; not used by this module
-}
-variable "ip_elasticsearch" { type = string }
-variable "ip_es_core" { type = string }
 
 # Proxmox-specific (from proxmox.tfvars)
 variable "proxmox_endpoint" {
@@ -133,23 +121,10 @@ variable "vm_id_base" {
     offset plus its index, so ids and addresses come from one scheme and cannot
     disagree as a role's count grows.
 
-    Must leave room below template_vm_id: with the default role blocks the
-    highest id is base + 52.
+    Must leave room below template_vm_id: with 12 roles at role_block_base 4 and
+    role_block_size 4 the largest offset is 4 + 11*4 = 48, so a full block puts
+    the highest id at base + 51.
   EOT
-}
-
-variable "vm_ids_unused" {
-  type        = map(number)
-  description = "Proxmox VM ID per VM name — must be unique across the cluster"
-  default = {
-    database      = 196
-    core          = 197
-    kafka         = 198
-    minion        = 199
-    monitoring    = 200
-    netsim        = 201
-    elasticsearch = 202
-  }
 }
 
 variable "disk_sizes_gb" {

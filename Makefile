@@ -100,7 +100,7 @@ plan: check-provider ## terraform plan for PROVIDER (kvm: DEPLOYMENT=<slug>)
 	$(_aws_creds) \
 	terraform -chdir=terraform/$(PROVIDER) plan -input=false \
 	  -var-file=../lab.tfvars \
-	  $(if $(filter-out aws,$(PROVIDER)),-var-file=../lab-addresses.tfvars) \
+	  $(if $(filter-out aws proxmox,$(PROVIDER)),-var-file=../lab-addresses.tfvars) \
 	  $(if $(filter aws kvm proxmox vmware,$(PROVIDER)),-var-file=../disk-sizes.tfvars) \
 	  -var-file=$(PROVIDER).tfvars \
 	  $(_dep_tfarg)

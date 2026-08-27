@@ -105,26 +105,23 @@ variable "disk_sizes_gb" {
   description = "Provider role -> disk GiB. The existing per-role pins, kept as-is so nothing already provisioned is resized."
 }
 
-variable "disk_by_size" {
-  type = map(number)
-  default = {
-    tiny   = 20
-    small  = 30
-    medium = 50
-    large  = 80
-    xlarge = 100
-  }
+variable "disk_default_gb" {
+  type        = number
+  default     = 30
   description = <<-EOT
-    Size class -> disk GiB, used when neither the spec nor disk_sizes_gb pins a
-    value. This replaces a flat 30 GiB fallback that applied to every role
-    without an entry (mimir, victoriametrics, rustfs, rrd, sentinel), so a large
-    role no longer silently gets the same disk as a tiny one.
+    Disk for a role with no pin in disk_sizes_gb and no disk_gb in the spec.
 
-    It is deliberately the LAST resort rather than the rule. The per-role pins
-    are uncorrelated with size class -- in the baseline spec, `small` covers
-    database at 50, minion at 20 and monitoring at 30 -- so making the class
-    authoritative would resize existing disks. On libvirt that changes
-    `capacity` on libvirt_volume.os, which replaces the volume: a routine apply
-    would destroy the lab's disks. Same failure path as #261.
+    A flat number rather than a size-class map, deliberately. Deriving it from
+    the t-shirt size looks obviously better and is destructive: the previously
+    unpinned roles (rrd, mimir, victoriametrics, rustfs, sentinel) all sat at
+    30 GiB, and a class-derived value moves every one of them. On libvirt that
+    changes `capacity` on libvirt_volume.os, which replaces the volume and
+    destroys the lab's disk -- the failure path of #261. Worse in the shrink
+    direction: mimir-ha-min's tiny roles would go 30 -> 20, and EBS refuses to
+    reduce a root volume, so an aws apply errors out rather than merely losing
+    data.
+
+    A deployment that wants different disks says so with disk_gb per role, which
+    is the first entry in the precedence and cannot surprise an existing lab.
   EOT
 }

@@ -21,9 +21,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Providers whose Terraform root consumes deployments/<slug>/topology.yml. Adding
-# one here is what makes its copy of the rules checked; before this looped, only
-# kvm was, so aws's identical invariants went unasserted from the day it landed.
-# Providers whose Terraform root consumes deployments/<slug>/topology.yml. Adding
 # one here is what makes its copy of the rules checked; while this looped over
 # kvm alone, aws's identical invariants went unasserted from the day it landed.
 # Overridable so a single provider can be checked in isolation while iterating.
@@ -108,10 +105,10 @@ provider_var_args() {
       ;;
     proxmox)
       # No project_name/environment: proxmox names guests from the topology and
-      # has no resource-name prefix, so it declares neither.
+      # has no resource-name prefix, so it declares neither. No lab-addresses
+      # either: like aws, every address comes from the spec.
       printf '%s\n' \
-        -var-file=../lab.tfvars -var-file=../lab-addresses.tfvars \
-        -var-file=../disk-sizes.tfvars \
+        -var-file=../lab.tfvars -var-file=../disk-sizes.tfvars \
         -var "proxmox_endpoint=https://validation.invalid:8006/" \
         -var "proxmox_api_token=validation@pam!placeholder=00000000-0000-0000-0000-000000000000" \
         -var "proxmox_node=validation" \
@@ -327,6 +324,11 @@ check_provider() {
         case $rc in
           0) printf '  %-24s FAIL  expected to be rejected, it passed\n' "$slug"; fail=1 ;;
           1) printf '  %-24s ok    rejected as expected\n' "$slug" ;;
+          # A fixture the provider calls unsupported was never actually judged, so
+          # the invariant it exists to assert went unasserted. Distinct from a real
+          # spec, where skip is a legitimate outcome.
+          3) printf '  %-24s FAIL  provider calls it unsupported, so the invariant\n' "$slug"
+             printf '  %-24s       under test was never asserted\n' "" ; fail=1 ;;
           *) printf '  %-24s FAIL  did not render at all; a fixture must be caught by an\n' "$slug"
              printf '  %-24s       invariant, not be too broken to evaluate\n' "" ; fail=1 ;;
         esac

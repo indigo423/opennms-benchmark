@@ -89,7 +89,7 @@ locals {
   # excluded it, whatever a given Terraform version does about short-circuiting.
   unresolved_named_routes = distinct(flatten([
     for key, n in local.nodes : [
-      for subnet in keys(local.node_routes[key]) :
+      for subnet in try(keys(local.node_routes[key]), []) :
       "${lookup(local.spec_role_for, n.prole, n.prole)}.${subnet} -> \"${tostring(local.node_routes[key][subnet])}\" needs a \"${lookup(local.spec_role_for, var.named_route_spec[tostring(local.node_routes[key][subnet])].role, var.named_route_spec[tostring(local.node_routes[key][subnet])].role)}\" role with a \"${var.named_route_spec[tostring(local.node_routes[key][subnet])].subnet}\" NIC"
       if contains(keys(var.named_route_spec), try(tostring(local.node_routes[key][subnet]), "")) && try(local.named_routes[tostring(local.node_routes[key][subnet])].via, null) == null
     ]
@@ -106,15 +106,19 @@ locals {
   ])
 
   # Disk per node, in priority order: what the spec asks for, then the per-role
-  # pin, then the size class. A spec can therefore size its own disks -- which is
+  # pin, then a flat default. A spec can therefore size its own disks -- which is
   # what lets a small topology actually be small, rather than inheriting a
   # benchmark-scale core disk it will never fill.
+  #
+  # The last entry is deliberately NOT derived from the size class. See
+  # disk_default_gb: doing so resizes every previously unpinned role, and a
+  # capacity change replaces a libvirt volume.
   disk_gb = {
     for key, n in local.nodes :
     key => try(
       n.cfg.disk_gb,
       var.disk_sizes_gb[n.prole],
-      var.disk_by_size[n.cfg.size],
+      var.disk_default_gb,
     )
   }
 
