@@ -169,9 +169,18 @@ jobs:
         with:
           persist-credentials: false
 
+      # terraform_wrapper: false is load-bearing here and nowhere else in this
+      # workflow. The action installs a Node wrapper around the terraform binary
+      # to capture stdout/stderr for step outputs, and that wrapper does not
+      # forward stdin. This is the only job that pipes into terraform:
+      # `printf "$EXPR" | terraform console`. With the wrapper, console gets no
+      # input and waits for it, so every render produced no output and was killed
+      # at the per-spec timeout -- which is why this check has never passed in CI
+      # while passing in 22s on a laptop, on this branch and on #264 alike.
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
           terraform_version: "~1.5"
+          terraform_wrapper: false
 
       - name: make validate-topology
         run: make validate-topology
