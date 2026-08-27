@@ -28,19 +28,6 @@ locals {
     xlarge = { memory = 16384, vcpu = 4 }
   }
 
-  # Spec role → provider role key (identity unless remapped). nl6 runs on netsim.
-  provider_role = {
-    loadgen = "netsim"
-  }
-
-  # Provider role → VM-name prefix ("<prefix>-benchmark-NN").
-  role_shortname = {
-    database = "db", core = "core", kafka = "kafka", minion = "minion"
-    netsim   = "netsim", monitoring = "mon", elasticsearch = "es"
-    sentinel = "sentinel", mimir = "mimir", victoriametrics = "vm"
-    rrd      = "rrd", rustfs = "rustfs"
-  }
-
   subnet_cidr = {
     mgmt  = var.subnet_mgmt
     db    = var.subnet_db
@@ -48,135 +35,19 @@ locals {
     sim   = var.subnet_sim
   }
 
-  # Per-subnet base IP offset per provider role; node i gets offset + i.
-  # Baseline offsets reproduce the current lab.tfvars addresses exactly.
-  # Address allocation: every role gets a contiguous block of role_block_size
-  # addresses in every subnet, so a role can scale up to that many nodes without
-  # walking into the next role's space.
-  #
-  # The previous scheme packed roles at adjacent per-subnet offsets, which
-  # silently handed two VMs the same address as soon as a role had count > 1:
-  # kafka(6) x3 ran into minion(7) and monitoring(8), elasticsearch(10) x3 into
-  # sentinel(11) and rrd(12). Only mimir and victoriametrics escaped, because
-  # they had been given gaps by hand when they were the multi-node roles that
-  # had actually shipped. Deployment A could never have been provisioned.
-  #
-  # Offsets are now identical across subnets, so a role sits in the same block
-  # wherever it appears — one number to reason about instead of four maps.
-  role_block_size = 4
-  # 0 is the network address and 1 the mgmt gateway; 2-3 are left spare.
-  role_block_base = 4
-  role_order = [
-    "database", "core", "kafka", "minion", "monitoring", "netsim",
-    "elasticsearch", "sentinel", "rrd", "mimir", "victoriametrics",
-    "rustfs",
-  ]
-  ip_offset = {
-    for i, role in local.role_order : role => local.role_block_base + i * local.role_block_size
-  }
-
-  # Expand each spec role into `count` nodes, keyed by provider role (+ -N when >1).
-  nodes = merge([
-    for srole, cfg in local.spec.roles : {
-      for i in range(try(cfg.count, 1)) :
-      "${lookup(local.provider_role, srole, srole)}${try(cfg.count, 1) > 1 ? "-${i}" : ""}" => {
-        prole = lookup(local.provider_role, srole, srole)
-        index = i
-        cfg   = cfg
-      }
-    }
-  ]...)
-
-  # ── address allocation ────────────────────────────────────────────────────
-  # The single source of truth for "what address does node N hold on subnet S".
-  # Keyed only by the subnets a node actually declares, so a lookup for a subnet
-  # the node is not attached to returns nothing rather than a plausible number.
-  # Both the rendered topology and the named-route next hops read this; two
-  # independent copies of the rule is exactly the drift that caused #171.
-  node_address = {
-    for key, n in local.nodes : key => {
-      for subnet in n.cfg.subnets :
-      subnet => try(n.cfg.addresses[subnet][n.index],
-      contains(["external", "lab"], subnet) ? null : cidrhost(local.subnet_cidr[subnet], local.ip_offset[n.prole] + n.index))
-    }
-  }
-
-  # Spec role -> provider role is many-to-one (loadgen -> netsim). Invert it so
-  # errors name the role the author actually writes in topology.yml.
-  spec_role_for = { for srole, prole in local.provider_role : prole => srole }
-
-  # ── named routes ──────────────────────────────────────────────────────────
-  # A named route's next hop is derived from the spec, never declared. The
-  # previous hardcoded var.net_sim_gateway drifted the moment the allocation
-  # scheme changed, leaving every minion routing the simulated network at an
-  # address no node held, silently (#171).
-  #
-  # Each entry declares the provider role and subnet its next hop comes from,
-  # so the address, the validation and the error message all derive from one
-  # place. Resolves via local.node_address rather than local.topology, which
-  # would be a cycle: topology consumes named_routes.
-  named_route_spec = {
-    net_sim = { to = var.net_sim_cidr, role = "netsim", subnet = "sim" }
-  }
-
-  # Node keys per provider role, sorted so selection is stable across plans.
-  nodes_by_prole = {
-    for prole in distinct([for key, n in local.nodes : n.prole]) :
-    prole => sort([for key, n in local.nodes : key if n.prole == prole])
-  }
-
-  named_routes = {
-    for name, r in local.named_route_spec :
-    name => {
-      to = r.to
-      # null when the role is absent, or present but not attached to the subnet
-      # the route needs. Both cases are caught by the preconditions below.
-      via = try(local.node_address[local.nodes_by_prole[r.role][0]][r.subnet], null)
-    }
-  }
-
-  # Named routes a spec declares whose next hop did not resolve — the role is
-  # absent, or present without the NIC the route needs. Both render an address
-  # no node holds, which is #171.
-  #
-  # Iterating keys() rather than the map itself is deliberate: a `routes:` map
-  # mixing a named route (string) and an inline one (object) is heterogeneous,
-  # and any expression that has to unify it with an empty map fails to type-check
-  # and takes this whole local down with it. keys() is a list of strings whatever
-  # the values are, and try() absorbs an absent, null or non-mapping `routes:`.
-  #
-  # Broader route validation — unknown names, malformed values, routes on the
-  # wrong subnet — is deliberately not here. It needs fixtures and a CI check
-  # that renders every spec to be worth anything, which is #173.
-  # Routes normalised once per node, so nothing below re-guards an absent or
-  # non-mapping `routes:`. Reading n.cfg.routes inside the body was the bug:
-  # the iteration is already empty for a node without routes, but HCL evaluates
-  # the `if` clause's operands regardless of the guard in front of them, so the
-  # access still errored with "n.cfg is object with 4 attributes".
-  #
-  # It survived on Terraform 1.12 and failed on the version CI resolves for
-  # `~1.5`, so `make validate-topology` passed locally and failed in CI on the
-  # same tree. It stayed hidden until that check first ran in CI (#173) -- which
-  # is the check finding a real defect on its first run.
-  node_routes = { for key, n in local.nodes : key => try(n.cfg.routes, {}) }
-
-  # Both operands of the `&&` are evaluable without error, deliberately. The
-  # logical result is unchanged -- a route name absent from named_route_spec
-  # still yields false -- but neither side can now blow up when the other would
-  # have excluded it, whatever a given Terraform version does about
-  # short-circuiting.
-  unresolved_named_routes = distinct(flatten([
-    for key, n in local.nodes : [
-      for subnet in keys(local.node_routes[key]) :
-      "${lookup(local.spec_role_for, n.prole, n.prole)}.${subnet} -> \"${tostring(local.node_routes[key][subnet])}\" needs a \"${lookup(local.spec_role_for, local.named_route_spec[tostring(local.node_routes[key][subnet])].role, local.named_route_spec[tostring(local.node_routes[key][subnet])].role)}\" role with a \"${local.named_route_spec[tostring(local.node_routes[key][subnet])].subnet}\" NIC"
-      if contains(keys(local.named_route_spec), try(tostring(local.node_routes[key][subnet]), "")) && try(local.named_routes[tostring(local.node_routes[key][subnet])].via, null) == null
-    ]
-  ]))
+  # ── deployment spec → node model ──────────────────────────────────────────
+  # Node expansion, address allocation and named-route resolution live in
+  # ../modules/topology, shared with the other spec-driven providers. What stays
+  # here is the rendering below, which is genuinely provider-shaped.
+  nodes                   = module.topology.nodes
+  node_address            = module.topology.node_address
+  named_routes            = module.topology.named_routes
+  unresolved_named_routes = module.topology.unresolved_named_routes
 
   topology = {
     for key, n in local.nodes :
     key => {
-      vm_name = "${local.role_shortname[n.prole]}-benchmark-${format("%02d", n.index + 1)}"
+      vm_name = module.topology.vm_name[key]
       memory  = local.size_map[n.cfg.size].memory
       vcpu    = local.size_map[n.cfg.size].vcpu
       disk_gb = lookup(var.disk_sizes_gb, n.prole, 30)
@@ -271,6 +142,20 @@ locals {
   onms_stack_children = ["database", "core", "message_broker", "elasticsearch", "minion", "sentinel", "grafana"]
 }
 
+# Shared with terraform/aws (and terraform/proxmox). See the module's own comment
+# for why the boundary sits at the node model rather than the rendered topology.
+module "topology" {
+  source = "../modules/topology"
+
+  spec        = local.spec
+  subnet_cidr = local.subnet_cidr
+
+  # A named route's next hop is derived from the spec, never declared.
+  named_route_spec = {
+    net_sim = { to = var.net_sim_cidr, role = "netsim", subnet = "sim" }
+  }
+}
+
 module "network" {
   source = "./modules/network"
 
@@ -347,7 +232,7 @@ resource "terraform_data" "address_uniqueness" {
   lifecycle {
     precondition {
       condition     = length(distinct(local.all_addresses)) == length(local.all_addresses)
-      error_message = "Duplicate IP addresses in the rendered topology: a role's node count exceeds its address block (role_block_size). Raise role_block_size or re-space local.role_order."
+      error_message = "Duplicate IP addresses in the rendered topology: a role's node count exceeds its address block (role_block_size). Raise role_block_size or re-space role_order in ../modules/topology."
     }
   }
 }

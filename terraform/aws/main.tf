@@ -51,21 +51,6 @@ locals {
   # the kvm/legacy divergence tracked in #161.
   spec = yamldecode(file("${path.root}/../../deployments/${var.deployment}/topology.yml"))
 
-  # Spec role → provider role key (identity unless remapped). nl6 runs on netsim.
-  provider_role = {
-    loadgen = "netsim"
-  }
-
-  # Inverted, so errors name the role the author writes in topology.yml.
-  spec_role_for = { for srole, prole in local.provider_role : prole => srole }
-
-  role_shortname = {
-    database = "db", core = "core", kafka = "kafka", minion = "minion"
-    netsim   = "netsim", monitoring = "mon", elasticsearch = "es"
-    sentinel = "sentinel", mimir = "mimir", victoriametrics = "vm"
-    rrd      = "rrd", rustfs = "rustfs"
-  }
-
   subnet_cidr = {
     mgmt  = var.subnet_mgmt
     db    = var.subnet_db
@@ -73,70 +58,33 @@ locals {
     sim   = var.subnet_sim
   }
 
-  # Address allocation matches terraform/kvm exactly: every role gets a
-  # contiguous block of role_block_size addresses in every subnet. Keeping the
-  # two providers on one scheme is the point — a second scheme is how kvm and
-  # azure came to disagree (#161).
-  role_block_size = 4
-  role_block_base = 4
-  role_order = [
-    "database", "core", "kafka", "minion", "monitoring", "netsim",
-    "elasticsearch", "sentinel", "rrd", "mimir", "victoriametrics",
-    "rustfs",
-  ]
-  ip_offset = {
-    for i, role in local.role_order : role => local.role_block_base + i * local.role_block_size
-  }
-
   # ── cost profile ──────────────────────────────────────────────────────────
   smoke          = var.cost_profile == "smoke"
   instance_types = local.smoke ? var.instance_types_smoke : var.instance_types
 
-  nodes = merge([
-    for srole, cfg in local.spec.roles : {
-      for i in range(try(cfg.count, 1)) :
-      "${lookup(local.provider_role, srole, srole)}${try(cfg.count, 1) > 1 ? "-${i}" : ""}" => {
-        prole = lookup(local.provider_role, srole, srole)
-        index = i
-        cfg   = cfg
-      }
-    }
-  ]...)
+  # ── deployment spec → node model ──────────────────────────────────────────
+  # Node expansion, address allocation and named-route resolution live in
+  # ../modules/topology, shared with terraform/kvm. Keeping both providers on
+  # one scheme is the point: a second scheme is how kvm and azure came to
+  # disagree (#161), and two encodings of the address rule is #171.
+  nodes                   = module.topology.nodes
+  node_address            = module.topology.node_address
+  nodes_by_prole          = module.topology.nodes_by_prole
+  named_routes            = module.topology.named_routes
+  unresolved_named_routes = module.topology.unresolved_named_routes
 
-  # Subnets any role in this spec asks for. `external` is the public subnet;
-  # `lab` has no VPC analogue and is rejected by the precondition below.
   requested_subnets = distinct(flatten([for key, n in local.nodes : n.cfg.subnets]))
   vpc_subnets       = [for s in local.requested_subnets : s if contains(keys(local.subnet_cidr), s)]
   needs_public      = contains(local.requested_subnets, "external")
-
-  # Single source of truth for "what address does node N hold on subnet S",
-  # keyed only by the subnets a node declares. A lookup for an unattached subnet
-  # yields nothing rather than a plausible number — the lesson from #171, where
-  # two encodings of this rule drifted apart.
-  node_address = {
-    for key, n in local.nodes : key => {
-      for subnet in n.cfg.subnets :
-      subnet => try(n.cfg.addresses[subnet][n.index],
-      contains(["external", "lab"], subnet) ? null : cidrhost(local.subnet_cidr[subnet], local.ip_offset[n.prole] + n.index))
-    }
-  }
-
-  nodes_by_prole = {
-    for prole in distinct([for key, n in local.nodes : n.prole]) :
-    prole => sort([for key, n in local.nodes : key if n.prole == prole])
-  }
 
   # ── the simulated network ─────────────────────────────────────────────────
   # netsim answers for every address in net_sim_cidr. On a hypervisor that is
   # free; in a VPC every source and destination is validated, so this address is
   # needed in TWO places: the guest route on the poller, and the VPC route table
-  # entry targeting netsim's ENI. Derived once so the two cannot disagree.
+  # entry targeting netsim's ENI. Taken from the resolved route so the two
+  # cannot disagree.
   netsim_key         = try(local.nodes_by_prole["netsim"][0], null)
-  netsim_sim_address = try(local.node_address[local.netsim_key]["sim"], null)
-
-  named_routes = {
-    net_sim = { to = var.net_sim_cidr, via = local.netsim_sim_address }
-  }
+  netsim_sim_address = local.named_routes.net_sim.via
 
   topology = {
     for key, n in local.nodes :
@@ -147,7 +95,7 @@ locals {
       # rustfs-benchmark-01), so deriving them from var.environment would break
       # those specs on this provider only. environment names AWS resources and
       # tags, not guests.
-      name    = "${local.role_shortname[n.prole]}-benchmark-${format("%02d", n.index + 1)}"
+      name    = module.topology.vm_name[key]
       prole   = n.prole
       size    = n.cfg.size
       disk_gb = local.smoke ? min(lookup(var.disk_sizes_gb, n.prole, 30), var.smoke_max_disk_gb) : lookup(var.disk_sizes_gb, n.prole, 30)
@@ -243,7 +191,7 @@ locals {
   # ── spec compatibility ────────────────────────────────────────────────────
   unsupported_lab = [
     for key, n in local.nodes :
-    "${lookup(local.spec_role_for, n.prole, n.prole)} declares the 'lab' subnet"
+    "${lookup(module.topology.spec_role_for, n.prole, n.prole)} declares the 'lab' subnet"
     if contains(n.cfg.subnets, "lab")
   ]
 
@@ -260,13 +208,19 @@ locals {
     if length(n.interfaces) + (n.public ? 1 : 0) > data.aws_ec2_instance_type.selected[local.instance_types[n.size]].maximum_network_interfaces
   ]
 
-  unresolved_named_routes = distinct(flatten([
-    for key, n in local.nodes : [
-      for subnet in try(keys(n.cfg.routes), []) :
-      "${lookup(local.spec_role_for, n.prole, n.prole)}.${subnet} -> \"${tostring(n.cfg.routes[subnet])}\""
-      if contains(keys(local.named_routes), try(tostring(n.cfg.routes[subnet]), "")) && local.named_routes[tostring(n.cfg.routes[subnet])].via == null
-    ]
-  ]))
+}
+
+# Shared with terraform/kvm. See the module's own comment for why the boundary
+# sits at the node model rather than the rendered topology.
+module "topology" {
+  source = "../modules/topology"
+
+  spec        = local.spec
+  subnet_cidr = local.subnet_cidr
+
+  named_route_spec = {
+    net_sim = { to = var.net_sim_cidr, role = "netsim", subnet = "sim" }
+  }
 }
 
 module "network" {
