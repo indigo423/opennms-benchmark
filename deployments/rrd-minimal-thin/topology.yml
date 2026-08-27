@@ -1,0 +1,46 @@
+---
+name: rrd-minimal-thin
+description: >-
+  rrd-minimal with disks sized to fit a small hypervisor: identical roles,
+  counts, subnets, groups and size classes, only disk_gb reduced. 120 GiB
+  provisioned instead of 280, for a host whose datastore cannot hold the
+  benchmark sizes. Functional parity only — the disks are deliberately too small
+  to hold benchmark-scale data, so numbers from this are not results.
+roles:
+  rrd:
+    count: 1
+    size: small
+    disk_gb: 16
+    subnets: [mgmt]
+    groups: [rrd]
+  database:
+    count: 1
+    size: small
+    disk_gb: 16
+    subnets: [mgmt, db]
+    groups: [database]
+  core:
+    count: 1
+    size: xlarge
+    disk_gb: 40
+    subnets: [mgmt, db, kafka]
+    groups: [core]
+  kafka:
+    count: 1
+    size: small
+    disk_gb: 16
+    subnets: [mgmt, kafka]
+    groups: [message_broker, docker_engine, kafka_ui]
+  minion:
+    count: 1
+    size: small
+    disk_gb: 12
+    subnets: [mgmt, kafka]
+    groups: [minion]
+  monitoring:
+    count: 1
+    size: small
+    disk_gb: 20
+    subnets: [mgmt, external]
+    public_ip: true
+    groups: [mon_servers, docker_engine, grafana]

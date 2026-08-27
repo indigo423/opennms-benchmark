@@ -231,7 +231,11 @@ set_provider_vars() {
 # the first non-internal IPv4 address (the DHCP external bridge address).
 # Retries for up to 2 minutes.
 discover_jump_host() {
-  local hypervisor="$1" mgmt_ip="$2" admin_user="$3"
+  local hypervisor="$1" mgmt_ip="$2" admin_user="$3" hv_user="${4:-}"
+  # Empty hv_user keeps the previous behaviour (the operator's local username),
+  # which is what kvm and vmware still rely on.
+  local hop="$hypervisor"
+  [[ -n "$hv_user" ]] && hop="${hv_user}@${hypervisor}"
   local jump_host=""
   for i in $(seq 1 24); do
     jump_host=$(ssh \
@@ -239,7 +243,7 @@ discover_jump_host() {
       -o UserKnownHostsFile=/dev/null \
       -o BatchMode=yes \
       -o ConnectTimeout=5 \
-      -o ProxyJump="$hypervisor" \
+      -o ProxyJump="$hop" \
       "${admin_user}@${mgmt_ip}" \
       'ip -4 addr | grep inet | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -vE "^192\.0\.2\.|^127\.|^172\.(1[6-9]|2[0-9]|3[01])\.|^169\.254\."' \
       2>/dev/null | head -1 || true)
@@ -377,7 +381,12 @@ if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" || "$PROVIDER" == "vmware
   elif [[ "$PROVIDER" == "proxmox" ]]; then
     # Proxmox: derive SSH host from the API endpoint URL.
     PROXMOX_ENDPOINT=$(tf_output proxmox_endpoint)
-    HYPERVISOR=$(echo "$PROXMOX_ENDPOINT" | sed 's|https\?://||; s|[:/].*||')
+    # sed -E, not a BRE with \?: BSD sed (macOS) does not treat \? as a
+    # quantifier, so the scheme was never stripped and the next expression
+    # truncated at the first colon -- discovery then probed a host literally
+    # named "https" and timed out after two minutes. Passed on Linux, failed on
+    # a maintainer's laptop.
+    HYPERVISOR=$(echo "$PROXMOX_ENDPOINT" | sed -E 's|^[a-z]+://||; s|[:/].*||')
   else
     # VMware: SSH directly to the ESXi host (or vCenter) to probe the monitoring VM.
     HYPERVISOR=$(tf_output vsphere_server)
@@ -385,7 +394,7 @@ if [[ "$PROVIDER" == "kvm" || "$PROVIDER" == "proxmox" || "$PROVIDER" == "vmware
 
   if [[ -n "$HYPERVISOR" && -n "$IP_JUMP_HOST" ]]; then
     step "Discovering jump host external IP (via $HYPERVISOR → $IP_JUMP_HOST)..."
-    JUMP_HOST=$(discover_jump_host "$HYPERVISOR" "$IP_JUMP_HOST" "$ADMIN_USER")
+    JUMP_HOST=$(discover_jump_host "$HYPERVISOR" "$IP_JUMP_HOST" "$ADMIN_USER" "$(tf_output hypervisor_ssh_user)")
 
     if [[ -n "$JUMP_HOST" ]]; then
       info "found: $JUMP_HOST — regenerating inventory with jump host..."

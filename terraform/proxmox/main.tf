@@ -72,9 +72,16 @@ locals {
       memory  = local.size_map[n.cfg.size].memory
       vcpu    = local.size_map[n.cfg.size].vcpu
       disk_gb = module.topology.disk_gb[key]
-      # netsim answers for every address in the simulated range, which it holds
-      # on the loopback. Matches terraform/kvm.
-      local_routes = n.prole == "netsim" ? [var.net_sim_cidr] : []
+      # Deliberately empty, including for netsim. nl6 >= v0.21 owns the
+      # simulated range's host routing: it runs privileged with host networking
+      # and routes the range into its own namespace via a veth pair. An
+      # `ip route add local <cidr> dev lo` on netsim makes the kernel consult
+      # the local table first, so that route swallows every SNMP packet and
+      # nl6's devices never see it. Signature: snmpget times out on netsim
+      # itself while the nl6 API reports the fleet running, and the pm sweep's
+      # nodes_seen sticks at 2 while the fleet grows. Verified empirically on
+      # AWS (2026-08-07); terraform/kvm sets none either.
+      local_routes = []
       interfaces = [
         for si, subnet in n.cfg.subnets : {
           subnet = subnet
