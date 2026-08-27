@@ -90,6 +90,15 @@ printf 'ssh-rsa AAAAB3NzaC1yc2ETOPOLOGYVALIDATIONPLACEHOLDER validation@placehol
 #
 # subnet_lab is the exception that matters on kvm: a spec that declares the `lab`
 # subnet renders its NICs from it, so it has to be a real CIDR.
+#
+# libvirt_uri points at 127.0.0.1:1 rather than a .invalid hostname. The provider
+# connects when it is configured, and a name that does not resolve is not the same
+# as a connection that is refused: on a CI runner the lookup does not fail
+# promptly, so the first render produced no output and was killed at the per-spec
+# timeout -- which is why this check has never passed in CI, on this branch or on
+# #264. Port 1 on loopback refuses immediately and needs no DNS. It still has to
+# contain "@host/", because output "libvirt_host" extracts the hostname with a
+# regex that errors on a URI without one.
 provider_var_args() {
   case "$1" in
     kvm)
@@ -97,7 +106,7 @@ provider_var_args() {
         -var-file=../lab.tfvars -var-file=../lab-addresses.tfvars \
         -var-file=../disk-sizes.tfvars \
         -var "project_name=benchmark" -var "environment=validation" \
-        -var "libvirt_uri=qemu+ssh://placeholder@validation.invalid/system" \
+        -var "libvirt_uri=qemu+ssh://placeholder@127.0.0.1:1/system" \
         -var "storage_pool=default" \
         -var "ubuntu_cloud_image=https://example.invalid/noble.img" \
         -var "ssh_key_path=$DUMMY_KEY_DIR/id" \
