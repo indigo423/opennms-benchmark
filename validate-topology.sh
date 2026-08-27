@@ -45,6 +45,14 @@ FIXTURE_DIR="$REPO_ROOT/tests/topology-fixtures"
 #   nodes_without_mgmt   a node Ansible would have no address to reach
 #   route_hop_not_held   a next hop that is not an address any node in this spec holds
 #
+# coalesce(r.via, "-") rather than r.via: contains() rejects a null "value"
+# argument, and a spec with no generator leaves net_sim.via null (es-cluster-min
+# is elasticsearch + monitoring only). The `r.via != null` guard in front does not
+# save it -- HCL evaluates both operands of && on some versions and not others,
+# which is the same trap as the unresolved-route test, and the reason this passed
+# locally on 1.12 and failed in CI on the version `~1.5` resolves. "-" is never an
+# address, so the result is unchanged wherever the guard does short-circuit.
+#
 # The last is the invariant the preconditions do not express, and precisely the
 # one #171 violated: .134 was a perfectly well-formed address that belonged to
 # nothing.
@@ -60,10 +68,18 @@ FIXTURE_DIR="$REPO_ROOT/tests/topology-fixtures"
 #   unreachable node     a node Ansible would have no address to reach
 #   next hop not held    a hop that is not an address any node in this spec holds
 #
+# coalesce(r.via, "-") rather than r.via: contains() rejects a null "value"
+# argument, and a spec with no generator leaves net_sim.via null (es-cluster-min
+# is elasticsearch + monitoring only). The `r.via != null` guard in front does not
+# save it -- HCL evaluates both operands of && on some versions and not others,
+# which is the same trap as the unresolved-route test, and the reason this passed
+# locally on 1.12 and failed in CI on the version `~1.5` resolves. "-" is never an
+# address, so the result is unchanged wherever the guard does short-circuit.
+#
 # The last is the invariant the preconditions do not express, and precisely the
 # one #171 violated: .134 was a well-formed address that belonged to nothing.
 read -r -d '' EXPR <<'HCL' || true
-concat([for u in local.spec_unsupported : "unsupported ${u}"], [for a in distinct(local.all_addresses) : "duplicate address ${a}" if length([for b in local.all_addresses : b if b == a]) > 1], [for r in local.unresolved_named_routes : "unresolved route ${r}"], [for h, v in local.inv_hosts : "unreachable node ${h} has no mgmt address" if v.ansible_host == ""], [for n, r in local.named_routes : "next hop not held ${n} -> ${r.via}" if r.via != null && !contains(local.all_addresses, r.via)])
+concat([for u in local.spec_unsupported : "unsupported ${u}"], [for a in distinct(local.all_addresses) : "duplicate address ${a}" if length([for b in local.all_addresses : b if b == a]) > 1], [for r in local.unresolved_named_routes : "unresolved route ${r}"], [for h, v in local.inv_hosts : "unreachable node ${h} has no mgmt address" if v.ansible_host == ""], [for n, r in local.named_routes : "next hop not held ${n} -> ${r.via}" if r.via != null && !contains(local.all_addresses, coalesce(r.via, "-"))])
 HCL
 
 # module.compute reads the public key with file(), and `terraform console`
