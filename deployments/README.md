@@ -169,6 +169,19 @@ python3 deployments/bin/topology-descriptor.py deployments/mimir-ha/topology.yml
 
 Descriptor component order: `es mm vm ch ak rp rs rr pg sn kf on mn nl6`.
 
+## Specs are asserted in CI
+
+Every spec here is rendered through each spec-driven provider's own locals — `kvm`, `aws` and `proxmox` — and checked on every pull request by the **Deployment Topologies** job (`make validate-topology`). Four invariants, all of which `terraform validate` and `topology-descriptor.py` miss:
+
+- two interfaces handed the **same address**
+- a **named route** whose target role is absent from the spec, or present without the NIC the route needs
+- a node with **no management address**, which Ansible would have no way to reach
+- a **next hop that no node in the spec holds** — a well-formed address belonging to nothing
+
+The last is the one that motivated the check. `es-nostore`, `rrd-minimal` and `vm-cluster-minion` all carried a dangling route for months while every gate stayed green, because `terraform validate` checks types rather than relationships between values, and resource preconditions only run at plan time.
+
+Adding or editing a spec therefore means `make validate-topology` has to pass. It needs no hypervisor, credentials or state — `terraform console` evaluates the locals without contacting one — and `tests/topology-fixtures/` holds specs that must be *rejected*, one per invariant, so a regression in the check itself shows up as a fixture that stopped failing rather than as a quiet clean run.
+
 ## Deployment index
 
 | slug | descriptor | notes |

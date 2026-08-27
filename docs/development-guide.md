@@ -117,10 +117,16 @@ It reads no host-specific config and needs no hypervisor, credentials or state.
 mode, so a regression in the check itself is caught rather than reported as a
 clean run.
 
-> [!NOTE]
-> This runs in `make lint` but is **not** a CI gate yet — the job stalls on a
-> GitHub runner for reasons not yet diagnosed. Tracked in #173. Until that is
-> resolved it only protects people who run `make lint` before pushing.
+It runs in `make lint` and as the **Deployment Topologies** job in CI, so a spec that renders an unprovisionable topology cannot merge.
+
+This job stalled on GitHub runners for a long time, passing locally throughout, and the cause was none of the obvious candidates. `hashicorp/setup-terraform` installs a Node wrapper around the terraform binary to capture stdout for step outputs, and **that wrapper does not forward stdin**. This is the only job that pipes into terraform — the check feeds its assertion expression to `terraform console` on stdin — so `console` waited for input that never arrived, produced no output at all, and was killed. `terraform init` succeeded in about a second throughout, because init needs no stdin, which is what made it look like a rendering problem. The job sets `terraform_wrapper: false`; nothing else in the workflow needs to.
+
+Two real defects were fixed on the way and are worth knowing about, because neither was the stall:
+
+- The script never ran `terraform init`, so it only worked where a provider root had already been initialised by another target. It now initialises each root on demand, which is also what makes `make validate-topology` work on a fresh clone.
+- The per-spec timeout was defined and never called, so a hang consumed the job limit instead of reporting a named failure. Wired in — and it is what finally made the wrapper problem legible.
+
+With the wrapper out of the way the check found a genuine bug of its own: `contains()` rejects a null `value`, and a spec with no generator leaves `net_sim.via` null. The `r.via != null` guard in front of the call does not save it, because HCL evaluates both operands of `&&` on some versions and not others — so it passed on the local 1.12 and failed on the newer 1.x CI resolves. Any expression in this check has to be evaluable for every spec, not merely correct when the guard short-circuits.
 
 ## Working with Ansible
 
