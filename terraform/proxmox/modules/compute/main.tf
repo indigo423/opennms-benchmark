@@ -8,278 +8,75 @@ terraform {
   }
 }
 
-# Cloud-init configuration — rendered via the shared module (same templates as KVM and Azure).
+# One set of resources per node in the rendered topology, replacing seven
+# hardcoded copies of each. The node set, its addresses and its routes come from
+# ../../../modules/topology via the provider root, so this module only knows how
+# to turn a node into Proxmox objects.
 #
-# Interface names below assume the template uses PVE's DEFAULT machine type
-# (i440fx), where virtio NICs appear as ens18, ens19, ens20, ens21. This is
-# verified against PVE 9.2.2 with Ubuntu 24.04.
-#
-# It does NOT hold for machine=q35, where the same NIC lands on a PCIe bridge
-# and appears as enp6s18. A q35 template makes netplan configure a device that
-# does not exist: the guest sends no frames, cloud-init cannot install
-# qemu-guest-agent, and Terraform times out waiting for an agent that can never
-# appear. The machine type comes from the hand-built template, so it is not
-# visible anywhere in this repository — see the README's template steps.
+# Interface names arrive already rendered in each.value.interfaces[*].iface_name.
+# They are NOT derived here, because the correct name depends on the template's
+# machine type -- PVE's default i440fx yields ens18/ens19/ens20, machine=q35
+# yields enp6s18 -- and the template is a hypervisor object this repository never
+# sees. See the README's template steps.
 
-module "cloud_init_elasticsearch" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "es-benchmark-01"
+module "cloud_init" {
+  for_each = var.topology
+  source   = "../../../modules/cloud-init"
+
+  vm_name        = each.value.vm_name
   admin_user     = var.admin_user
   ssh_public_key = var.ssh_public_key
   hosts          = var.hosts
-  extra_packages = ["qemu-guest-agent"]
+  extra_packages = var.extra_packages
+  local_routes   = each.value.local_routes
   interfaces = [
-    { name = "ens18", address = var.ip_elasticsearch, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "ens19", address = var.ip_es_core, prefix = 26, gateway = null },
+    for i in each.value.interfaces : {
+      name        = i.iface_name
+      address     = i.address
+      prefix      = i.prefix
+      gateway     = i.gateway
+      routes      = i.routes
+      nameservers = i.nameservers
+    }
   ]
 }
 
-module "cloud_init_database" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "db-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
-  extra_packages = ["qemu-guest-agent"]
-  interfaces = [
-    { name = "ens18", address = var.ip_database, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "ens19", address = var.ip_database_db, prefix = 26, gateway = null },
-  ]
-}
+# Cloud-init is delivered as snippet files, which the Proxmox API refuses to
+# accept over HTTP: the provider opens an SSH session and writes them over SFTP.
+# That is why the provider block needs an ssh stanza and a PAM account, and why
+# snippets_datastore must be file-based.
+resource "proxmox_virtual_environment_file" "user_data" {
+  for_each = var.topology
 
-module "cloud_init_core" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "core-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
-  extra_packages = ["qemu-guest-agent"]
-  interfaces = [
-    { name = "ens18", address = var.ip_core, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "ens19", address = var.ip_core_db, prefix = 26, gateway = null },
-    { name = "ens20", address = var.ip_core_kafka, prefix = 26, gateway = null },
-  ]
-}
-
-module "cloud_init_kafka" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "kafka-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
-  extra_packages = ["qemu-guest-agent"]
-  interfaces = [
-    { name = "ens18", address = var.ip_kafka, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "ens19", address = var.ip_kafka_kafka, prefix = 26, gateway = null },
-  ]
-}
-
-module "cloud_init_minion" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "minion-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
-  extra_packages = ["qemu-guest-agent"]
-  interfaces = [
-    { name = "ens18", address = var.ip_minion, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "ens19", address = var.ip_minion_kafka, prefix = 26, gateway = null },
-    { name = "ens20", address = var.ip_minion_sim, prefix = 26, gateway = null, routes = [{ to = var.net_sim_cidr, via = var.net_sim_gateway }] },
-  ]
-}
-
-module "cloud_init_netsim" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "netsim-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
-  extra_packages = ["qemu-guest-agent"]
-  interfaces = [
-    { name = "ens18", address = var.ip_netsim, prefix = 26, gateway = var.gateway_mgmt },
-    { name = "ens19", address = var.ip_netsim_sim, prefix = 26, gateway = null },
-  ]
-}
-
-module "cloud_init_monitoring" {
-  source         = "../../../modules/cloud-init"
-  vm_name        = "mon-benchmark-01"
-  admin_user     = var.admin_user
-  ssh_public_key = var.ssh_public_key
-  hosts          = var.hosts
-  extra_packages = ["qemu-guest-agent"]
-  interfaces = [
-    { name = "ens18", address = var.ip_monitoring, prefix = 26, gateway = null },
-    { name = "ens19", address = null, prefix = null, gateway = null },
-  ]
-}
-
-# Cloud-init snippet files — uploaded to the Proxmox snippets datastore via SFTP.
-# Requires a file-based datastore (e.g. "local"); LVM-thin datastores are not supported.
-
-resource "proxmox_virtual_environment_file" "user_data_elasticsearch" {
   content_type = "snippets"
   datastore_id = var.snippets_datastore
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "es-benchmark-01-user-data.yaml"
-    data      = module.cloud_init_elasticsearch.user_data
+    file_name = "${each.value.vm_name}-user-data.yaml"
+    data      = module.cloud_init[each.key].user_data
   }
 }
 
-resource "proxmox_virtual_environment_file" "network_data_elasticsearch" {
+resource "proxmox_virtual_environment_file" "network_data" {
+  for_each = var.topology
+
   content_type = "snippets"
   datastore_id = var.snippets_datastore
   node_name    = var.proxmox_node
 
   source_raw {
-    file_name = "es-benchmark-01-network-data.yaml"
-    data      = module.cloud_init_elasticsearch.network_config
+    file_name = "${each.value.vm_name}-network-config.yaml"
+    data      = module.cloud_init[each.key].network_config
   }
 }
 
-resource "proxmox_virtual_environment_file" "user_data_database" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
+resource "proxmox_virtual_environment_vm" "vm" {
+  for_each = var.topology
 
-  source_raw {
-    file_name = "db-benchmark-01-user-data.yaml"
-    data      = module.cloud_init_database.user_data
-  }
-}
-
-resource "proxmox_virtual_environment_file" "network_data_database" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "db-benchmark-01-network-data.yaml"
-    data      = module.cloud_init_database.network_config
-  }
-}
-
-resource "proxmox_virtual_environment_file" "user_data_core" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "core-benchmark-01-user-data.yaml"
-    data      = module.cloud_init_core.user_data
-  }
-}
-
-resource "proxmox_virtual_environment_file" "network_data_core" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "core-benchmark-01-network-data.yaml"
-    data      = module.cloud_init_core.network_config
-  }
-}
-
-resource "proxmox_virtual_environment_file" "user_data_kafka" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "kafka-benchmark-01-user-data.yaml"
-    data      = module.cloud_init_kafka.user_data
-  }
-}
-
-resource "proxmox_virtual_environment_file" "network_data_kafka" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "kafka-benchmark-01-network-data.yaml"
-    data      = module.cloud_init_kafka.network_config
-  }
-}
-
-resource "proxmox_virtual_environment_file" "user_data_minion" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "minion-benchmark-01-user-data.yaml"
-    data      = module.cloud_init_minion.user_data
-  }
-}
-
-resource "proxmox_virtual_environment_file" "network_data_minion" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "minion-benchmark-01-network-data.yaml"
-    data      = module.cloud_init_minion.network_config
-  }
-}
-
-resource "proxmox_virtual_environment_file" "user_data_netsim" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "netsim-benchmark-01-user-data.yaml"
-    data      = module.cloud_init_netsim.user_data
-  }
-}
-
-resource "proxmox_virtual_environment_file" "network_data_netsim" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "netsim-benchmark-01-network-data.yaml"
-    data      = module.cloud_init_netsim.network_config
-  }
-}
-
-resource "proxmox_virtual_environment_file" "user_data_monitoring" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "mon-benchmark-01-user-data.yaml"
-    data      = module.cloud_init_monitoring.user_data
-  }
-}
-
-resource "proxmox_virtual_environment_file" "network_data_monitoring" {
-  content_type = "snippets"
-  datastore_id = var.snippets_datastore
-  node_name    = var.proxmox_node
-
-  source_raw {
-    file_name = "mon-benchmark-01-network-data.yaml"
-    data      = module.cloud_init_monitoring.network_config
-  }
-}
-
-# VMs — full clones of the Ubuntu 24.04 cloud-init template.
-# Serialized with depends_on to prevent Proxmox storage lock contention
-# during concurrent clone operations.
-# Creation order: database → core → kafka → minion → netsim → monitoring
-
-resource "proxmox_virtual_environment_vm" "database" {
-  name      = "db-benchmark-01"
+  name      = each.value.vm_name
   node_name = var.proxmox_node
-  vm_id     = var.vm_ids["database"]
+  vm_id     = each.value.vm_id
   tags      = ["opennms-benchmark"]
 
   clone {
@@ -288,31 +85,36 @@ resource "proxmox_virtual_environment_vm" "database" {
   }
 
   cpu {
-    cores = 2
+    cores = each.value.vcpu
     type  = "host"
   }
 
   memory {
-    dedicated = 4096
+    dedicated = each.value.memory
   }
 
   disk {
     datastore_id = var.storage_pool
     interface    = "scsi0"
-    size         = var.disk_sizes_gb["database"]
+    size         = each.value.disk_gb
     iothread     = true
   }
 
-  network_device {
-    bridge = var.bridge_mgmt
-    model  = "virtio"
+  # One NIC per subnet the spec gives this node, in spec order, so the Nth NIC
+  # matches the Nth interface name the topology rendered.
+  dynamic "network_device" {
+    for_each = each.value.interfaces
+    content {
+      bridge = network_device.value.bridge
+      model  = "virtio"
+    }
   }
 
-  network_device {
-    bridge = var.bridge_db
-    model  = "virtio"
-  }
-
+  # Terraform waits for the agent to report an address, which is what proves
+  # cloud-init ran rather than merely that the clone succeeded. It is also the
+  # failure most easily misread: without egress the guest cannot install
+  # qemu-guest-agent, and the symptom is a provider timeout that says nothing
+  # about routing. See the README on the management subnet's gateway.
   agent {
     enabled = true
   }
@@ -324,347 +126,7 @@ resource "proxmox_virtual_environment_vm" "database" {
   }
 
   initialization {
-    user_data_file_id    = proxmox_virtual_environment_file.user_data_database.id
-    network_data_file_id = proxmox_virtual_environment_file.network_data_database.id
+    user_data_file_id    = proxmox_virtual_environment_file.user_data[each.key].id
+    network_data_file_id = proxmox_virtual_environment_file.network_data[each.key].id
   }
-}
-
-resource "proxmox_virtual_environment_vm" "core" {
-  name      = "core-benchmark-01"
-  node_name = var.proxmox_node
-  vm_id     = var.vm_ids["core"]
-  tags      = ["opennms-benchmark"]
-
-  clone {
-    vm_id = var.template_vm_id
-    full  = true
-  }
-
-  cpu {
-    cores = 4
-    type  = "host"
-  }
-
-  memory {
-    dedicated = 16384
-  }
-
-  disk {
-    datastore_id = var.storage_pool
-    interface    = "scsi0"
-    size         = var.disk_sizes_gb["core"]
-    iothread     = true
-  }
-
-  network_device {
-    bridge = var.bridge_mgmt
-    model  = "virtio"
-  }
-
-  network_device {
-    bridge = var.bridge_db
-    model  = "virtio"
-  }
-
-  network_device {
-    bridge = var.bridge_kafka
-    model  = "virtio"
-  }
-
-  agent {
-    enabled = true
-  }
-
-  serial_device {}
-
-  operating_system {
-    type = "l26"
-  }
-
-  initialization {
-    user_data_file_id    = proxmox_virtual_environment_file.user_data_core.id
-    network_data_file_id = proxmox_virtual_environment_file.network_data_core.id
-  }
-
-  depends_on = [proxmox_virtual_environment_vm.database]
-}
-
-resource "proxmox_virtual_environment_vm" "kafka" {
-  name      = "kafka-benchmark-01"
-  node_name = var.proxmox_node
-  vm_id     = var.vm_ids["kafka"]
-  tags      = ["opennms-benchmark"]
-
-  clone {
-    vm_id = var.template_vm_id
-    full  = true
-  }
-
-  cpu {
-    cores = 2
-    type  = "host"
-  }
-
-  memory {
-    dedicated = 4096
-  }
-
-  disk {
-    datastore_id = var.storage_pool
-    interface    = "scsi0"
-    size         = var.disk_sizes_gb["kafka"]
-    iothread     = true
-  }
-
-  network_device {
-    bridge = var.bridge_mgmt
-    model  = "virtio"
-  }
-
-  network_device {
-    bridge = var.bridge_kafka
-    model  = "virtio"
-  }
-
-  agent {
-    enabled = true
-  }
-
-  serial_device {}
-
-  operating_system {
-    type = "l26"
-  }
-
-  initialization {
-    user_data_file_id    = proxmox_virtual_environment_file.user_data_kafka.id
-    network_data_file_id = proxmox_virtual_environment_file.network_data_kafka.id
-  }
-
-  depends_on = [proxmox_virtual_environment_vm.core]
-}
-
-resource "proxmox_virtual_environment_vm" "minion" {
-  name      = "minion-benchmark-01"
-  node_name = var.proxmox_node
-  vm_id     = var.vm_ids["minion"]
-  tags      = ["opennms-benchmark"]
-
-  clone {
-    vm_id = var.template_vm_id
-    full  = true
-  }
-
-  cpu {
-    cores = 2
-    type  = "host"
-  }
-
-  memory {
-    dedicated = 4096
-  }
-
-  disk {
-    datastore_id = var.storage_pool
-    interface    = "scsi0"
-    size         = var.disk_sizes_gb["minion"]
-    iothread     = true
-  }
-
-  network_device {
-    bridge = var.bridge_mgmt
-    model  = "virtio"
-  }
-
-  network_device {
-    bridge = var.bridge_kafka
-    model  = "virtio"
-  }
-
-  network_device {
-    bridge = var.bridge_sim
-    model  = "virtio"
-  }
-
-  agent {
-    enabled = true
-  }
-
-  serial_device {}
-
-  operating_system {
-    type = "l26"
-  }
-
-  initialization {
-    user_data_file_id    = proxmox_virtual_environment_file.user_data_minion.id
-    network_data_file_id = proxmox_virtual_environment_file.network_data_minion.id
-  }
-
-  depends_on = [proxmox_virtual_environment_vm.kafka]
-}
-
-resource "proxmox_virtual_environment_vm" "netsim" {
-  name      = "netsim-benchmark-01"
-  node_name = var.proxmox_node
-  vm_id     = var.vm_ids["netsim"]
-  tags      = ["opennms-benchmark"]
-
-  clone {
-    vm_id = var.template_vm_id
-    full  = true
-  }
-
-  cpu {
-    cores = 2
-    type  = "host"
-  }
-
-  memory {
-    dedicated = 4096
-  }
-
-  disk {
-    datastore_id = var.storage_pool
-    interface    = "scsi0"
-    size         = var.disk_sizes_gb["netsim"]
-    iothread     = true
-  }
-
-  network_device {
-    bridge = var.bridge_mgmt
-    model  = "virtio"
-  }
-
-  network_device {
-    bridge = var.bridge_sim
-    model  = "virtio"
-  }
-
-  agent {
-    enabled = true
-  }
-
-  serial_device {}
-
-  operating_system {
-    type = "l26"
-  }
-
-  initialization {
-    user_data_file_id    = proxmox_virtual_environment_file.user_data_netsim.id
-    network_data_file_id = proxmox_virtual_environment_file.network_data_netsim.id
-  }
-
-  depends_on = [proxmox_virtual_environment_vm.minion]
-}
-
-resource "proxmox_virtual_environment_vm" "monitoring" {
-  name      = "mon-benchmark-01"
-  node_name = var.proxmox_node
-  vm_id     = var.vm_ids["monitoring"]
-  tags      = ["opennms-benchmark"]
-
-  clone {
-    vm_id = var.template_vm_id
-    full  = true
-  }
-
-  cpu {
-    cores = 2
-    type  = "host"
-  }
-
-  memory {
-    dedicated = 4096
-  }
-
-  disk {
-    datastore_id = var.storage_pool
-    interface    = "scsi0"
-    size         = var.disk_sizes_gb["monitoring"]
-    iothread     = true
-  }
-
-  network_device {
-    bridge = var.bridge_mgmt
-    model  = "virtio"
-  }
-
-  network_device {
-    bridge = var.bridge_ext
-    model  = "virtio"
-  }
-
-  agent {
-    enabled = true
-  }
-
-  serial_device {}
-
-  operating_system {
-    type = "l26"
-  }
-
-  initialization {
-    user_data_file_id    = proxmox_virtual_environment_file.user_data_monitoring.id
-    network_data_file_id = proxmox_virtual_environment_file.network_data_monitoring.id
-  }
-
-  depends_on = [proxmox_virtual_environment_vm.netsim]
-}
-
-resource "proxmox_virtual_environment_vm" "elasticsearch" {
-  name      = "es-benchmark-01"
-  node_name = var.proxmox_node
-  vm_id     = var.vm_ids["elasticsearch"]
-  tags      = ["opennms-benchmark"]
-
-  clone {
-    vm_id = var.template_vm_id
-    full  = true
-  }
-
-  cpu {
-    cores = 4
-    type  = "host"
-  }
-
-  memory {
-    dedicated = 8192
-  }
-
-  disk {
-    datastore_id = var.storage_pool
-    interface    = "scsi0"
-    size         = var.disk_sizes_gb["elasticsearch"]
-    iothread     = true
-  }
-
-  network_device {
-    bridge = var.bridge_mgmt
-    model  = "virtio"
-  }
-
-  network_device {
-    bridge = var.bridge_db
-    model  = "virtio"
-  }
-
-  agent {
-    enabled = true
-  }
-
-  serial_device {}
-
-  operating_system {
-    type = "l26"
-  }
-
-  initialization {
-    user_data_file_id    = proxmox_virtual_environment_file.user_data_elasticsearch.id
-    network_data_file_id = proxmox_virtual_environment_file.network_data_elasticsearch.id
-  }
-
-  depends_on = [proxmox_virtual_environment_vm.monitoring]
 }

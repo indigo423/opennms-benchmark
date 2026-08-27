@@ -120,7 +120,25 @@ variable "bridge_ext" {
   description = "Proxmox bridge with external DHCP access — monitoring VM only; its DHCP address serves as the lab jump host"
 }
 
-variable "vm_ids" {
+variable "deployment" {
+  type        = string
+  description = "Deployment topology slug under deployments/<slug>/, whose topology.yml drives provisioning."
+}
+
+variable "vm_id_base" {
+  type        = number
+  default     = 100
+  description = <<-EOT
+    First Proxmox VM id. Each node gets vm_id_base plus its role's address-block
+    offset plus its index, so ids and addresses come from one scheme and cannot
+    disagree as a role's count grows.
+
+    Must leave room below template_vm_id: with the default role blocks the
+    highest id is base + 52.
+  EOT
+}
+
+variable "vm_ids_unused" {
   type        = map(number)
   description = "Proxmox VM ID per VM name — must be unique across the cluster"
   default = {

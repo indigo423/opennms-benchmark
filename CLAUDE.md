@@ -22,7 +22,8 @@ make lint                                          # every check CI runs
 make deployments                                   # list topology specs
 ```
 
-Providers: `azure`, `kvm`, `proxmox`, `vmware`. `DEPLOYMENT` is consumed by `kvm` only.
+Providers: `aws`, `azure`, `kvm`, `proxmox`, `vmware`. `DEPLOYMENT` is consumed by
+`kvm`, `aws` and `proxmox`; `azure` and `vmware` deploy the fixed baseline.
 
 ## Architecture
 
@@ -38,7 +39,8 @@ Four layers, orchestrated by `deploy.sh` (which `make deploy` wraps):
 
 `deployments/<slug>/` is a separate axis: a provider-agnostic *topology* spec
 (`topology.yml` — which components, how many, which subnets) with its Ansible overlay.
-`terraform/kvm` consumes it directly; the other providers do not yet. See
+`terraform/kvm`, `terraform/aws` and `terraform/proxmox` consume it directly; `azure`
+and `vmware` do not yet. See
 `deployments/README.md`.
 
 Variables layer root → deployment → experiment: `opennms-lab-vars.yml`, then

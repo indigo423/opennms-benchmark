@@ -27,7 +27,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # one here is what makes its copy of the rules checked; while this looped over
 # kvm alone, aws's identical invariants went unasserted from the day it landed.
 # Overridable so a single provider can be checked in isolation while iterating.
-read -r -a PROVIDERS <<< "${TOPOLOGY_PROVIDERS:-kvm aws}"
+read -r -a PROVIDERS <<< "${TOPOLOGY_PROVIDERS:-kvm aws proxmox}"
 DEPLOY_DIR="$REPO_ROOT/deployments"
 FIXTURE_DIR="$REPO_ROOT/tests/topology-fixtures"
 
@@ -107,10 +107,11 @@ provider_var_args() {
         -var "project_name=benchmark" -var "environment=validation"
       ;;
     proxmox)
+      # No project_name/environment: proxmox names guests from the topology and
+      # has no resource-name prefix, so it declares neither.
       printf '%s\n' \
         -var-file=../lab.tfvars -var-file=../lab-addresses.tfvars \
         -var-file=../disk-sizes.tfvars \
-        -var "project_name=benchmark" -var "environment=validation" \
         -var "proxmox_endpoint=https://validation.invalid:8006/" \
         -var "proxmox_api_token=validation@pam!placeholder=00000000-0000-0000-0000-000000000000" \
         -var "proxmox_node=validation" \

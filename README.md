@@ -118,8 +118,8 @@ Available experiments include `smoke`, `pm-snmp`, `fm-syslog`, `fm-snmptrap`, an
 See [`experiments/README.md`](experiments/README.md) for how experiments consume the generated inventory and the `lab-endpoints.yml` manifest, and [`deployments/README.md`](deployments/README.md) for the topology spec format.
 
 > [!NOTE]
-> The `DEPLOYMENT` topology axis shapes provisioning on `kvm` and `aws`.
-> The other providers deploy the baseline topology.
+> The `DEPLOYMENT` topology axis shapes provisioning on `kvm`, `aws` and `proxmox`.
+> `azure` and `vmware` deploy the baseline topology.
 
 ## ☁️ Providers
 
@@ -133,7 +133,7 @@ The `kvm`, `aws`, `proxmox` and `vmware` `.tfvars` files are gitignored, so cred
 | KVM/libvirt | `kvm` | Reference provider, consumes `DEPLOYMENT` specs |
 | AWS | `aws` | Consumes `DEPLOYMENT` specs; statically verified only so far ([#174](https://github.com/opennms-forge/opennms-benchmark/issues/174)) |
 | Azure | `azure` | Fixed baseline topology |
-| Proxmox VE | `proxmox` | Fixed baseline topology |
+| Proxmox VE | `proxmox` | Consumes `DEPLOYMENT` specs |
 | VMware vSphere | `vmware` | Fixed baseline topology |
 
 ### Azure
@@ -263,12 +263,12 @@ See [`terraform/proxmox/preflight/README.md`](terraform/proxmox/preflight/README
 cp terraform/proxmox/proxmox.tfvars.example terraform/proxmox/proxmox.tfvars
 # edit endpoint, node, template_vm_id, storage pools, bridges, ssh_key_path
 export PROXMOX_VE_API_TOKEN='user@realm!token-name=UUID'
-make deploy PROVIDER=proxmox
+make deploy PROVIDER=proxmox DEPLOYMENT=baseline
 ```
 
-Reconcile `disk_sizes_gb` against the target datastore first.
-The baseline provisions 320 GB; a thin pool that fills during a run corrupts guests rather than failing writes.
-Rung 1 reports available space per datastore.
+Reconcile provisioned disk against the target datastore first.
+`baseline` provisions 320 GiB, and a thin pool that fills during a run corrupts guests rather than failing writes; rung 1 reports available space per datastore.
+A spec can size its own disks with `disk_gb` per role, which is how a deployment is made to fit a host that cannot hold the baseline.
 
 ### VMware vSphere
 

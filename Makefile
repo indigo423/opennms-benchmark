@@ -32,14 +32,15 @@ DESCRIPTOR := python3 $(DEPLOYMENTS_DIR)/bin/topology-descriptor.py
 V ?=
 # Extra args forwarded verbatim to terraform via deploy.sh (e.g. TF_ARGS="-var foo=bar").
 TF_ARGS ?=
-# Deployment slug from the library (deployments/<slug>/). Consumed by kvm today.
+# Deployment slug from the library (deployments/<slug>/). Consumed by kvm, aws
+# and proxmox; azure and vmware still deploy the fixed baseline.
 DEPLOYMENT ?= baseline
 
-# The deployment is passed to deploy.sh only for spec-driven providers (kvm),
+# The deployment is passed to deploy.sh only for spec-driven providers,
 # which selects both the Terraform topology and the Ansible config overlay.
-_dep_flag  = $(if $(filter kvm aws,$(PROVIDER)),--deployment $(DEPLOYMENT))
+_dep_flag  = $(if $(filter kvm aws proxmox,$(PROVIDER)),--deployment $(DEPLOYMENT))
 # `make plan` still passes the Terraform var directly (it bypasses deploy.sh).
-_dep_tfarg = $(if $(filter kvm aws,$(PROVIDER)),-var deployment=$(DEPLOYMENT))
+_dep_tfarg = $(if $(filter kvm aws proxmox,$(PROVIDER)),-var deployment=$(DEPLOYMENT))
 
 # ── guards ────────────────────────────────────────────────────────────────────
 

@@ -1,48 +1,62 @@
-variable "proxmox_node" { type = string }
-variable "template_vm_id" { type = number }
-variable "storage_pool" { type = string }
-variable "snippets_datastore" { type = string }
-variable "admin_user" { type = string }
-variable "ssh_public_key" {
-  type      = string
-  sensitive = true
+variable "topology" {
+  type = map(object({
+    vm_name = string
+    vm_id   = number
+    memory  = number
+    vcpu    = number
+    disk_gb = number
+    interfaces = list(object({
+      subnet      = string
+      bridge      = string
+      iface_name  = string
+      address     = optional(string)
+      prefix      = optional(number)
+      gateway     = optional(string)
+      routes      = optional(list(object({ to = string, via = string })), [])
+      nameservers = optional(list(string))
+    }))
+    local_routes = optional(list(string), [])
+  }))
+  description = "Rendered topology, one entry per node. Built in the provider root from ../../modules/topology plus the Proxmox-specific bridge, VM id and interface naming."
 }
-variable "net_sim_cidr" { type = string }
-variable "net_sim_gateway" { type = string }
-variable "hosts" { type = map(string) }
-variable "ip_database" { type = string }
-variable "ip_core" { type = string }
-variable "ip_kafka" { type = string }
-variable "ip_minion" { type = string }
-variable "ip_netsim" { type = string }
-variable "ip_monitoring" { type = string }
-variable "ip_database_db" { type = string }
-variable "ip_core_db" { type = string }
-variable "ip_core_kafka" { type = string }
-variable "ip_kafka_kafka" { type = string }
-variable "ip_minion_kafka" { type = string }
-variable "ip_minion_sim" { type = string }
-variable "ip_netsim_sim" { type = string }
-variable "bridge_mgmt" { type = string }
-variable "gateway_mgmt" { type = string }
-variable "bridge_db" { type = string }
-variable "bridge_kafka" { type = string }
-variable "bridge_sim" { type = string }
-variable "bridge_ext" { type = string }
-variable "vm_ids" { type = map(number) }
-variable "ip_elasticsearch" { type = string }
-variable "ip_es_core" { type = string }
 
-variable "disk_sizes_gb" {
-  type        = map(number)
-  description = "Disk size in GB per VM"
-  default = {
-    database      = 50
-    core          = 100
-    kafka         = 50
-    minion        = 20
-    netsim        = 20
-    monitoring    = 30
-    elasticsearch = 50
-  }
+variable "proxmox_node" {
+  type        = string
+  description = "Proxmox node name that hosts the VMs"
+}
+
+variable "template_vm_id" {
+  type        = number
+  description = "VM ID of the cloud-init template to full-clone. Must be built at PVE's default machine type; see the README."
+}
+
+variable "storage_pool" {
+  type        = string
+  description = "Datastore for VM disks"
+}
+
+variable "snippets_datastore" {
+  type        = string
+  description = "File-based datastore for cloud-init snippets. Must permit the 'snippets' content type, which a default PVE installation does not enable."
+}
+
+variable "admin_user" {
+  type        = string
+  description = "Admin username injected into cloud-init"
+}
+
+variable "ssh_public_key" {
+  type        = string
+  description = "SSH public key for the admin user"
+}
+
+variable "hosts" {
+  type        = map(string)
+  description = "Hostname -> management IP, for /etc/hosts injection"
+}
+
+variable "extra_packages" {
+  type        = list(string)
+  default     = ["qemu-guest-agent"]
+  description = "Packages cloud-init installs on every node. qemu-guest-agent is not optional here: the provider waits for the agent to report an address."
 }

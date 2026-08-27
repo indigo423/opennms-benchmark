@@ -107,14 +107,14 @@ if [[ ! -f "$TFVARS_FILE" ]]; then
 fi
 
 # Deployment selection: the `deployment` Terraform variable is declared only on
-# spec-driven providers (kvm and aws). The matching Ansible config overlay
+# spec-driven providers (kvm, aws and proxmox). The matching Ansible config overlay
 # (deployments/<slug>/opennms-lab-vars.yml) is layered onto the OpenNMS play.
 DEPLOYMENT_VARS=()
-if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" ) ]]; then
+if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" || "$PROVIDER" == "proxmox" ) ]]; then
   DEPLOYMENT_VARS=(-var "deployment=$DEPLOYMENT")
 fi
 DEPLOYMENT_VARS_FILE=""
-if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" ) && -f "$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml" ]]; then
+if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" || "$PROVIDER" == "proxmox" ) && -f "$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml" ]]; then
   DEPLOYMENT_VARS_FILE="--extra-vars=@$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml"
 fi
 
