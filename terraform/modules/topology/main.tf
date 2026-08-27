@@ -105,6 +105,19 @@ locals {
     ]
   ])
 
+  # Disk per node, in priority order: what the spec asks for, then the per-role
+  # pin, then the size class. A spec can therefore size its own disks -- which is
+  # what lets a small topology actually be small, rather than inheriting a
+  # benchmark-scale core disk it will never fill.
+  disk_gb = {
+    for key, n in local.nodes :
+    key => try(
+      n.cfg.disk_gb,
+      var.disk_sizes_gb[n.prole],
+      var.disk_by_size[n.cfg.size],
+    )
+  }
+
   # Guest hostnames are a cross-provider contract: deployment overlays reference
   # them literally (vm-single points at vm-benchmark-01), so they are built here
   # rather than per provider. "benchmark" is deliberately literal and does not

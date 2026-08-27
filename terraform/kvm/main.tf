@@ -50,7 +50,7 @@ locals {
       vm_name = module.topology.vm_name[key]
       memory  = local.size_map[n.cfg.size].memory
       vcpu    = local.size_map[n.cfg.size].vcpu
-      disk_gb = lookup(var.disk_sizes_gb, n.prole, 30)
+      disk_gb = module.topology.disk_gb[key]
       interfaces = [
         for si, subnet in n.cfg.subnets : {
           subnet     = subnet
@@ -148,8 +148,9 @@ locals {
 module "topology" {
   source = "../modules/topology"
 
-  spec        = local.spec
-  subnet_cidr = local.subnet_cidr
+  spec          = local.spec
+  subnet_cidr   = local.subnet_cidr
+  disk_sizes_gb = var.disk_sizes_gb
 
   # A named route's next hop is derived from the spec, never declared.
   named_route_spec = {

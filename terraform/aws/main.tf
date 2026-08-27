@@ -102,7 +102,7 @@ locals {
       name    = module.topology.vm_name[key]
       prole   = n.prole
       size    = n.cfg.size
-      disk_gb = local.smoke ? min(lookup(var.disk_sizes_gb, n.prole, 30), var.smoke_max_disk_gb) : lookup(var.disk_sizes_gb, n.prole, 30)
+      disk_gb = local.smoke ? min(module.topology.disk_gb[key], var.smoke_max_disk_gb) : module.topology.disk_gb[key]
       public  = try(n.cfg.public_ip, false)
       subnets = n.cfg.subnets
       # nl6 owns the simulated range's host routing: it runs privileged with
@@ -225,8 +225,9 @@ locals {
 module "topology" {
   source = "../modules/topology"
 
-  spec        = local.spec
-  subnet_cidr = local.subnet_cidr
+  spec          = local.spec
+  subnet_cidr   = local.subnet_cidr
+  disk_sizes_gb = var.disk_sizes_gb
 
   named_route_spec = {
     net_sim = { to = var.net_sim_cidr, role = "netsim", subnet = "sim" }

@@ -42,3 +42,8 @@ output "all_addresses" {
   value       = local.all_addresses
   description = "Every address any node holds, on any subnet. Used to assert that no address is issued twice and that every named-route next hop is actually held by a node."
 }
+
+output "disk_gb" {
+  value       = local.disk_gb
+  description = "Node key -> disk GiB. Spec value, else the per-role pin, else the size-class default."
+}

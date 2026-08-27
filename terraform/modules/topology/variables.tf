@@ -96,3 +96,35 @@ variable "role_block_base" {
   default     = 4
   description = "First host offset used for allocation. 0 is the network address and 1 the mgmt gateway; 2-3 are left spare."
 }
+
+# ── disk sizing ──────────────────────────────────────────────────────────────
+
+variable "disk_sizes_gb" {
+  type        = map(number)
+  default     = {}
+  description = "Provider role -> disk GiB. The existing per-role pins, kept as-is so nothing already provisioned is resized."
+}
+
+variable "disk_by_size" {
+  type = map(number)
+  default = {
+    tiny   = 20
+    small  = 30
+    medium = 50
+    large  = 80
+    xlarge = 100
+  }
+  description = <<-EOT
+    Size class -> disk GiB, used when neither the spec nor disk_sizes_gb pins a
+    value. This replaces a flat 30 GiB fallback that applied to every role
+    without an entry (mimir, victoriametrics, rustfs, rrd, sentinel), so a large
+    role no longer silently gets the same disk as a tiny one.
+
+    It is deliberately the LAST resort rather than the rule. The per-role pins
+    are uncorrelated with size class -- in the baseline spec, `small` covers
+    database at 50, minion at 20 and monitoring at 30 -- so making the class
+    authoritative would resize existing disks. On libvirt that changes
+    `capacity` on libvirt_volume.os, which replaces the volume: a routine apply
+    would destroy the lab's disks. Same failure path as #261.
+  EOT
+}
