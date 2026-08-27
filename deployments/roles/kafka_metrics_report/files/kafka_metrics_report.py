@@ -51,6 +51,32 @@ MAX_DENSE_BUCKETS = 20_000
 # Above this, the sidecar records only the count, not the ids.
 MAX_NODE_IDS = 1_000
 
+# Exit codes.
+#
+# A warning is a finding ABOUT the data: the read completed and something in it
+# is not clean. A transport failure means there is no data at all — the broker
+# is unreachable, or the topic is absent. Collapsing the second into the first
+# is how a dead broker gets tolerated as a merely degraded run: every rung
+# guards with `failed_when: rc > 1` (experiments/*/rung.yml), which already
+# expresses the right intent, but this script never emitted anything above 1.
+# In #231 a broker filled its disk and stopped mid-run, and the rungs carried
+# on as though the run had produced warnings.
+#
+# Keep transport failures strictly above EXIT_WARNINGS, or the rung guards stop
+# discriminating again.
+EXIT_OK = 0
+EXIT_WARNINGS = 1
+EXIT_TRANSPORT = 2
+
+
+class TransportError(RuntimeError):
+    """The topic could not be read at all, as distinct from read imperfectly.
+
+    Raised where a failure means the report has no basis, so that main() can
+    exit with EXIT_TRANSPORT rather than letting it surface as a traceback
+    (also exit 1) or as a plain SystemExit string (also exit 1).
+    """
+
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(
@@ -122,10 +148,10 @@ def bounded_slice(consumer, topic, start_offsets=None, replay_bounds=None):
 
     meta = consumer.list_topics(topic, timeout=10)
     if topic not in meta.topics or meta.topics[topic].error:
-        raise SystemExit(f"topic {topic!r} not found on the broker")
+        raise TransportError(f"topic {topic!r} not found on the broker")
     partitions = sorted(meta.topics[topic].partitions)
     if not partitions:
-        raise SystemExit(f"topic {topic!r} has no partitions")
+        raise TransportError(f"topic {topic!r} has no partitions")
 
     assignment, bounds = [], {}
     for part in partitions:
@@ -151,7 +177,7 @@ def consume(consumer, topic, bounds, timeout):
     the offsets the report prints.
     """
     import collectionset_pb2
-    from confluent_kafka import TIMESTAMP_NOT_AVAILABLE, KafkaException, TopicPartition
+    from confluent_kafka import TIMESTAMP_NOT_AVAILABLE, TopicPartition
 
     remaining = {p for p, b in bounds.items() if b["end"] > b["start"]}
     samples, records, resources_total = [], 0, 0
@@ -166,7 +192,10 @@ def consume(consumer, topic, bounds, timeout):
             errors["poll_timeout"] += 1
             break
         if msg.error():
-            raise KafkaException(msg.error())
+            # Mid-read broker loss. The bound was captured, so the slice is
+            # incomplete by an unknown amount — that is no data, not partial
+            # data, and must not reach the caller as a warning.
+            raise TransportError(f"kafka error while reading {topic!r}: {msg.error()}")
 
         part = msg.partition()
         # Produced after the bound was captured, or on a partition already
@@ -611,7 +640,7 @@ def render_html(report, svg, geom):
 
 
 def main(argv=None):
-    from confluent_kafka import Consumer
+    from confluent_kafka import Consumer, KafkaException
 
     args = parse_args(argv)
     start_offsets = json.loads(args.start_offsets.read_text()) if args.start_offsets else None
@@ -627,6 +656,11 @@ def main(argv=None):
     try:
         bounds = bounded_slice(consumer, args.topic, start_offsets, replay_bounds)
         samples, records, resources, nodes, errors = consume(consumer, args.topic, bounds, args.timeout)
+    except (TransportError, KafkaException) as exc:
+        # KafkaException as well as our own: an unreachable broker fails inside
+        # list_topics(), raised by the client library rather than by us.
+        print(f"ERROR     no report: {exc}", file=sys.stderr)
+        return EXIT_TRANSPORT
     finally:
         consumer.close()
 
@@ -644,8 +678,8 @@ def main(argv=None):
     print(f"report    {args.html}")
     if report["warnings"]:
         print(f"WARNING   read is not clean: {report['warnings']}", file=sys.stderr)
-        return 1
-    return 0
+        return EXIT_WARNINGS
+    return EXIT_OK
 
 
 if __name__ == "__main__":

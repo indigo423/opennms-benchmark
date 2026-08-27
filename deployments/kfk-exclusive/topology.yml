@@ -5,7 +5,9 @@ description: >-
   benchmarking with metrics leaving Core only via the Kafka Producer, plus
   Pollerd/Trapd/Syslogd fault-management load. No local time-series store —
   the measurement point is the Kafka metrics topic, not the OpenNMS UI.
-  Subnet wiring matches baseline; Elasticsearch is omitted. kvm/aws only.
+  Subnet wiring matches baseline; Elasticsearch is omitted. Renders on
+  kvm, aws and proxmox — it declares no `lab` subnet, which is the only
+  part of the spec vocabulary proxmox refuses.
 roles:
   database:
     count: 1
@@ -15,6 +17,10 @@ roles:
   core:
     count: 1
     size: xlarge
+    # 200, not the 100 in disk-sizes.tfvars: a timed run accumulates RRD/JRB,
+    # logs and instrumentation.log for its whole duration, and running Core out
+    # of disk mid-run ends the measurement without ending the run.
+    disk_gb: 200
     subnets: [mgmt, db, kafka]
     groups: [core]
   kafka:
@@ -24,6 +30,15 @@ roles:
     # Kafka rather than OpenNMS. Revert to small only with headroom evidence.
     count: 1
     size: medium
+    # 250, not the 50 in disk-sizes.tfvars. Kafka is the only persistence
+    # target here, so the broker's disk is sized by run duration rather than by
+    # a nominal per-role pin. Measured in #231: ~380 bytes/sample, so 20k
+    # samples/s is ~27 GB/hour and the 50 GB pin holds under two hours. When it
+    # fills, the broker stops SILENTLY: kafka-metrics-report exits 1 for an
+    # unreachable broker exactly as it does for a warning, so a rung tolerates
+    # a dead broker as merely degraded and the run yields a plausible-looking
+    # partial result. That is #231, which cost a smoke run to diagnose.
+    disk_gb: 250
     subnets: [mgmt, kafka]
     groups: [message_broker, docker_engine, kafka_ui]
   minion:
