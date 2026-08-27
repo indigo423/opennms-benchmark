@@ -27,7 +27,12 @@ variable "proxmox_node" {
 
 variable "template_vm_id" {
   type        = number
-  description = "VM ID of the cloud-init template to full-clone. Must be built at PVE's default machine type; see the README."
+  description = "VM ID of the cloud-init template to full-clone. Its machine type does not matter: proxmox_machine is set on the VM and overrides it."
+}
+
+variable "proxmox_machine" {
+  type        = string
+  description = "QEMU machine type. Set explicitly rather than inherited from the template, because the guest's NIC names depend on it."
 }
 
 variable "storage_pool" {

@@ -108,6 +108,26 @@ variable "bridge_ext" {
   description = "Proxmox bridge with external DHCP access — monitoring VM only; its DHCP address serves as the lab jump host"
 }
 
+variable "proxmox_machine" {
+  type        = string
+  default     = "q35"
+  description = <<-EOT
+    QEMU machine type for the lab VMs. q35 is a modern PCIe chipset; `pc` is
+    QEMU's older i440fx.
+
+    Set on the VM rather than inherited from the template, deliberately. The
+    guest's NIC names depend on it, so leaving it implicit made the whole lab's
+    network configuration depend on a hand-built hypervisor object that this
+    repository cannot see or check. Pinning it here means the interface names
+    below are derived from a value in version control.
+  EOT
+
+  validation {
+    condition     = contains(["q35", "pc"], var.proxmox_machine)
+    error_message = "proxmox_machine must be \"q35\" or \"pc\"."
+  }
+}
+
 variable "deployment" {
   type        = string
   description = "Deployment topology slug under deployments/<slug>/, whose topology.yml drives provisioning."

@@ -214,11 +214,12 @@ IMG=ubuntu-24.04-server-cloudimg-amd64.img
 curl -fsSLO https://cloud-images.ubuntu.com/releases/noble/release-20260814/$IMG
 sha256sum $IMG   # check against .../release-20260814/SHA256SUMS
 
-# Do NOT pass --machine q35. Guest NIC names depend on the machine type: the
-# PVE default (i440fx) yields ens18, ens19, ens20, which is what the lab stack
-# expects; q35 yields enp6s18 and every VM silently comes up with no network.
+# The machine type is set on the VMs by Terraform (proxmox_machine, default
+# q35), which overrides whatever the template carries, so it does not matter
+# here. It matters a great deal there: guest NIC names follow it, and the lab
+# derives interface names from the same variable so the two cannot disagree.
 qm create 9000 --name ubuntu-24.04-cloud --memory 2048 --cores 2 \
-  --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-pci
+  --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-single
 qm set 9000 --scsi0 local-lvm:0,import-from=$PWD/$IMG   # qm importdisk is deprecated
 qm set 9000 --ide2 local-lvm:cloudinit
 qm set 9000 --serial0 socket --vga serial0
@@ -226,6 +227,12 @@ qm set 9000 --boot order=scsi0
 qm set 9000 --agent enabled=1
 qm template 9000
 ```
+
+Terraform sets `machine`, `scsi_hardware`, `cpu.type = host` and `cpu.numa` on the VMs, so the template's own values for those are overridden.
+`virtio-scsi-single` matters rather than being cosmetic: PVE only honours a disk's `iothread` with the single controller, so with `virtio-scsi-pci` the flag is accepted and does nothing.
+
+Guest NIC names follow the machine type, verified on PVE 9.2.2 with Ubuntu 24.04: `q35` gives `enp6s18`, `enp6s19`, `enp6s20`, and `pc` (i440fx) gives `ens18`, `ens19`, `ens20`.
+`proxmox_machine` drives both the VM setting and the rendered interface names, so change it in one place or not at all.
 
 Record which image the template was built from, in `qm set 9000 --description` and in your notes.
 On this provider the template *is* the substrate — the stack clones it, so every VM inherits its kernel and apt baseline — and no Terraform value selects an image, so it cannot be pinned in this repository ([#248](https://github.com/indigo423/opennms-benchmark/issues/248)).

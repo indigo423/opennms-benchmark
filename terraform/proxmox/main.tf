@@ -37,6 +37,20 @@ locals {
   # with a public_ip routes out via its external NIC instead.
   gateway_mgmt = cidrhost(var.subnet_mgmt, 1)
 
+  # Guest NIC name prefix, which is a function of the machine type. Verified on
+  # PVE 9.2.2 with Ubuntu 24.04 and three virtio NICs:
+  #
+  #   q35 (PCIe)     enp6s18, enp6s19, enp6s20
+  #   pc   (i440fx)  ens18,   ens19,   ens20
+  #
+  # Both progress by one per NIC in spec order, so only the prefix differs. A
+  # name that matches no device means netplan configures nothing: the guest
+  # sends no frames, cloud-init cannot install qemu-guest-agent, and Terraform
+  # times out waiting for an agent that can never appear. That failure names
+  # neither the machine type nor the interface, which is why this derives from
+  # var.proxmox_machine rather than being written out once and assumed.
+  nic_prefix = var.proxmox_machine == "q35" ? "enp6s" : "ens"
+
   # ── deployment spec → node model ──────────────────────────────────────────
   nodes                   = module.topology.nodes
   node_address            = module.topology.node_address
@@ -90,15 +104,8 @@ locals {
           # operator gets "Invalid index ... object with 5 attributes" instead of
           # "use PROVIDER=kvm for this deployment". The precondition is what
           # actually blocks the apply.
-          bridge = lookup(local.subnet_bridge, subnet, null)
-          # ens18 is the first NIC in a Proxmox guest at PVE's DEFAULT machine
-          # type (i440fx), ens19 the second, and so on. This does NOT hold for
-          # machine=q35, where the same NIC lands on a PCIe bridge and appears
-          # as enp6s18: netplan then configures a device that does not exist,
-          # the guest sends no frames, and Terraform times out waiting for an
-          # agent that can never install. The machine type lives in the
-          # hand-built template, so nothing here can check it.
-          iface_name = "ens${18 + si}"
+          bridge     = lookup(local.subnet_bridge, subnet, null)
+          iface_name = "${local.nic_prefix}${18 + si}"
           address    = local.node_address[key][subnet]
           prefix     = subnet == "external" ? null : 26
           gateway    = (subnet == "mgmt" && !try(n.cfg.public_ip, false)) ? local.gateway_mgmt : null
@@ -176,6 +183,7 @@ module "compute" {
 
   topology           = local.topology
   proxmox_node       = var.proxmox_node
+  proxmox_machine    = var.proxmox_machine
   template_vm_id     = var.template_vm_id
   storage_pool       = var.storage_pool
   snippets_datastore = var.snippets_datastore

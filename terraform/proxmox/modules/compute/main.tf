@@ -13,11 +13,11 @@ terraform {
 # ../../../modules/topology via the provider root, so this module only knows how
 # to turn a node into Proxmox objects.
 #
-# Interface names arrive already rendered in each.value.interfaces[*].iface_name.
-# They are NOT derived here, because the correct name depends on the template's
-# machine type -- PVE's default i440fx yields ens18/ens19/ens20, machine=q35
-# yields enp6s18 -- and the template is a hypervisor object this repository never
-# sees. See the README's template steps.
+# Interface names arrive already rendered in each.value.interfaces[*].iface_name,
+# derived in the provider root from var.proxmox_machine -- the same value this
+# module sets on the VM. q35 yields enp6s18/enp6s19/enp6s20 and pc (i440fx)
+# yields ens18/ens19/ens20, so the two must come from one place or every guest
+# comes up with no network.
 
 module "cloud_init" {
   for_each = var.topology
@@ -79,19 +79,42 @@ resource "proxmox_virtual_environment_vm" "vm" {
   vm_id     = each.value.vm_id
   tags      = ["opennms-benchmark"]
 
+  # Set here rather than inherited from the template. Guest NIC names depend on
+  # it, and the interface names in each.value.interfaces were rendered from the
+  # same variable, so the two cannot disagree.
+  machine = var.proxmox_machine
+
   clone {
     vm_id = var.template_vm_id
     full  = true
   }
 
+  # type = "host" passes the Broadwell-EP instruction set (AVX2, AES-NI) straight
+  # through with no emulation. Meaningful for a benchmark bed: an emulated CPU
+  # model would make the numbers describe the emulation, not the hardware.
+  #
+  # numa = true on a dual-socket host so the guest's memory comes from one node
+  # instead of being spread across the QPI link unawares. sockets stays at 1
+  # deliberately: every role here is at most 4 vCPU against a 12-core socket, so
+  # a single-socket guest fits inside one NUMA node and never traverses the
+  # interconnect. Raising sockets would spread it on purpose.
   cpu {
-    cores = each.value.vcpu
-    type  = "host"
+    cores   = each.value.vcpu
+    sockets = 1
+    type    = "host"
+    numa    = true
   }
 
   memory {
     dedicated = each.value.memory
   }
+
+  # virtio-scsi-single, not virtio-scsi-pci: PVE only honours a disk's iothread
+  # with the "single" controller, which gives each disk its own virtio-scsi
+  # controller and its own I/O thread. With the shared pci controller the
+  # iothread flag below is accepted and inert -- which is what the first
+  # deployment ran with, inheriting the controller from the template.
+  scsi_hardware = "virtio-scsi-single"
 
   disk {
     datastore_id = var.storage_pool
@@ -120,6 +143,15 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   serial_device {}
+
+  # Declared, not inherited. The template carries vga=serial0, so a clone got a
+  # serial primary console by accident -- and Terraform, not managing vga, planned
+  # to remove it on the next replacement. That console is how the ens18-vs-enp6s18
+  # mismatch was diagnosed: it is the only way to see a guest that has no network
+  # precisely because its network is misconfigured.
+  vga {
+    type = "serial0"
+  }
 
   operating_system {
     type = "l26"
