@@ -20,6 +20,15 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The aws provider is configured on every `terraform console` invocation, even
+# though this check only evaluates locals. With no credentials it falls through
+# to IMDS, and on a CI runner 169.254.169.254 answers without being EC2, so the
+# SDK retries with backoff for the better part of a minute -- per render, times
+# fifteen specs plus fixtures. deploy.sh disables it for exactly this reason
+# ("a two-minute IMDS probe"); a check that renders aws needs the same. Harmless
+# for the other providers.
+export AWS_EC2_METADATA_DISABLED=true
 # Providers whose Terraform root consumes deployments/<slug>/topology.yml. Adding
 # one here is what makes its copy of the rules checked; while this looped over
 # kvm alone, aws's identical invariants went unasserted from the day it landed.
@@ -181,13 +190,23 @@ check_spec() {
   # global, so restoring it here would silently re-enable it for every caller
   # and turn a returned failure into a script exit.
   rc=0
+  # Through run_bounded, which was defined and never called: a render that hung
+  # sat until the workflow timeout instead of reporting a named per-spec failure,
+  # which is precisely what the function exists to prevent.
+  #
   # stderr kept separate: terraform writes warnings there, and folding them into
   # stdout put warning prose inside the result brackets and had it parsed as a
   # violation.
-  ( cd "$REPO_ROOT/terraform/$PROVIDER" && printf '%s\n' "$EXPR" | terraform console "${VAR_ARGS[@]}" -var "deployment=$slug" ) >"$tmp" 2>"$err" || rc=$?
+  run_bounded "$tmp" "$err" "$slug" || rc=$?
   out="$(cat "$tmp")"
   local errout; errout="$(cat "$err")"
   rm -f "$tmp" "$err"
+
+  if [[ $rc -eq 124 ]]; then
+    printf '  %-24s ERROR  render timed out after %ss\n' "$slug" "$SPEC_TIMEOUT"
+    { echo "$errout"; echo "$out"; } | grep -v '^$' | sed 's/^/      /' | head -8
+    return 2
+  fi
 
   if [[ $rc -ne 0 ]]; then
     printf '  %-24s ERROR  could not render\n' "$slug"
