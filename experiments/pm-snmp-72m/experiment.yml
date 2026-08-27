@@ -1,0 +1,21 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# The #225 target sweep: can one host sustain 72M metrics/hour (20,000
+# samples/s) on the stock kfk-exclusive deployment?
+#
+#   make experiment EXPERIMENT=pm-snmp-72m DEPLOYMENT=kfk-exclusive
+#
+# This is pm-snmp's sweep with different parameters, not a different sweep, so
+# it imports that playbook rather than copying it. The plays, the rung, and the
+# delivered-vs-accepted reconciliation stay in one place; only the fleet profile
+# and the increments differ, and those live in opennms-lab-vars.yml beside this
+# file.
+#
+# Read the same column pm-snmp asks for: samples per device per cycle, against
+# the nodes column. A falling per-device rate with nodes tracking the fleet is
+# the system slowing down; nodes lagging the fleet means the run never collected
+# the whole fleet and the rate says nothing.
+- name: Sweep the fleet size toward the 72M/hour target
+  ansible.builtin.import_playbook: ../pm-snmp/experiment.yml
