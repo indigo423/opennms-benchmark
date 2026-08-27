@@ -37,3 +37,8 @@ output "ip_offset" {
   value       = local.ip_offset
   description = "Provider role -> first host offset of its address block. Exposed for diagnostics and tests rather than for rendering."
 }
+
+output "all_addresses" {
+  value       = local.all_addresses
+  description = "Every address any node holds, on any subnet. Used to assert that no address is issued twice and that every named-route next hop is actually held by a node."
+}

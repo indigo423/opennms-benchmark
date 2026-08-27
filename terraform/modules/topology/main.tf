@@ -95,6 +95,16 @@ locals {
     ]
   ]))
 
+  # Every address any node holds, on any subnet. Derived from the node model
+  # rather than from a provider's rendered topology, so the topology check can
+  # assert against it identically on every spec-driven provider -- the check
+  # previously read a kvm-only local and so could only ever run there.
+  all_addresses = flatten([
+    for key, addrs in local.node_address : [
+      for subnet, a in addrs : a if a != null
+    ]
+  ])
+
   # Guest hostnames are a cross-provider contract: deployment overlays reference
   # them literally (vm-single points at vm-benchmark-01), so they are built here
   # rather than per provider. "benchmark" is deliberately literal and does not

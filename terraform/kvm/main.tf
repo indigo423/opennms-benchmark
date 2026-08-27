@@ -124,11 +124,12 @@ locals {
   }
 
   # Every statically assigned address, used by the uniqueness precondition below.
-  all_addresses = flatten([
-    for key, n in local.topology : [
-      for i in n.interfaces : i.address if i.address != null
-    ]
-  ])
+  all_addresses = module.topology.all_addresses
+
+  # Reasons this spec cannot run on this provider, under a name every
+  # spec-driven provider defines. kvm is the reference provider and implements
+  # every subnet the spec vocabulary has, so nothing is unsupported here.
+  spec_unsupported = []
 
   # The jump host is the public_ip node (its external DHCP IP is var.jump_host).
   # one() errors if a spec marks more than one node public_ip; null if none.

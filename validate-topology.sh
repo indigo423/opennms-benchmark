@@ -20,7 +20,14 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TF_DIR="$REPO_ROOT/terraform/kvm"
+# Providers whose Terraform root consumes deployments/<slug>/topology.yml. Adding
+# one here is what makes its copy of the rules checked; before this looped, only
+# kvm was, so aws's identical invariants went unasserted from the day it landed.
+# Providers whose Terraform root consumes deployments/<slug>/topology.yml. Adding
+# one here is what makes its copy of the rules checked; while this looped over
+# kvm alone, aws's identical invariants went unasserted from the day it landed.
+# Overridable so a single provider can be checked in isolation while iterating.
+read -r -a PROVIDERS <<< "${TOPOLOGY_PROVIDERS:-kvm aws}"
 DEPLOY_DIR="$REPO_ROOT/deployments"
 FIXTURE_DIR="$REPO_ROOT/tests/topology-fixtures"
 
@@ -50,7 +57,7 @@ FIXTURE_DIR="$REPO_ROOT/tests/topology-fixtures"
 # The last is the invariant the preconditions do not express, and precisely the
 # one #171 violated: .134 was a well-formed address that belonged to nothing.
 read -r -d '' EXPR <<'HCL' || true
-concat([for a in distinct(local.all_addresses) : "duplicate address ${a}" if length([for b in local.all_addresses : b if b == a]) > 1], [for r in local.unresolved_named_routes : "unresolved route ${r}"], [for h, v in local.inv_hosts : "unreachable node ${h} has no mgmt address" if v.ansible_host == ""], [for n, r in local.named_routes : "next hop not held ${n} -> ${r.via}" if r.via != null && !contains(local.all_addresses, r.via)])
+concat([for u in local.spec_unsupported : "unsupported ${u}"], [for a in distinct(local.all_addresses) : "duplicate address ${a}" if length([for b in local.all_addresses : b if b == a]) > 1], [for r in local.unresolved_named_routes : "unresolved route ${r}"], [for h, v in local.inv_hosts : "unreachable node ${h} has no mgmt address" if v.ansible_host == ""], [for n, r in local.named_routes : "next hop not held ${n} -> ${r.via}" if r.via != null && !contains(local.all_addresses, r.via)])
 HCL
 
 # module.compute reads the public key with file(), and `terraform console`
@@ -69,22 +76,50 @@ printf 'ssh-rsa AAAAB3NzaC1yc2ETOPOLOGYVALIDATIONPLACEHOLDER validation@placehol
 # subnet_lab is the exception that matters: a spec that declares the `lab`
 # subnet renders its NICs from it, so it has to be a real CIDR or that spec
 # cannot be evaluated.
-VAR_FILES=(
-  -var-file=../lab.tfvars
-  -var-file=../lab-addresses.tfvars
-  -var-file=../disk-sizes.tfvars
-  -var "project_name=benchmark"
-  -var "environment=validation"
-  # Must contain "@host/": output "libvirt_host" extracts the hostname with a
-  # regex that errors on a URI without one.
-  -var "libvirt_uri=qemu+ssh://placeholder@validation.invalid/system"
-  -var "storage_pool=default"
-  -var "ubuntu_cloud_image=https://example.invalid/noble.img"
-  -var "ssh_key_path=$DUMMY_KEY_DIR/id"
-  -var "bridge_name=br0"
-  -var "subnet_lab=192.168.11.0/24"
-  -var 'lab_nameservers=["192.168.11.1"]'
-)
+# Placeholder values per provider. None affects the invariants being asserted;
+# they exist because Terraform requires every declared variable to have a value.
+# Deliberately does NOT read <provider>.tfvars: those are host-specific and
+# gitignored, so depending on them would make the check pass or fail differently
+# on a developer's machine than in CI -- the opposite of a gate.
+#
+# subnet_lab is the exception that matters on kvm: a spec that declares the `lab`
+# subnet renders its NICs from it, so it has to be a real CIDR.
+provider_var_args() {
+  case "$1" in
+    kvm)
+      printf '%s\n' \
+        -var-file=../lab.tfvars -var-file=../lab-addresses.tfvars \
+        -var-file=../disk-sizes.tfvars \
+        -var "project_name=benchmark" -var "environment=validation" \
+        -var "libvirt_uri=qemu+ssh://placeholder@validation.invalid/system" \
+        -var "storage_pool=default" \
+        -var "ubuntu_cloud_image=https://example.invalid/noble.img" \
+        -var "ssh_key_path=$DUMMY_KEY_DIR/id" \
+        -var "bridge_name=br0" -var "subnet_lab=192.168.11.0/24" \
+        -var 'lab_nameservers=["192.168.11.1"]'
+      ;;
+    aws)
+      # aws derives every address from the spec and declares none of
+      # lab-addresses, so passing that file would warn on every render.
+      printf '%s\n' \
+        -var-file=../lab.tfvars -var-file=../disk-sizes.tfvars \
+        -var "region=eu-central-1" \
+        -var "project_name=benchmark" -var "environment=validation"
+      ;;
+    proxmox)
+      printf '%s\n' \
+        -var-file=../lab.tfvars -var-file=../lab-addresses.tfvars \
+        -var-file=../disk-sizes.tfvars \
+        -var "project_name=benchmark" -var "environment=validation" \
+        -var "proxmox_endpoint=https://validation.invalid:8006/" \
+        -var "proxmox_api_token=validation@pam!placeholder=00000000-0000-0000-0000-000000000000" \
+        -var "proxmox_node=validation" \
+        -var "ssh_key_path=$DUMMY_KEY_DIR/id"
+      ;;
+    *) echo "no placeholder vars defined for provider '$1'" >&2; return 1 ;;
+  esac
+}
+
 
 fail=0
 checked=0
@@ -122,8 +157,8 @@ SPEC_TIMEOUT="${SPEC_TIMEOUT:-30}"
 
 run_bounded() {
   local out_f="$1" err_f="$2" slug="$3" i pid
-  ( cd "$TF_DIR" && printf '%s\n' "$EXPR" \
-      | terraform console "${VAR_FILES[@]}" -var "deployment=$slug" ) >"$out_f" 2>"$err_f" &
+  ( cd "$REPO_ROOT/terraform/$PROVIDER" && printf '%s\n' "$EXPR" \
+      | terraform console "${VAR_ARGS[@]}" -var "deployment=$slug" ) >"$out_f" 2>"$err_f" &
   pid=$!
   for ((i = 0; i < SPEC_TIMEOUT; i++)); do
     kill -0 "$pid" 2>/dev/null || break
@@ -151,7 +186,7 @@ check_spec() {
   # stderr kept separate: terraform writes warnings there, and folding them into
   # stdout put warning prose inside the result brackets and had it parsed as a
   # violation.
-  ( cd "$TF_DIR" && printf '%s\n' "$EXPR" | terraform console "${VAR_FILES[@]}" -var "deployment=$slug" ) >"$tmp" 2>"$err" || rc=$?
+  ( cd "$REPO_ROOT/terraform/$PROVIDER" && printf '%s\n' "$EXPR" | terraform console "${VAR_ARGS[@]}" -var "deployment=$slug" ) >"$tmp" 2>"$err" || rc=$?
   out="$(cat "$tmp")"
   local errout; errout="$(cat "$err")"
   rm -f "$tmp" "$err"
@@ -177,6 +212,19 @@ check_spec() {
     | tr ',' '\n' | sed -e 's/^ *"//' -e 's/" *$//' -e 's/^ *//' \
     | grep -v '^$' || true)
 
+  # A provider that declares it cannot run this spec has already answered the
+  # question; the address and reachability violations that follow are
+  # consequences of the same fact, not independent defects. Report it as skipped
+  # and do not fail the gate -- a KVM-only spec is a real, supported state
+  # (es-victorialogs puts every role on the physical `lab` subnet, which has no
+  # VPC equivalent), not a broken one.
+  local unsupported
+  unsupported=$(printf '%s\n' "$violations" | grep '^unsupported ' || true)
+  if [[ -n "$unsupported" ]]; then
+    printf '  %-24s skip  %s\n' "$slug" "$(printf '%s' "$unsupported" | head -1 | sed 's/^unsupported //')"
+    return 3
+  fi
+
   if [[ -n "$violations" ]]; then
     printf '  %-24s FAIL\n' "$slug"
     printf '      %s\n' "$violations"
@@ -186,67 +234,113 @@ check_spec() {
   return 0
 }
 
-echo "==> Validating rendered topologies (provider: kvm)"
-
-for spec in "$DEPLOY_DIR"/*/topology.yml; do
-  [[ -e "$spec" ]] || continue
-  [[ -L "$(dirname "$spec")" ]] && continue
-  slug="$(basename "$(dirname "$spec")")"
-  checked=$((checked + 1))
-  rc=0
-  check_spec "$slug" || rc=$?
-  if [[ $rc -eq 2 ]]; then
-    echo
-    echo "aborting: a spec could not be rendered at all, so the rest would only"
-    echo "repeat the same failure past the CI job limit."
-    exit 1
+# One provider's worth of work: every real spec, then the fixtures. Unchanged in
+# logic from when this ran only against kvm; the point is that it now runs once
+# per provider that consumes the specs.
+# `terraform console` needs the provider plugins present. Each provider root is
+# initialised by its own CI job, but those are separate jobs with separate
+# checkouts, and a fresh clone has none -- so initialise on demand rather than
+# assuming. -backend=false keeps it credential-free and state-free.
+ensure_init() {
+  [[ -d "$REPO_ROOT/terraform/$PROVIDER/.terraform/providers" ]] && return 0
+  printf '==> Initialising terraform/%s (first run)\n' "$PROVIDER"
+  local log
+  # -upgrade so the community libvirt provider downloads on kvm, matching the
+  # Makefile's own init for that root.
+  if ! log="$(terraform -chdir="$REPO_ROOT/terraform/$PROVIDER" init -backend=false -upgrade -input=false 2>&1)"; then
+    printf 'ERROR  terraform init failed in %s\n' "terraform/$PROVIDER" >&2
+    printf '%s\n' "$log" | sed 's/^/      /' >&2
+    return 2
   fi
-  [[ $rc -ne 0 ]] && fail=1
-done
+  return 0
+}
 
-# Fixtures are specs that MUST fail. A check that only ever sees valid input
-# cannot detect a regression in its own logic -- it would keep reporting success
-# while asserting nothing. They live outside deployments/ so the deployment-spec
-# validator does not treat them as real topologies.
-if [[ -d "$FIXTURE_DIR" ]]; then
-  echo
-  echo "==> Fixtures"
-  for spec in "$FIXTURE_DIR"/*/topology.yml; do
+check_provider() {
+  PROVIDER="$1"
+  # A while-read loop rather than `mapfile`: mapfile is bash 4+, and macOS ships
+  # 3.2, so it would have passed in CI and failed on a maintainer's laptop --
+  # the local/CI split the Makefile front door exists to prevent.
+  VAR_ARGS=()
+  local argf line
+  argf="$(mktemp)"
+  if ! provider_var_args "$PROVIDER" >"$argf"; then rm -f "$argf"; return 2; fi
+  while IFS= read -r line; do VAR_ARGS+=("$line"); done <"$argf"
+  rm -f "$argf"
+  [[ ${#VAR_ARGS[@]} -gt 0 ]] || return 2
+  ensure_init || return 2
+
+  echo "==> Validating rendered topologies (provider: $PROVIDER)"
+
+  for spec in "$DEPLOY_DIR"/*/topology.yml; do
     [[ -e "$spec" ]] || continue
+    [[ -L "$(dirname "$spec")" ]] && continue
     slug="$(basename "$(dirname "$spec")")"
     checked=$((checked + 1))
-
-    # An `expect-pass` marker says this fixture must render cleanly. Without at
-    # least one, a check that rejected everything would look identical to one
-    # that works.
-    want_pass=false
-    if [[ -f "$FIXTURE_DIR/$slug/expect-pass" ]]; then want_pass=true; fi
-
-    # Symlinked into deployments/ so var.deployment resolves it; removed again
-    # immediately, including if the render errors.
-    link="$DEPLOY_DIR/$slug"
-    ln -sfn "$FIXTURE_DIR/$slug" "$link"
     rc=0
-    check_spec "$slug" >/dev/null 2>&1 || rc=$?
-    rm -f "$link"
-
-    if [[ "$want_pass" == true ]]; then
-      if [[ $rc -eq 0 ]]; then
-        printf '  %-24s ok    passed as expected\n' "$slug"
-      else
-        printf '  %-24s FAIL  expected to pass, was rejected\n' "$slug"
-        fail=1
-      fi
-    else
-      case $rc in
-        0) printf '  %-24s FAIL  expected to be rejected, it passed\n' "$slug"; fail=1 ;;
-        1) printf '  %-24s ok    rejected as expected\n' "$slug" ;;
-        *) printf '  %-24s FAIL  did not render at all; a fixture must be caught by an\n' "$slug"
-           printf '  %-24s       invariant, not be too broken to evaluate\n' "" ; fail=1 ;;
-      esac
+    check_spec "$slug" || rc=$?
+    if [[ $rc -eq 2 ]]; then
+      echo
+      echo "aborting: a spec could not be rendered at all, so the rest would only"
+      echo "repeat the same failure past the CI job limit."
+      exit 1
     fi
+    # 3 is "this provider says it cannot run this spec", which is a supported
+    # state and not a violation. Anything else non-zero is.
+    if [[ $rc -ne 0 && $rc -ne 3 ]]; then fail=1; fi
   done
-fi
+
+  # Fixtures are specs that MUST fail. A check that only ever sees valid input
+  # cannot detect a regression in its own logic -- it would keep reporting success
+  # while asserting nothing. They live outside deployments/ so the deployment-spec
+  # validator does not treat them as real topologies.
+  if [[ -d "$FIXTURE_DIR" ]]; then
+    echo
+    echo "==> Fixtures"
+    for spec in "$FIXTURE_DIR"/*/topology.yml; do
+      [[ -e "$spec" ]] || continue
+      slug="$(basename "$(dirname "$spec")")"
+      checked=$((checked + 1))
+
+      # An `expect-pass` marker says this fixture must render cleanly. Without at
+      # least one, a check that rejected everything would look identical to one
+      # that works.
+      want_pass=false
+      if [[ -f "$FIXTURE_DIR/$slug/expect-pass" ]]; then want_pass=true; fi
+
+      # Symlinked into deployments/ so var.deployment resolves it; removed again
+      # immediately, including if the render errors.
+      link="$DEPLOY_DIR/$slug"
+      ln -sfn "$FIXTURE_DIR/$slug" "$link"
+      rc=0
+      check_spec "$slug" >/dev/null 2>&1 || rc=$?
+      rm -f "$link"
+
+      if [[ "$want_pass" == true ]]; then
+        if [[ $rc -eq 0 ]]; then
+          printf '  %-24s ok    passed as expected\n' "$slug"
+        else
+          printf '  %-24s FAIL  expected to pass, was rejected\n' "$slug"
+          fail=1
+        fi
+      else
+        case $rc in
+          0) printf '  %-24s FAIL  expected to be rejected, it passed\n' "$slug"; fail=1 ;;
+          1) printf '  %-24s ok    rejected as expected\n' "$slug" ;;
+          *) printf '  %-24s FAIL  did not render at all; a fixture must be caught by an\n' "$slug"
+             printf '  %-24s       invariant, not be too broken to evaluate\n' "" ; fail=1 ;;
+        esac
+      fi
+    done
+  fi
+
+
+  return 0
+}
+
+for provider in "${PROVIDERS[@]}"; do
+  check_provider "$provider" || fail=1
+  echo
+done
 
 echo
 if [[ $fail -ne 0 ]]; then
