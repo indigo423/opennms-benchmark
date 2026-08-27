@@ -26,6 +26,17 @@ locals {
     medium = { memory = 8192, vcpu = 2 }
     large  = { memory = 8192, vcpu = 4 }
     xlarge = { memory = 16384, vcpu = 4 }
+    # CPU-heavy tiers at xlarge's memory. Memory deliberately does NOT rise with
+    # them: OpenNMS pins JAVA_HEAP_SIZE at 8192, so heap is independent of vCPU
+    # and extra cores add only thread stacks and GC threads. Measured on Core at
+    # 2,150 devices with 200 Collectd threads: 10.3 GB used of 16 GB, 5.7 GB
+    # still available. Raise memory when GC pressure says to, not pre-emptively.
+    #
+    # Same shape as the existing medium/large pair, which are both 8192 MiB and
+    # differ only in vCPU. Appended, never reordered: an existing deployment's
+    # class must keep meaning what it did.
+    xxlarge  = { memory = 16384, vcpu = 8 }
+    xxxlarge = { memory = 16384, vcpu = 16 }
   }
 
   subnet_cidr = {

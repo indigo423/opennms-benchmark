@@ -10,13 +10,27 @@ description: >-
   part of the spec vocabulary proxmox refuses.
 roles:
   database:
+    # xlarge, not baseline's small. Metrics never reach PostgreSQL under
+    # exclusive forwarding, which makes "the database is idle here" an easy and
+    # wrong assumption: the FM half of this deployment writes every syslog
+    # message and trap as an event row. Measured 2026-08-27 at 2,150 devices,
+    # the 2-vCPU db was the most saturated component in the lab at 4.87 load
+    # per core against Core's 2.24, doing event inserts and alarm reduction --
+    # not metric persistence. Sized against the event rate, not the metric rate.
     count: 1
-    size: small
+    size: xlarge
     subnets: [mgmt, db]
     groups: [database]
   core:
+    # xxlarge (8 vCPU, 16 GiB): CPU only, memory held at xlarge's 16 GiB.
+    # Sizing the database, then the Minion, then Collectd's thread pool each
+    # relocated the constraint rather than removing it, and every time it landed
+    # here. At 200 Collectd threads on 4 vCPU, Core reached 15,666 samples/s but
+    # spiked to load 124 and starved its own Minion-RPC consumer for 11 minutes
+    # -- throughput bought with stability. Memory is NOT raised with it: heap is
+    # pinned at 8192 and 5.7 GB of the 16 GB was still free at that load.
     count: 1
-    size: xlarge
+    size: xxlarge
     # 200, not the 100 in disk-sizes.tfvars: a timed run accumulates RRD/JRB,
     # logs and instrumentation.log for its whole duration, and running Core out
     # of disk mid-run ends the measurement without ending the run.
@@ -42,8 +56,14 @@ roles:
     subnets: [mgmt, kafka]
     groups: [message_broker, docker_engine, kafka_ui]
   minion:
+    # large, not baseline's small. The Minion executes the SNMP walks that
+    # Collectd's threads block on, so it is the RPC executor for the whole PM
+    # workload, and it carries the syslog and trap ingress at the same time.
+    # Measured 2026-08-27 at 2,150 devices: 2 vCPU at load 1.47, RPC-request
+    # consumer lag 26-33 per partition, and trap reception going intermittent
+    # while the broker reported zero discards -- saturation here, not loss.
     count: 1
-    size: small
+    size: large
     subnets: [mgmt, kafka, sim]
     routes: { sim: net_sim }
     groups: [minion]

@@ -1,0 +1,139 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# One rung: set the thread count, restart Collectd's JVM, let collection reach
+# steady state, then measure one window.
+#
+# Runs from the monitoring node and delegates the Core-side work, so the whole
+# sweep is one play and the measurement stays where the tooling is.
+
+- name: "Set Collectd threads to {{ pm_threads_n }}"
+  ansible.builtin.replace:
+    path: /opt/opennms/etc/collectd-configuration.xml
+    regexp: '(<collectd-configuration[^>]*?)threads="\d+"'
+    replace: '\1threads="{{ pm_threads_n }}"'
+  delegate_to: "{{ pm_core_host }}"
+  become: true
+
+# collectd-configuration.xml is read at daemon start, so a reload would leave
+# the old pool size live while the file claims otherwise.
+- name: "Restart OpenNMS for rung {{ pm_threads_n }}"
+  ansible.builtin.service:
+    name: opennms
+    state: restarted
+  delegate_to: "{{ pm_core_host }}"
+  become: true
+
+- name: "Wait for OpenNMS to answer at rung {{ pm_threads_n }}"
+  ansible.builtin.uri:
+    url: "http://{{ endpoints.measurement.opennms.host }}:{{ endpoints.measurement.opennms.port }}/opennms/login.jsp"
+    status_code: [200, 302]
+  register: pm_threads_up
+  until: pm_threads_up.status in [200, 302]
+  retries: 60
+  delay: 10
+  changed_when: false
+
+# Collectd staggers nodes across the interval and schedules a restarted fleet
+# from scratch, so the first cycle after a restart is a ramp, not steady state.
+# Measuring into it is what produced the 323 s span on a 660 s window.
+- name: "Let collection reach steady state at rung {{ pm_threads_n }}"
+  ansible.builtin.pause:
+    seconds: "{{ pm_threads_settle_seconds }}"
+
+- name: "Mark the measurement start for rung {{ pm_threads_n }}"
+  ansible.builtin.command:
+    cmd: kafka-metrics-report --label "threads {{ pm_threads_n }} baseline" --html /tmp/th-base.html --json /tmp/th-base.json
+  register: pm_threads_base
+  changed_when: false
+  failed_when: pm_threads_base.rc > 1
+
+- name: "Read the baseline offsets for rung {{ pm_threads_n }}"
+  ansible.builtin.slurp:
+    src: /tmp/th-base.json
+  register: pm_threads_base_json
+
+- name: "Capture the offsets to measure from for rung {{ pm_threads_n }}"
+  ansible.builtin.copy:
+    content: "{{ dict(pm_off.keys() | zip(pm_off.values() | map(attribute='end'))) | to_json }}"
+    dest: /tmp/th-start.json
+    mode: "0644"
+  vars:
+    pm_off: "{{ (pm_threads_base_json.content | b64decode | from_json).offsets }}"
+
+- name: "Collect for the measurement window at rung {{ pm_threads_n }}"
+  ansible.builtin.pause:
+    seconds: "{{ pm_threads_window_seconds }}"
+
+- name: "Measure what arrived at rung {{ pm_threads_n }}"
+  ansible.builtin.command:
+    cmd: >-
+      kafka-metrics-report --start-offsets /tmp/th-start.json
+      --label "collectd threads {{ pm_threads_n }}"
+      --bucket-seconds {{ pm_threads_bucket_seconds }}
+      --html /tmp/th-{{ pm_threads_n }}.html --json /tmp/th-{{ pm_threads_n }}.json
+  register: pm_threads_measure
+  changed_when: false
+  failed_when: pm_threads_measure.rc > 1
+
+- name: "Read the result for rung {{ pm_threads_n }}"
+  ansible.builtin.slurp:
+    src: /tmp/th-{{ pm_threads_n }}.json
+  register: pm_threads_result_json
+
+# window_rate divides by the wall-clock window, which is the throughput the
+# system actually sustained. span_rate is kept only so the two can be compared:
+# where they disagree, the window did not fill and the rung is not comparable.
+- name: "Record the result for rung {{ pm_threads_n }}"
+  ansible.builtin.set_fact:
+    pm_threads_results: "{{ pm_threads_results | default([]) + [pm_threads_row] }}"
+    pm_threads_rows: "{{ pm_threads_rows | default([]) + [pm_threads_line] }}"
+  vars:
+    # Every divisor carries a non-zero default. Not defensiveness about runtime
+    # values -- ansible-lint renders this block with an empty context, where a
+    # bare divisor is 0 and the whole task fails to parse.
+    pm_r: "{{ pm_threads_result_json.content | b64decode | from_json }}"
+    pm_samples: "{{ pm_r.totals.samples | default(0) | int }}"
+    pm_nodes: "{{ pm_r.totals.nodes_seen | default(1) | int }}"
+    pm_span: "{{ pm_r.rate.span_seconds | default(0) | float }}"
+    pm_window: "{{ pm_threads_window_seconds | default(660) | float }}"
+    # Divisors are written out inline rather than taken from the siblings above:
+    # ansible-lint renders each expression against the outer context only, where
+    # a sibling is undefined, coerces to 0, and fails the whole block on
+    # "division by zero" -- at lint time, never at run time.
+    pm_window_rate: >-
+      {{ ((pm_r.totals.samples | default(0) | float)
+          / (pm_threads_window_seconds | default(660) | float)) | round(1) }}
+    pm_span_rate: >-
+      {{ ((pm_r.totals.samples | default(0) | float)
+          / (pm_r.rate.span_seconds | default(1) | float)) | round(1)
+         if (pm_r.rate.span_seconds | default(0) | float) > 0 else 0 }}
+    pm_coverage: >-
+      {{ ((pm_r.rate.span_seconds | default(0) | float)
+          / (pm_threads_window_seconds | default(660) | float)) | round(3) }}
+    pm_per_dev: >-
+      {{ ((pm_r.totals.samples | default(0) | float)
+          / (pm_r.totals.nodes_seen | default(1) | float)
+          * (300 / (pm_threads_window_seconds | default(660) | float))) | round(0) }}
+    pm_threads_row:
+      threads: "{{ pm_threads_n }}"
+      samples: "{{ pm_samples }}"
+      nodes: "{{ pm_nodes }}"
+      window_rate: "{{ pm_window_rate | float }}"
+      span_rate: "{{ pm_span_rate | float }}"
+      coverage: "{{ pm_coverage | float }}"
+      per_dev_cycle: "{{ pm_per_dev }}"
+      warnings: "{{ pm_r.warnings }}"
+    pm_threads_line: >-
+      {{ '%-8s %-12s %-6s %-12s %-10s %-9s %s' | format(
+         pm_threads_n, pm_samples, pm_nodes, pm_window_rate, pm_span_rate,
+         pm_coverage, pm_per_dev) }}
+
+- name: "Report rung {{ pm_threads_n }}"
+  ansible.builtin.debug:
+    msg: >-
+      threads={{ pm_threads_n }} window_rate={{ pm_threads_results[-1].window_rate }}/s
+      coverage={{ pm_threads_results[-1].coverage }}
+      {{ '(NOT COMPARABLE - window did not fill)'
+         if pm_threads_results[-1].coverage | float < pm_threads_min_coverage | float else '' }}

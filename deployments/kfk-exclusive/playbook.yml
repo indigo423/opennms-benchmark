@@ -26,6 +26,20 @@
 - name: Deploy the stock OpenNMS stack
   ansible.builtin.import_playbook: ../../opennms-playbook.yml
 
+# The pinned collection's stub_pgsql role manages repository, version, auth and
+# credentials, and nothing about performance, so PostgreSQL runs on packaged
+# defaults: 128 MB shared_buffers and 100 max_connections whatever the VM's
+# size. Metrics never reach the database under exclusive forwarding, which makes
+# it easy to assume it is idle -- but the FM half of this deployment writes
+# every syslog message and trap as an event row, and at 2,150 devices that
+# measured 229 events/s and left the database the most saturated component in
+# the lab (2026-08-27).
+- name: Tune PostgreSQL for the deployment's event load
+  hosts: database
+  become: true
+  roles:
+    - postgres_tuning
+
 # Core's first boot happens inside the imported playbook, with strategy=osgi
 # already set but the producer feature not yet installed, so Collectd blocks
 # until this play's handler restarts it. Transient and self-correcting; it is
@@ -46,6 +60,17 @@
   become: true
   roles:
     - opennms_thresholding_off
+
+# The campaign's independent variable. Stock Collectd runs 50 threads, which at
+# 2,154 collectable services and a 300 s interval leaves under 7 s per node --
+# measured 2026-08-27 as a 78.3% completion ratio with 2,104 services pending
+# and the pool pegged at 100%. Sizing the database and the Minion moved the
+# constraint here and did not raise throughput past ~11,150 samples/s.
+- name: Tune Collectd's thread pool
+  hosts: core
+  become: true
+  roles:
+    - opennms_collectd_tuning
 
 # The deployment publishes syslog and trap ingress in lab-endpoints.yml, so it
 # has to bind them. The pinned collection's opennms_minion role configures Kafka

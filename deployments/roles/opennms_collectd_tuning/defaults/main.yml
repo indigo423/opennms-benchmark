@@ -1,0 +1,19 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# The independent variable of the #225 performance-management campaign.
+#
+# Collectd's thread count bounds how many collections can be in flight, and a
+# cycle that cannot place every collectable service within its interval simply
+# does not complete. The arithmetic is blunt: with N services on an I-second
+# interval and T threads, each collection must finish within T x I / N seconds.
+# At 2,154 services, a 300 s interval and the stock 50 threads that is under
+# 7 s per node, which a 144-interface CRS-X walk does not meet -- measured
+# 2026-08-27 as a 78.3% completion ratio with 2,104 services pending.
+#
+# Threads block on SNMP round-trips executed by the Minion, not on Core's CPU,
+# so a value well above Core's vCPU count is the point rather than a mistake.
+opennms_collectd_tuning_threads: 200
+
+opennms_collectd_tuning_config: /opt/opennms/etc/collectd-configuration.xml

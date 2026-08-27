@@ -1,0 +1,70 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# The pinned indigo423.opennms collection's stub_pgsql role manages the
+# repository, version, authentication and credentials, and nothing about
+# performance. PostgreSQL therefore runs on packaged defaults sized for a far
+# smaller machine: 128 MB shared_buffers and 100 max_connections regardless of
+# how much RAM the VM has. Measured 2026-08-27, that database was the most
+# saturated component in the lab.
+
+- name: Assert the conf.d drop-in directory exists
+  ansible.builtin.stat:
+    path: "{{ postgres_tuning_conf_dir }}"
+  register: postgres_tuning_dir
+  failed_when: not postgres_tuning_dir.stat.isdir | default(false)
+  changed_when: false
+
+# A drop-in only takes effect if postgresql.conf actually includes the
+# directory. Debian's packaging ships `include_dir = 'conf.d'` enabled, but a
+# hand-edited config can drop it, and the failure is silent: the file is written,
+# nothing reads it, and the tuning appears to have been applied.
+- name: Assert postgresql.conf includes the drop-in directory
+  ansible.builtin.command:
+    cmd: >-
+      grep -Eq "^[[:space:]]*include_dir[[:space:]]*=[[:space:]]*'conf.d'"
+      /etc/postgresql/{{ postgres_tuning_pg_version }}/main/postgresql.conf
+  changed_when: false
+
+- name: Install the tuning drop-in
+  ansible.builtin.template:
+    src: tuning.conf.j2
+    dest: "{{ postgres_tuning_conf_dir }}/{{ postgres_tuning_file }}"
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  notify: Restart postgresql
+
+# max_connections and shared_buffers need a full restart, not a reload, so the
+# handler must have run before anything asserts the new values are live.
+- name: Apply the tuning now
+  ansible.builtin.meta: flush_handlers
+
+# Proves the settings are in effect rather than merely on disk. A drop-in that
+# postgres declined to load leaves the packaged defaults running, and every
+# downstream measurement would describe an untuned database.
+- name: Read back the settings PostgreSQL is actually running with
+  become: true
+  become_user: postgres
+  ansible.builtin.command:
+    cmd: >-
+      psql -tAc "SELECT name || '=' || setting FROM pg_settings
+      WHERE name IN ('max_connections','shared_buffers','work_mem',
+      'effective_cache_size','max_parallel_workers') ORDER BY name"
+  register: postgres_tuning_live
+  changed_when: false
+
+- name: Assert max_connections took effect
+  ansible.builtin.assert:
+    that:
+      - "'max_connections=' ~ postgres_tuning_max_connections in postgres_tuning_live.stdout_lines"
+    fail_msg: >-
+      PostgreSQL is not running with max_connections={{ postgres_tuning_max_connections }}.
+      Live settings: {{ postgres_tuning_live.stdout_lines }}.
+      The drop-in was written but did not take effect.
+    quiet: true
+
+- name: Report the live tuning
+  ansible.builtin.debug:
+    msg: "{{ postgres_tuning_live.stdout_lines }}"

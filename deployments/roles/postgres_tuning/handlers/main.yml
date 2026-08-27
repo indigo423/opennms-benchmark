@@ -1,0 +1,11 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Restart, not reload: max_connections and shared_buffers are postmaster-level
+# settings that a reload silently ignores, leaving the old values live while the
+# file on disk says otherwise.
+- name: Restart postgresql
+  ansible.builtin.service:
+    name: postgresql
+    state: restarted

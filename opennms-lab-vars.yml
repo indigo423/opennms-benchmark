@@ -61,9 +61,22 @@ opennms_datasource_db_host: >-
 opennms_datasource_db_port: 5432
 opennms_datasource_db_name: onms_benchmark
 opennms_datasource_db_user: opennms
-opennms_datasource_connection_pool_min_pool: 100
-opennms_datasource_connection_pool_max_pool: 100
-opennms_datasource_connection_pool_max_size: 100
+# Connection pool. These MUST go through opennms_env: opennms-datasources.xml
+# reads them as ${env:OPENNMS_DATABASE_CONNECTION_MAXSIZE|50}, and the
+# opennms_core role renders only opennms_env into opennms.conf.
+#
+# There were previously three opennms_datasource_connection_pool_* variables
+# here set to 100. The role consumes no such variables, so they did nothing:
+# the datasources.xml fallbacks of 25/50/50 stayed in force, and Grafana showed
+# a pool pinned at 50 active with threads waiting. A variable that looks like a
+# setting and is read by nobody is worse than no variable at all.
+#
+# Must stay below postgres_tuning_max_connections, counting the two smaller
+# pools opennms-datasources.xml also declares.
+opennms_env:
+  OPENNMS_DATABASE_CONNECTION_MINPOOL: 25
+  OPENNMS_DATABASE_CONNECTION_MAXPOOL: 100
+  OPENNMS_DATABASE_CONNECTION_MAXSIZE: 100
 
 onns_hzn_base_url: http://192.0.2.200:8980
 

@@ -120,6 +120,12 @@ variable "instance_types" {
     medium = "m6i.xlarge"
     large  = "m6i.xlarge"
     xlarge = "m6i.2xlarge"
+    # 8 and 16 vCPU at 32/64 GiB: EC2 sells vCPU and memory together, so these
+    # carry more memory than the kvm/proxmox classes of the same name. The
+    # contract those classes assert is the vCPU count, which is what the sizing
+    # they were added for is about.
+    xxlarge  = "m6i.4xlarge"
+    xxxlarge = "m6i.8xlarge"
   }
 }
 
@@ -139,6 +145,10 @@ variable "instance_types_smoke" {
     medium = "t3a.medium"
     large  = "t3a.medium"
     xlarge = "t3a.large"
+    # Smoke proves the stack starts; it does not measure. Both CPU-heavy tiers
+    # collapse onto the same burstable type on purpose.
+    xxlarge  = "t3a.large"
+    xxxlarge = "t3a.large"
   }
 }
 
