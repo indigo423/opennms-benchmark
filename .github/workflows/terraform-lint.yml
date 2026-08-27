@@ -142,6 +142,40 @@ jobs:
       - name: make validate-extra-roots
         run: make validate-extra-roots
 
+  # `terraform validate` above checks types and syntax. It does not evaluate
+  # locals against real values, and resource preconditions are plan-time only, so
+  # a deployment spec whose route points at a node that does not exist passes
+  # every other gate here -- which is how a hardcoded next hop stayed wrong until
+  # it was found by hand (#171). This renders every spec with `terraform console`
+  # and asserts the result.
+  #
+  # It renders through every spec-driven provider, not just kvm, so aws's and
+  # proxmox's copies of the invariants are asserted too. Timeout is generous
+  # because that is 3 providers x 15 specs plus fixtures, each a separate
+  # `terraform console` invocation.
+  #
+  # No credentials and no hypervisor: console evaluates the provider's own locals
+  # without contacting one, and the script passes placeholder values for every
+  # variable rather than reading a gitignored <provider>.tfvars. It initialises
+  # each root on demand, so this job runs the make target directly like every
+  # other. Each render is bounded, so a hang reports a named per-spec timeout
+  # instead of sitting until the job limit.
+  validate-topology:
+    name: Deployment Topologies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
+        with:
+          terraform_version: "~1.5"
+
+      - name: make validate-topology
+        run: make validate-topology
+
   tflint:
     name: TFLint
     runs-on: ubuntu-24.04
