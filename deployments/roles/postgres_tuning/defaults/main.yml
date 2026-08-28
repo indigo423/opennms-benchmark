@@ -12,9 +12,22 @@ postgres_tuning_conf_dir: /etc/postgresql/{{ postgres_tuning_pg_version }}/main/
 postgres_tuning_file: 10-benchmark-tuning.conf
 
 # Must exceed every pool that connects, summed, plus headroom for psql and
-# maintenance. OpenNMS Horizon opens three: the main pool, and two smaller ones
-# declared in opennms-datasources.xml. See opennms_env in the lab vars.
-postgres_tuning_max_connections: 200
+# maintenance. OpenNMS Horizon opens three, and the sum is what matters:
+#
+#   main pool   OPENNMS_DATABASE_CONNECTION_MAXSIZE   250   (opennms_env, lab vars)
+#   two others  maxSize="50" each, fixed                100
+#                                                      ----
+#                                                       350
+#
+# 400 leaves headroom for superuser_reserved_connections, psql and the metrics
+# exporter. Raise this BEFORE raising the pool: a pool larger than the server
+# allows fails at connect time, and OpenNMS surfaces that as daemons blocking
+# rather than as a database error.
+#
+# Note the coupling to work_mem below, which divides by max_connections: going
+# 200 -> 400 halves it from ~10 MB to ~5 MB per sort node. That is the intended
+# trade and the reason this is not simply set enormous.
+postgres_tuning_max_connections: 400
 
 # 25% of RAM. On ZFS this is deliberately not raised further: the ARC already
 # caches the same blocks, so a larger shared_buffers mostly buys double caching.

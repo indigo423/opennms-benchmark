@@ -17,8 +17,14 @@ roles:
     # the 2-vCPU db was the most saturated component in the lab at 4.87 load
     # per core against Core's 2.24, doing event inserts and alarm reduction --
     # not metric persistence. Sized against the event rate, not the metric rate.
+    #
+    # Raised 4 -> 8 vCPU on 2026-08-28: at 4 the database ran a mean load of
+    # 8.77 (2.19 per core) with per-cycle spikes to 47.2. Memory stays at 16 GiB
+    # -- the constraint is CPU. postgres_tuning derives max_worker_processes and
+    # the parallel-worker settings from the host's vCPU count, so they follow
+    # this automatically rather than needing a matching edit.
     count: 1
-    size: xlarge
+    size: xxlarge
     subnets: [mgmt, db]
     groups: [database]
   core:

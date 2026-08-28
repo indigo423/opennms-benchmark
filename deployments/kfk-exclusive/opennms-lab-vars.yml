@@ -105,3 +105,20 @@ kafka_server_properties:
   "log.segment.bytes": 134217728
   "log.retention.check.interval.ms": 300000
   "log.dirs": /var/log/kafka/combined-logs
+
+# ── PostgreSQL work_mem, pinned rather than derived ──────────────────────────
+#
+# postgres_tuning derives work_mem from max_connections, so raising the pool
+# ceiling from 200 to 400 on 2026-08-28 silently halved it, 10,235 kB -> 5,117
+# kB. That was a side effect of a connection-pool change, not a decision about
+# sort memory, and it landed in the same deploy as two other changes.
+#
+# Pinned here at the pre-change value to isolate it: everything else in that
+# deploy stays as it is, so a difference in sustained collection is attributable
+# to work_mem alone.
+#
+# Worst case is work_mem x sort/hash nodes x concurrent queries. At 400
+# max_connections that ceiling is twice what it was when this value was derived,
+# so watch the database's available memory while this is pinned. Revert to the
+# derived default if it buys nothing.
+postgres_tuning_work_mem_kb: 10235

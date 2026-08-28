@@ -73,10 +73,15 @@ opennms_datasource_db_user: opennms
 #
 # Must stay below postgres_tuning_max_connections, counting the two smaller
 # pools opennms-datasources.xml also declares.
+#
+# 250 measured, not guessed: at 100 the pool sat pinned at 100 active with
+# threads waiting spiking to 127 on every collection cycle (2026-08-28). A pool
+# at its ceiling with threads queued is Collectd blocking on connection
+# acquisition, not on the database, which was idle at the time.
 opennms_env:
   OPENNMS_DATABASE_CONNECTION_MINPOOL: 25
-  OPENNMS_DATABASE_CONNECTION_MAXPOOL: 100
-  OPENNMS_DATABASE_CONNECTION_MAXSIZE: 100
+  OPENNMS_DATABASE_CONNECTION_MAXPOOL: 250
+  OPENNMS_DATABASE_CONNECTION_MAXSIZE: 250
 
 onns_hzn_base_url: http://192.0.2.200:8980
 
