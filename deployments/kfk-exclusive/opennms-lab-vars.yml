@@ -122,3 +122,25 @@ kafka_server_properties:
 # so watch the database's available memory while this is pinned. Revert to the
 # derived default if it buys nothing.
 postgres_tuning_work_mem_kb: 10235
+
+# ── Fault-management workload, removed from the benchmark ────────────────────
+#
+# This deployment's description calls for "Pollerd/Trapd/Syslogd fault-management
+# load" alongside the metric stream. That load turned out to dominate what the
+# benchmark was measuring rather than accompany it.
+#
+# nl6_fleet configures syslog and trap collectors on every device it creates, so
+# the FM stream scales with the fleet whether or not the experiment is about it.
+# Measured 2026-08-28 at 3,801 devices: 337 events/s, 13.4M rows in `events` and
+# 118.7M in `event_parameters` totalling 25 GB, the database the most saturated
+# component in the lab, and Core's load average climbing at a constant fleet
+# size purely because inserts into ever-larger tables cost more.
+#
+# #225 asks for the collectd configuration that sustains a metric rate. A
+# concurrent, unbounded, uncontrolled event workload is not a control -- it is a
+# second experiment running in the same lab. Disabled so the PM path can be
+# measured on its own.
+#
+# Existing events are deliberately left in the database. Set this back to true
+# to restore the FM ingress; nothing else needs re-provisioning.
+opennms_minion_listeners_enabled: false

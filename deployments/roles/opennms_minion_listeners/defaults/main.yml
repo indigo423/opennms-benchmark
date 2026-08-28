@@ -9,3 +9,22 @@
 # definition, three consumers.
 opennms_minion_listeners_home: /opt/minion
 opennms_minion_listeners_interface: "0.0.0.0"
+
+# Whether the Minion binds the fault-management listeners at all.
+#
+# True is the right default: a deployment that publishes syslog and trap ingress
+# has to bind it, which is the defect this role was written for (#206).
+#
+# Set false to remove the fault-management workload from a
+# performance-management benchmark. nl6_fleet configures syslog and trap
+# collectors on every device it creates, unconditionally, so an FM stream
+# arrives whether or not the experiment is about it. Measured 2026-08-28 at
+# 3,801 devices that was 337 events/s, which is not a side effect: it filled
+# 25 GB of PostgreSQL across events and event_parameters, made the database the
+# most saturated component in the lab, and left Core's load climbing at a
+# constant fleet size as the tables grew.
+#
+# With this false the generator still sends; nothing binds the port and the
+# packets are dropped at the Minion. Events already in the database are left
+# alone.
+opennms_minion_listeners_enabled: true
