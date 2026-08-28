@@ -1,0 +1,45 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Batches to ADD to the running fleet. Third octets 0-10 are already occupied by
+# the pm-snmp-72m sweep, so these start at 11. One /24 per batch, never more than
+# 254 devices in one, matching pm-snmp/rung.yml's addressing.
+#
+# 6 x 250 + 150 = 1,650, taking a 2,150-device fleet to 3,800.
+#
+# Why 3,800: steady state at 2,150 devices is 40.8M metrics/hour, and every
+# component has headroom with the Collectd pool idle between cycles, so the
+# figure is bounded by the fleet rather than by OpenNMS. 72 / 40.8 x 2,150 is
+# roughly 3,800. That is well inside nl6's ~30k-per-host ceiling and the
+# generator was measured at 0.20 load per core driving 2,150.
+pm_target_batches:
+  - { index: 11, count: 250 }
+  - { index: 12, count: 250 }
+  - { index: 13, count: 250 }
+  - { index: 14, count: 250 }
+  - { index: 15, count: 250 }
+  - { index: 16, count: 250 }
+  - { index: 17, count: 150 }
+
+# Must carry the .json suffix even though the profile is a directory of per-OID
+# files; nl6 v0.22.1 rejects the bare directory name.
+pm_target_resource_file: cisco_crs_x.json
+
+# Same foreign source the existing fleet was imported under, so this grows one
+# requisition rather than creating a second that provisiond would reconcile
+# against by deleting the first one's nodes.
+pm_target_foreign_source: nl6-pm-72m
+
+# Two full collection intervals plus margin. A restart is not involved here, but
+# 1,650 new nodes still have to be scheduled and scanned before the window opens.
+pm_target_settle_seconds: 900
+pm_target_window_seconds: 660
+pm_target_bucket_seconds: 30
+
+# Coverage is span/window. A floor alone is not enough: a window can also carry
+# MORE than one window's worth of data when it drains backlog, which is exactly
+# how a 1.5x reading was mistaken for a 40% throughput gain. Bound it on both
+# sides so neither failure passes silently.
+pm_target_min_coverage: 0.85
+pm_target_max_coverage: 1.15

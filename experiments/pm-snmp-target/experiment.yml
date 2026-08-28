@@ -1,0 +1,190 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Grow the fleet to a target size and measure once.
+#
+#   make experiment EXPERIMENT=pm-snmp-target DEPLOYMENT=kfk-exclusive
+#
+# pm-snmp-72m sweeps to build a curve and measures at every rung, which costs a
+# settle plus a window per step. This one exists for the opposite question:
+# the curve is already known to be flat because collection is not capacity-bound,
+# so the only interesting number is the one at the target size.
+#
+# It ADDS to the running fleet rather than resetting it. A reset would discard
+# 2,150 devices whose nodes are already provisioned and scanned, then pay for
+# rediscovering them.
+#
+# Steady state at 2,150 devices is 7,479,300 samples per 660 s window, 40.8M
+# metrics/hour, reproducible across every configuration tried to within 0.03%,
+# with the Collectd pool idle between cycles. If that figure is fleet-bound
+# rather than capacity-bound, this run should scale close to linearly with
+# device count. Where it falls short is where OpenNMS starts to be the limit,
+# which is the question #225 actually asks.
+- name: Grow the fleet to the target size and measure
+  hosts: mon_servers
+  gather_facts: false
+  vars:
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    pm_opennms_base: >-
+      http://{{ endpoints.measurement.opennms.host }}:{{ endpoints.measurement.opennms.port }}/opennms
+  tasks:
+    - name: Assert the deployment installed the measurement tool
+      ansible.builtin.stat:
+        path: /usr/local/bin/kafka-metrics-report
+      register: pm_target_tool
+      failed_when: not pm_target_tool.stat.exists
+      changed_when: false
+
+    # Each batch owns a third octet, the same scheme pm-snmp/rung.yml uses, so a
+    # count above 254 would run off the end of its /24 and overlap its
+    # neighbour's range silently.
+    - name: Assert every batch fits inside its own third octet
+      ansible.builtin.assert:
+        that:
+          - pm_target_batches | length > 0
+          - pm_target_batches | map(attribute='count') | map('int') | max <= 254
+          - pm_target_batches | map(attribute='index') | unique | length == pm_target_batches | length
+        fail_msg: >-
+          Each batch needs a unique third octet and at most 254 devices.
+          Batches: {{ pm_target_batches }}
+        quiet: true
+
+    - name: Record the fleet before growing it
+      ansible.builtin.uri:
+        url: "{{ endpoints.generators.nl6.url }}/api/v1/status"
+        return_content: true
+      register: pm_target_before
+      changed_when: false
+
+    - name: Report the starting fleet
+      ansible.builtin.debug:
+        msg: "fleet before: {{ pm_target_before.json.data.total_devices }} devices"
+
+    - name: Grow the fleet
+      ansible.builtin.include_role:
+        name: nl6_fleet
+      vars:
+        nl6_fleet_endpoints: "{{ endpoints }}"
+        nl6_fleet_sim_network: "{{ endpoints.generators.nl6.sim_network }}"
+        nl6_fleet_start_ip: "10.42.{{ item.index }}.1"
+        nl6_fleet_count: "{{ item.count }}"
+        nl6_fleet_resource_file: "{{ pm_target_resource_file }}"
+      loop: "{{ pm_target_batches }}"
+
+    - name: Record the fleet after growing it
+      ansible.builtin.uri:
+        url: "{{ endpoints.generators.nl6.url }}/api/v1/status"
+        return_content: true
+      register: pm_target_after
+      changed_when: false
+
+    # A batch that silently created nothing would otherwise be discovered only
+    # as a disappointing measurement an hour later.
+    - name: Assert the fleet actually grew by what was asked for
+      ansible.builtin.assert:
+        that:
+          - pm_target_after.json.data.total_devices | int
+            >= (pm_target_before.json.data.total_devices | int)
+               + (pm_target_batches | map(attribute='count') | map('int') | sum)
+        fail_msg: >-
+          Fleet is {{ pm_target_after.json.data.total_devices }}, expected at least
+          {{ (pm_target_before.json.data.total_devices | int)
+             + (pm_target_batches | map(attribute='count') | map('int') | sum) }}.
+        quiet: true
+
+    # Once, after every batch exists, rather than per batch: provisiond imports
+    # the whole requisition each time and the scan is the expensive part.
+    - name: Provision the grown fleet
+      ansible.builtin.include_role:
+        name: opennms_requisition
+      vars:
+        opennms_requisition_endpoints: "{{ endpoints }}"
+        opennms_requisition_base: "{{ pm_opennms_base }}"
+        opennms_requisition_location: "{{ endpoints.ingestion.syslog.location }}"
+        opennms_requisition_foreign_source: "{{ pm_target_foreign_source }}"
+
+    - name: Let collection reach steady state
+      ansible.builtin.pause:
+        seconds: "{{ pm_target_settle_seconds }}"
+
+    - name: Mark the measurement start
+      ansible.builtin.command:
+        cmd: kafka-metrics-report --label "target baseline" --html /tmp/tg-base.html --json /tmp/tg-base.json
+      register: pm_target_base
+      changed_when: false
+      failed_when: pm_target_base.rc > 1
+
+    - name: Read the baseline offsets
+      ansible.builtin.slurp:
+        src: /tmp/tg-base.json
+      register: pm_target_base_json
+
+    - name: Capture the offsets to measure from
+      ansible.builtin.copy:
+        content: "{{ dict(pm_off.keys() | zip(pm_off.values() | map(attribute='end'))) | to_json }}"
+        dest: /tmp/tg-start.json
+        mode: "0644"
+      vars:
+        pm_off: "{{ (pm_target_base_json.content | b64decode | from_json).offsets }}"
+
+    - name: Collect for the measurement window
+      ansible.builtin.pause:
+        seconds: "{{ pm_target_window_seconds }}"
+
+    - name: Measure what arrived
+      ansible.builtin.command:
+        cmd: >-
+          kafka-metrics-report --start-offsets /tmp/tg-start.json
+          --label "pm-snmp target {{ pm_target_after.json.data.total_devices }} devices"
+          --bucket-seconds {{ pm_target_bucket_seconds }}
+          --html /tmp/tg-result.html --json /tmp/tg-result.json
+      register: pm_target_measure
+      changed_when: false
+      failed_when: pm_target_measure.rc > 1
+
+    - name: Read the result
+      ansible.builtin.slurp:
+        src: /tmp/tg-result.json
+      register: pm_target_result_json
+
+    - name: Report the result
+      ansible.builtin.debug:
+        msg:
+          - "devices        {{ pm_target_after.json.data.total_devices }}"
+          - "nodes seen     {{ pm_res.totals.nodes_seen }}"
+          - "samples        {{ pm_res.totals.samples }}"
+          - >-
+            window_rate    {{ ((pm_res.totals.samples | default(0) | float)
+                               / (pm_target_window_seconds | default(660) | float)) | round(1) }}/s
+          - >-
+            metrics/hour   {{ ((pm_res.totals.samples | default(0) | float)
+                               / (pm_target_window_seconds | default(660) | float) * 3600 / 1000000) | round(2) }}M
+          - >-
+            coverage       {{ ((pm_res.rate.span_seconds | default(0) | float)
+                               / (pm_target_window_seconds | default(660) | float)) | round(3) }}
+          - >-
+            per-dev/cycle  {{ ((pm_res.totals.samples | default(0) | float)
+                               / (pm_res.totals.nodes_seen | default(1) | float)
+                               * (300 / (pm_target_window_seconds | default(660) | float))) | round(0) }}
+          - "warnings       {{ pm_res.warnings }}"
+      vars:
+        pm_res: "{{ pm_target_result_json.content | b64decode | from_json }}"
+
+    # Coverage below this means the window did not fill, or filled with backlog:
+    # either way the rate is not a sustained one. See the note in
+    # deployments/roles/opennms_collectd_tuning/defaults/main.yml.
+    - name: Assert the measurement window is usable
+      ansible.builtin.assert:
+        that:
+          - ((pm_res.rate.span_seconds | default(0) | float)
+             / (pm_target_window_seconds | default(660) | float)) >= (pm_target_min_coverage | float)
+          - ((pm_res.rate.span_seconds | default(0) | float)
+             / (pm_target_window_seconds | default(660) | float)) <= (pm_target_max_coverage | float)
+        fail_msg: >-
+          Coverage outside [{{ pm_target_min_coverage }}, {{ pm_target_max_coverage }}].
+          Below the floor the window did not fill; above the ceiling it drained backlog
+          and the rate is not sustained. Re-measure after a longer settle.
+        quiet: true
+      vars:
+        pm_res: "{{ pm_target_result_json.content | b64decode | from_json }}"
