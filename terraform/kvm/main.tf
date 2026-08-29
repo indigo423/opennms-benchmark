@@ -26,6 +26,12 @@ locals {
     medium = { memory = 8192, vcpu = 2 }
     large  = { memory = 8192, vcpu = 4 }
     xlarge = { memory = 16384, vcpu = 4 }
+    # 8 vCPU at double xlarge's memory. Memory rises with vCPU here on purpose:
+    # this class is for a store that sizes its caches by RAM (VictoriaMetrics
+    # keeps the active-series index in memory), not for a JVM whose heap is
+    # pinned. Appended, never reordered: an existing deployment's class must
+    # keep meaning what it did.
+    xxlarge-mem = { memory = 32768, vcpu = 8 }
   }
 
   subnet_cidr = {

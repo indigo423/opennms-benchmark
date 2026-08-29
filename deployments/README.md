@@ -79,6 +79,7 @@ Not currently enforced; see #173.
 | `medium` | 2 | 8 GiB | |
 | `large` | 4 | 8 GiB | elasticsearch |
 | `xlarge` | 4 | 16 GiB | core |
+| `xxlarge-mem` | 8 | 32 GiB | standalone VictoriaMetrics target; memory rises with vCPU because the store sizes its caches by RAM |
 
 Each provider owns the class to SKU/flavour mapping (Azure `Standard_D*`, Hetzner `cx*`, or explicit `cores`/`memory` for libvirt and proxmox).
 Disk sizes come from the provider's `disk_sizes_gb`, keyed by role.
@@ -194,6 +195,7 @@ Adding or editing a spec therefore means `make validate-topology` has to pass. I
 | `kfk-exclusive` | `1pg-1kf-1on-1mn-nl6` | Kafka-exclusive metric forwarding: `baseline` minus Elasticsearch, no local TSDB. Ships an overlay and a `playbook.yml`, so **kvm/aws only** |
 | `vm-cluster-minion` | `3vm-1pg-1kf-1on-1mn` | VictoriaMetrics cluster plus minion |
 | `vm-single` | `1vm-1pg-1on` | single VictoriaMetrics |
+| `vm-target` | `1vm` | **standalone target**, one VictoriaMetrics on the physical `lab` bridge for a stack provisioned elsewhere to `remote_write` to. Ships an overlay, so **kvm/aws only** |
 | `mimir-single` | `1mm-1pg-1on` | single Mimir |
 | `es-cluster-min` | `3es` | **component test bed**, verifies Elasticsearch cluster formation on a footprint that fits the lab (28 GB) |
 | `kafka-cluster-min` | `3kf` | **component test bed**, verifies KRaft cluster formation (shared cluster ID, quorum, RF 3) at 28 GB |

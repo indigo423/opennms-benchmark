@@ -1,0 +1,13 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# vm-target overlay, layered onto the root opennms-lab-vars.yml as a second
+# --extra-vars by `make deploy DEPLOYMENT=vm-target PROVIDER=kvm`.
+#
+# The collection's stub_victoriametrics role defaults to a 1d retention, sized
+# for a store that lives beside the SUT on a 30 GiB disk. This VM carries
+# 500 GB so a multi-day run can be queried afterwards. At the 72M/hour
+# campaign's 20k samples/s VictoriaMetrics writes roughly 1.7 GB/day, so 30d
+# uses about a tenth of the disk.
+victoriametrics_retention: 30d

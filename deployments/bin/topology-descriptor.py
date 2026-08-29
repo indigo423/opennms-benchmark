@@ -32,7 +32,7 @@ ROLE_CODES = {
 EXCLUDED_ROLES = {"monitoring"}
 # Fixed emit order for a stable, comparable descriptor.
 ORDER = ["es", "mm", "vm", "rs", "rr", "pg", "sn", "kf", "on", "mn", "nl6"]
-KNOWN_SIZES = {"tiny", "small", "medium", "large", "xlarge"}
+KNOWN_SIZES = {"tiny", "small", "medium", "large", "xlarge", "xxlarge-mem"}
 KNOWN_SUBNETS = {"mgmt", "db", "kafka", "sim", "external", "lab"}
 
 

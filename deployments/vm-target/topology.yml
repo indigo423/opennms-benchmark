@@ -1,0 +1,22 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+name: vm-target
+description: >-
+  Standalone VictoriaMetrics single node, sized like a production instance
+  (8 vCPU, 32 GiB, 500 GB), for an OpenNMS stack provisioned elsewhere to
+  remote_write to. The VM sits directly on the physical lab bridge with a
+  pinned address, since the writer is off-hypervisor and cannot discover the
+  lab's NAT addressing. Point the consuming deployment's
+  opennms_remotewrite.write_url at http://192.168.11.38:8428/api/v1/write.
+  Ships an overlay (retention), so kvm/aws only.
+roles:
+  victoriametrics:
+    count: 1
+    size: xxlarge-mem
+    disk_gb: 500
+    subnets: [lab]
+    addresses: { lab: ["192.168.11.38"] }
+    # No docker_engine: VictoriaMetrics installs as a release binary under
+    # systemd (indigo423.opennms.stub_victoriametrics).
+    groups: [victoriametrics]

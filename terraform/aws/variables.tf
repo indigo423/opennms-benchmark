@@ -120,6 +120,9 @@ variable "instance_types" {
     medium = "m6i.xlarge"
     large  = "m6i.xlarge"
     xlarge = "m6i.2xlarge"
+    # 8 vCPU / 32 GiB: the one class whose memory EC2's fixed vCPU:RAM ratio
+    # matches exactly.
+    xxlarge-mem = "m6i.2xlarge"
   }
 }
 
@@ -139,6 +142,8 @@ variable "instance_types_smoke" {
     medium = "t3a.medium"
     large  = "t3a.medium"
     xlarge = "t3a.large"
+    # Smoke proves the stack starts; it does not measure.
+    xxlarge-mem = "t3a.large"
   }
 }
 
