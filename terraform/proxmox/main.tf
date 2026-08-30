@@ -260,3 +260,16 @@ module "inventory" {
   jump_host      = var.jump_host
   jump_host_name = local.jump_host_name
 }
+
+# #277: the inventory moved to ansible-inventory.<provider>.yml and the resource
+# was renamed so this block can apply. It drops the old object from state only:
+# local_file deletes its file on destroy and on replace, and a lab that was
+# deployed before this change is still reading the old path. Delete the old
+# repo-root file by hand once that lab is done. Remove this block after every
+# provider's state has been applied past it.
+removed {
+  from = module.inventory.local_file.ansible_inventory
+  lifecycle {
+    destroy = false
+  }
+}

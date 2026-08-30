@@ -3,7 +3,7 @@
 # CRS-X fleet ramped until collection stops completing, to locate the knee
 # cheaply before paying for measurement-grade instances.
 #
-#   make experiment EXPERIMENT=pm-snmp-smoke DEPLOYMENT=kfk-exclusive
+#   make experiment PROVIDER=proxmox EXPERIMENT=pm-snmp-smoke DEPLOYMENT=kfk-exclusive
 #
 # Smoke results are reconnaissance, not benchmarks: t-class instances deplete
 # CPU credits under sustained load, so late rungs run on a slower machine than

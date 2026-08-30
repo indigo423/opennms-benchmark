@@ -2,11 +2,11 @@
 # deploy.sh — provision lab infrastructure and deploy OpenNMS Horizon
 #
 # Workflow:
-#   1. terraform apply             — creates VMs and writes ansible-inventory.yml
+#   1. terraform apply             — creates VMs and writes ansible-inventory.<provider>.yml
 #   2. make install-collections    — installs the pinned closure, resolver off
 #   3. ansible-playbook bootstrap  — installs base tooling
 #   4. ansible-playbook opennms    — deploys OpenNMS stack
-#   5. ansible-playbook endpoints — writes lab-endpoints.yml, the manifest
+#   5. ansible-playbook endpoints — writes lab-endpoints.<provider>.yml, the manifest
 #                                    of what listens where on this deployment
 #
 # For KVM and Proxmox the monitoring VM gets a DHCP address on an external
@@ -85,6 +85,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export ANSIBLE_CONFIG="$REPO_ROOT/ansible.cfg"
 TF_DIR="$REPO_ROOT/terraform/$PROVIDER"
 TFVARS_FILE="$TF_DIR/${PROVIDER}.tfvars"
+# Generated Ansible inputs are provider-scoped (#277) so two labs can be
+# deployed and operated from one checkout without overwriting each other.
+INVENTORY="$REPO_ROOT/ansible-inventory.${PROVIDER}.yml"
 
 # lab.tfvars is provider-agnostic. lab-addresses.tfvars carries the legacy
 # per-host address scheme (#161); aws and proxmox derive every address from the
@@ -311,7 +314,7 @@ if $DESTROY; then
   tf_init
   set_provider_vars
   tf_destroy "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}"
-  rm -f "$REPO_ROOT/ansible-inventory.yml"
+  rm -f "$INVENTORY" "$REPO_ROOT/lab-endpoints.${PROVIDER}.yml" "$REPO_ROOT/lab-endpoints.${PROVIDER}.json"
   step "Done. All $PROVIDER lab resources destroyed."
   exit 0
 fi
@@ -419,7 +422,7 @@ step "[3/5] Bootstrapping VMs..."
 # shellcheck disable=SC2086
 ansible-playbook \
   --become \
-  -i "$REPO_ROOT/ansible-inventory.yml" \
+  -i "$INVENTORY" \
   $ANSIBLE_VERBOSITY \
   "$REPO_ROOT/bootstrap/site.yml"
 
@@ -444,7 +447,7 @@ step "[4/5] Deploying $STACK_LABEL..."
 # shellcheck disable=SC2086
 ansible-playbook \
   --become \
-  -i "$REPO_ROOT/ansible-inventory.yml" \
+  -i "$INVENTORY" \
   $ANSIBLE_VERBOSITY \
   "$DEPLOYMENT_PLAYBOOK" \
   --extra-vars="@$REPO_ROOT/opennms-lab-vars.yml" \
@@ -458,7 +461,7 @@ ansible-playbook \
 step "[5/5] Publishing endpoints..."
 # shellcheck disable=SC2086
 ansible-playbook \
-  -i "$REPO_ROOT/ansible-inventory.yml" \
+  -i "$INVENTORY" \
   $ANSIBLE_VERBOSITY \
   "$REPO_ROOT/endpoints-playbook.yml" \
   --extra-vars="@$REPO_ROOT/opennms-lab-vars.yml" \

@@ -13,7 +13,7 @@ This document describes every significant directory and file in the repository a
 ```text
 opennms-benchmark/
 ├── azcli/                    # Legacy Azure CLI provisioning script (pre-Terraform)
-├── ansible-inventory.yml     # Static Ansible inventory for the lab (management IPs)
+├── ansible-inventory.<provider>.yml     # Static Ansible inventory for the lab (management IPs)
 ├── ansible-opennms/          # Git submodule: opennms-forge/ansible-opennms roles
 ├── assets/                   # Images and diagrams referenced by README.md
 ├── bootstrap/                # Ansible: VM bootstrapping (OS tooling, monitoring stack)
@@ -57,7 +57,7 @@ terraform/
     │   └── templates/
     │       ├── user-data.yaml.tftpl      # SSH user, /etc/hosts, disable package_update
     │       └── network-config.yaml.tftpl # Static IP netplan config per NIC
-    └── inventory/            # Generates ansible-inventory.yml from Terraform outputs
+    └── inventory/            # Generates ansible-inventory.<provider>.yml from Terraform outputs
         └── templates/
             └── inventory.yml.tftpl       # Ansible inventory template
 ```

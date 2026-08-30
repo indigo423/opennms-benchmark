@@ -2,7 +2,7 @@
 # Fault management: how many syslog messages a second can this deployment
 # accept before it stops keeping up.
 #
-#   make experiment EXPERIMENT=fm-syslog DEPLOYMENT=kfk-exclusive
+#   make experiment PROVIDER=proxmox EXPERIMENT=fm-syslog DEPLOYMENT=kfk-exclusive
 #
 # Sweeps a list of rates. Each rung reports what left the generator and what
 # the Core persisted, read against a measured reference rather than against an
@@ -37,7 +37,7 @@
   hosts: net_sim
   gather_facts: false
   vars:
-    nl6_fleet_endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    nl6_fleet_endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.' ~ lab_provider ~ '.json') | from_json }}"
     nl6_fleet_sim_network: "{{ nl6_fleet_endpoints.generators.nl6.sim_network }}"
     nl6_fleet_start_ip: "{{ fm_start_ip }}"
     nl6_fleet_count: "{{ fm_device_count }}"
@@ -53,7 +53,7 @@
   hosts: mon_servers
   gather_facts: false
   vars:
-    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.' ~ lab_provider ~ '.json') | from_json }}"
     db: "{{ groups['database'][0] }}"
     # Published by the deployment, not retyped here. A topic name typed into an
     # experiment reads as zero arrivals when it is wrong, which is

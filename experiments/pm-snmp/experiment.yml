@@ -2,7 +2,7 @@
 # Performance management: how many nodes can this deployment collect from
 # before collection stops completing within its interval.
 #
-#   make experiment EXPERIMENT=pm-snmp DEPLOYMENT=kfk-exclusive
+#   make experiment PROVIDER=proxmox EXPERIMENT=pm-snmp DEPLOYMENT=kfk-exclusive
 #
 # Sweeps fleet size. At each rung the fleet grows, is provisioned, and a full
 # collection interval is measured on the Kafka metrics topic. The column to read
@@ -23,7 +23,7 @@
   hosts: mon_servers
   gather_facts: false
   vars:
-    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.' ~ lab_provider ~ '.json') | from_json }}"
     pm_opennms_base: >-
       http://{{ endpoints.measurement.opennms.host }}:{{ endpoints.measurement.opennms.port }}/opennms
   tasks:

@@ -92,7 +92,7 @@ Set `libvirt_uri` in `kvm.tfvars`: `qemu:///system` for a local daemon, or `qemu
 make deploy PROVIDER=kvm DEPLOYMENT=baseline
 ```
 
-This provisions the VMs, discovers the monitoring VM's DHCP address, regenerates the Ansible inventory with the correct jump host, bootstraps the base tooling (Docker, Traefik, Prometheus, Grafana, Jaeger, nl6), deploys the full OpenNMS stack, and publishes the `lab-endpoints.yml` manifest that experiments consume.
+This provisions the VMs, discovers the monitoring VM's DHCP address, regenerates the Ansible inventory with the correct jump host, bootstraps the base tooling (Docker, Traefik, Prometheus, Grafana, Jaeger, nl6), deploys the full OpenNMS stack, and publishes the `lab-endpoints.<provider>.yml` manifest that experiments consume.
 
 Tear down with:
 
@@ -110,12 +110,12 @@ List both, then run one:
 ```bash
 make deployments                # topology specs with descriptions
 make experiments                # runnable workloads
-make experiment EXPERIMENT=smoke DEPLOYMENT=baseline
+make experiment PROVIDER=<provider> EXPERIMENT=smoke DEPLOYMENT=baseline
 ```
 
 `DEPLOYMENT` layers the topology's variable overlay onto the experiment.
 Available experiments include `smoke`, `pm-snmp`, `fm-syslog`, `fm-snmptrap`, and `fm-snmptrap-capacity`.
-See [`experiments/README.md`](experiments/README.md) for how experiments consume the generated inventory and the `lab-endpoints.yml` manifest, and [`deployments/README.md`](deployments/README.md) for the topology spec format.
+See [`experiments/README.md`](experiments/README.md) for how experiments consume the generated inventory and the `lab-endpoints.<provider>.yml` manifest, and [`deployments/README.md`](deployments/README.md) for the topology spec format.
 
 > [!NOTE]
 > The `DEPLOYMENT` topology axis shapes provisioning on `kvm`, `aws` and `proxmox`.
@@ -332,7 +332,7 @@ All inter-VM traffic stays on the internal subnets.
 
 > [!WARNING]
 > Per-host addresses are provider-dependent ([#161](https://github.com/opennms-forge/opennms-benchmark/issues/161)).
-> Never hardcode a VM address; read the generated `ansible-inventory.yml` instead.
+> Never hardcode a VM address; read the generated `ansible-inventory.<provider>.yml` instead.
 
 The Minion listens on two ingestion ports for simulated load: SNMP traps on `10162/udp` and UDP syslog (RFC 5424) on `10514/udp`.
 The nl6 simulator on the netsim VM emits nothing by default; each experiment creates its own devices, protocols and rates through the nl6 API.
@@ -340,7 +340,7 @@ The nl6 simulator on the netsim VM emits nothing by default; each experiment cre
 ## 🕹️ Applications
 
 All applications are served by Traefik on the monitoring VM's public IP over HTTPS.
-Replace `<monitoring-public-ip>` with the monitoring VM's address from the generated `ansible-inventory.yml`.
+Replace `<monitoring-public-ip>` with the monitoring VM's address from the generated `ansible-inventory.<provider>.yml`.
 
 > [!NOTE]
 > Traefik uses a self-signed certificate; accept the browser warning to proceed.

@@ -1,5 +1,5 @@
 ---
-# Publishes lab-endpoints.yml: what an experiment must target on this
+# Publishes lab-endpoints.<provider>.yml: what an experiment must target on this
 # deployment, derived from the deployment as provisioned.
 #
 # Runs on localhost and reads the generated inventory. Every value comes from
@@ -16,7 +16,8 @@
   connection: local
   gather_facts: true
   vars:
-    endpoints_file: "{{ playbook_dir }}/lab-endpoints.yml"
+    # Provider-scoped like the inventory (#277): lab_provider is required.
+    endpoints_file: "{{ playbook_dir }}/lab-endpoints.{{ lab_provider }}.yml"
     # Rendered by the template as the generation time. Taken from gathered facts
     # so it is a real clock reading rather than a shell-out, and forced to UTC
     # there: strftime defaults to local time, which would label a CEST reading
@@ -144,6 +145,6 @@
         group: root
         mode: "0644"
       loop:
-        - "{{ playbook_dir }}/lab-endpoints.yml"
-        - "{{ playbook_dir }}/lab-endpoints.json"
+        - "{{ endpoints_file }}"
+        - "{{ endpoints_file | splitext | first }}.json"
       tags: ["endpoints"]
