@@ -230,7 +230,7 @@ clean-collections: ## Remove the installed collection tree, then reinstall the m
 	$(MAKE) install-collections
 
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-topology validate-collections ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-collections ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 
@@ -295,6 +295,13 @@ validate-deployments: ## Validate every deployment spec against the schema
 	@rc=0; for f in $(DEPLOYMENTS_DIR)/*/topology.yml; do \
 	  $(DESCRIPTOR) --validate "$$f" >/dev/null || { $(DESCRIPTOR) --validate "$$f"; rc=1; }; \
 	done; [ $$rc -eq 0 ] && echo "all deployment specs valid" || exit $$rc
+
+# Separate from validate-deployments because the unit differs: that target
+# judges each spec on its own, this one judges the library and the provider
+# roots together. Neither can see what the other checks.
+.PHONY: validate-library
+validate-library: ## Assert the invariants that span the whole deployment library
+	@python3 $(DEPLOYMENTS_DIR)/bin/validate-library.py
 
 .PHONY: help
 help: ## Show this help

@@ -113,7 +113,7 @@ variable "smoke_max_disk_gb" {
 # Standard_B2ms/B4ms is a latent measurement bug this provider does not inherit.
 variable "instance_types" {
   type        = map(string)
-  description = "T-shirt size class -> EC2 instance type. All five classes are in use across the deployment library."
+  description = "T-shirt size class -> EC2 instance type. Every class in KNOWN_SIZES needs an entry; make validate-library asserts it."
   default = {
     tiny   = "m6i.large"
     small  = "m6i.large"

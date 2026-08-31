@@ -181,6 +181,14 @@ Every spec here is rendered through each spec-driven provider's own locals — `
 
 The last is the one that motivated the check. `es-nostore`, `rrd-minimal` and `vm-cluster-minion` all carried a dangling route for months while every gate stayed green, because `terraform validate` checks types rather than relationships between values, and resource preconditions only run at plan time.
 
+Both of those gates judge **one spec at a time**, so neither can see drift that only exists between specs or between a spec and a provider root.
+The **Deployment Specs** job runs `make validate-library` for those, two invariants that need the whole library in view:
+
+- a **size class in `KNOWN_SIZES` with no entry in some provider's size map** — those four lists (the descriptor's set, `kvm`, `proxmox`, and both AWS maps) are independent copies, and a class added to one and missed in another stays green through every other gate until `terraform plan` fails on the first deployment that uses it
+- **two specs pinning the same `lab` address** — `lab` is the one physical bridge every deployment on a host shares, so a duplicate pin is two live VMs answering on one address, which the per-spec duplicate check cannot see
+
+Adding a size class therefore means touching four places, and `make validate-library` is what tells you when you have touched three.
+
 Adding or editing a spec therefore means `make validate-topology` has to pass. It needs no hypervisor, credentials or state — `terraform console` evaluates the locals without contacting one — and `tests/topology-fixtures/` holds specs that must be *rejected*, one per invariant, so a regression in the check itself shows up as a fixture that stopped failing rather than as a quiet clean run.
 
 ## Deployment index

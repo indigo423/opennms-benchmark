@@ -127,3 +127,9 @@ jobs:
       # topology-descriptor.py is pure stdlib, so the runner's python3 is enough.
       - name: make validate-deployments
         run: make validate-deployments
+
+      # Library-wide invariants: size-class coverage across the provider roots,
+      # and lab-bridge address pins across specs. Needs PyYAML, which the
+      # ubuntu-24.04 image ships.
+      - name: make validate-library
+        run: make validate-library
