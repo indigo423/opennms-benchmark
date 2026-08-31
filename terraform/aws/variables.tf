@@ -121,7 +121,11 @@ variable "instance_types" {
     large  = "m6i.xlarge"
     xlarge = "m6i.2xlarge"
     # 8 vCPU / 32 GiB: the one class whose memory EC2's fixed vCPU:RAM ratio
-    # matches exactly.
+    # matches exactly. Same type as xlarge, which that ratio oversizes, so the
+    # two are indistinguishable here and the class asserts nothing aws honours.
+    # The 8 vCPU / 32 GiB contract is real only on kvm and proxmox. Kept so the
+    # Deployment Topologies job can render a spec using this class through the
+    # aws root.
     xxlarge-mem = "m6i.2xlarge"
   }
 }
@@ -142,7 +146,8 @@ variable "instance_types_smoke" {
     medium = "t3a.medium"
     large  = "t3a.medium"
     xlarge = "t3a.large"
-    # Smoke proves the stack starts; it does not measure.
+    # Smoke proves the stack starts; it does not measure. Collapses onto the
+    # same type as xlarge, as it does in the measured profile above.
     xxlarge-mem = "t3a.large"
   }
 }

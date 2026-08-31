@@ -9,7 +9,8 @@ description: >-
   pinned address, since the writer is off-hypervisor and cannot discover the
   lab's NAT addressing. Point the consuming deployment's
   opennms_remotewrite.write_url at http://192.168.11.38:8428/api/v1/write.
-  Ships an overlay (retention), so kvm/aws only.
+  Declares the lab subnet, which aws and proxmox reject at plan time, and
+  ships an overlay (retention), so kvm only.
 roles:
   victoriametrics:
     count: 1
