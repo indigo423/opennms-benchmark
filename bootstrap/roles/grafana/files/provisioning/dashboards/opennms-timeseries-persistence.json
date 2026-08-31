@@ -84,7 +84,7 @@
       }
     ]
   },
-  "description": "Audience: network engineer. Entity-detail archetype: the timeseries persistence pipeline of one (or a few) OpenNMS instances — ring buffer saturation, sample throughput and loss, storage-plugin write latency, and the JVM context underneath. Sources: JMX Prometheus exporter on the OpenNMS JVM (onms_ts_* via jmx-exporter-timeseries.yml, jvm_* built-ins), scraped by Prometheus/VictoriaMetrics. Feeds the tuning decision: ring_buffer_size, writer_threads, WAL on/off, backend reachability.",
+  "description": "Audience: network engineer. Entity-detail archetype: the timeseries persistence pipeline of one (or a few) OpenNMS instances. Covers ring buffer saturation, sample throughput and loss, storage-plugin write latency, and the JVM context underneath. Sources: JMX Prometheus exporter on the OpenNMS JVM (org_opennms_timeseries_* via the prom-jmx-exporter config, jvm_* built-ins), scraped by Prometheus/VictoriaMetrics. Feeds the tuning decision: ring_buffer_size, writer_threads, WAL on/off, backend reachability.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -111,7 +111,7 @@
       },
       "id": 100,
       "panels": [],
-      "title": "Overiew",
+      "title": "Overview",
       "type": "row"
     },
     {
@@ -119,7 +119,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Samples discarded because the ring buffer was full (onms_ts_samples_dropped_total), summed over the last 15 minutes per instance. Normal is exactly zero — every non-zero value is permanent data loss, matching the 'ring buffer is full' ERROR lines in collectd.log. Any red here: check ring buffer occupancy and write latency to the right, then raise org.opennms.timeseries.config.ring_buffer_size (power of two) or writer_threads in opennms.properties.",
+      "description": "Samples discarded because the ring buffer was full (org_opennms_timeseries_ring_buffer_dropped_samples_count), summed over the last 15 minutes per instance. Normal is exactly zero. Every non-zero value is permanent data loss, matching the 'ring buffer is full' ERROR lines in collectd.log. Any red here: check ring buffer occupancy and write latency to the right, then raise org.opennms.timeseries.config.ring_buffer_size (power of two) or writer_threads in opennms.properties.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -172,7 +172,6 @@
       "targets": [
         {
           "expr": "label_replace(\n  sum by (instance) (increase(org_opennms_timeseries_ring_buffer_dropped_samples_count{instance=~\"$instance\"}[15m])),\n  \"node\", \"$1\", \"instance\", \"([^:]+).*\")",
-          "instant": true,
           "legendFormat": "{{node}}",
           "refId": "A",
           "datasource": {
@@ -181,7 +180,7 @@
           }
         }
       ],
-      "title": "Dropped samples (errors) — last 15 min",
+      "title": "Dropped samples (errors), last 15 min",
       "type": "stat"
     },
     {
@@ -189,7 +188,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Samples queued in the ring buffer as a percentage of its configured capacity (onms_ts_ring_buffer_size / onms_ts_ring_buffer_max_size). Normal is near zero: collectd hands samples off and the writer drains them immediately. Amber at 70%, red at 90% — a buffer that sits high is one burst away from dropping. Sustained red means the storage plugin drains slower than collections arrive: look at write latency (right) and JVM health (below) before touching the buffer size.",
+      "description": "Samples queued in the ring buffer as a percentage of its configured capacity (org_opennms_timeseries_ring_buffer_size_value / org_opennms_timeseries_ring_buffer_max_size_value). Normal is near zero: collectd hands samples off and the writer drains them immediately. Amber at 70%, red at 90%. A buffer that sits high is one burst away from dropping. Sustained red means the storage plugin drains slower than collections arrive: look at write latency (right) and JVM health (below) before touching the buffer size.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -263,7 +262,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Rate of samples written through the timeseries integration layer (org_opennms_timeseries_samples_write_integration_count). This is the pipeline's delivered throughput; compare it against what collectd produces (collections/s × samples per collection) to see whether the writer keeps up. No threshold — the healthy value depends on the collection load, so read it together with occupancy and drops.",
+      "description": "Rate of samples written through the timeseries integration layer (org_opennms_timeseries_samples_write_integration_count). This is the pipeline's delivered throughput; compare it against what collectd produces (collections/s × samples per collection) to see whether the writer keeps up. There is no threshold. The healthy value depends on the collection load, so read it together with occupancy and drops.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -313,7 +312,6 @@
       "targets": [
         {
           "expr": "label_replace(\n  sum by (instance) (rate(org_opennms_timeseries_samples_write_integration_count{instance=~\"$instance\"}[$__rate_interval])),\n  \"node\", \"$1\", \"instance\", \"([^:]+).*\")",
-          "instant": true,
           "legendFormat": "{{node}}",
           "refId": "A",
           "datasource": {
@@ -387,7 +385,6 @@
       "targets": [
         {
           "expr": "label_replace(\n  max by (instance) (org_opennms_timeseries_samples_write_ts_99thpercentile{instance=~\"$instance\"}),\n  \"node\", \"$1\", \"instance\", \"([^:]+).*\")",
-          "instant": true,
           "legendFormat": "{{node}}",
           "refId": "A",
           "datasource": {
@@ -396,7 +393,7 @@
           }
         }
       ],
-      "title": "Storage write latency — p99",
+      "title": "Storage write latency p99",
       "type": "stat"
     },
     {
@@ -527,7 +524,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Delivered throughput (written/s, blue) against loss (dropped/s, red) per instance. Written and dropped move together when the buffer saturates: the writer runs flat out while the overflow is discarded. Normal is dropped pinned at zero. Any red area is data permanently lost — correlate its start with the occupancy panel (left) and latency panel (right) to decide whether the buffer was too small (short burst) or the drain too slow (sustained).",
+      "description": "Delivered throughput (written/s, blue) against loss (dropped/s, red) per instance. Written and dropped move together when the buffer saturates: the writer runs flat out while the overflow is discarded. Normal is dropped pinned at zero. Any red area is data permanently lost. Correlate its start with the occupancy panel (left) and latency panel (right) to decide whether the buffer was too small (short burst) or the drain too slow (sustained).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -611,30 +608,6 @@
                 }
               }
             ]
-          },
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "core-benchmark-01 · dropped"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": true,
-                  "viz": true
-                }
-              }
-            ]
           }
         ]
       },
@@ -692,7 +665,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Percentiles of the storage-plugin write, amortized per sample (org_opennms_timeseries_samples_write_ts_*, Dropwizard timer, milliseconds). Percentiles, not the mean: a backend that answers fast except when it stalls has a mean that hides the stalls. p50 rising alone means everything got slower (backend or network); p99 diverging from p50 means intermittent stalls — connection resets, retries, GC pauses (check the JVM row below). The companion timer samples_write_integration_* times the in-memory hand-off into the integration layer (µs range) if you need to separate enqueue from drain. This is the leading indicator: latency moves first, occupancy second, drops third.",
+      "description": "Percentiles of the storage-plugin write, amortized per sample (org_opennms_timeseries_samples_write_ts_*, Dropwizard timer, milliseconds). Percentiles, not the mean: a backend that answers fast except when it stalls has a mean that hides the stalls. p50 rising alone means everything got slower (backend or network); p99 diverging from p50 means intermittent stalls: connection resets, retries, GC pauses (check the JVM row below). The companion timer samples_write_integration_* times the in-memory hand-off into the integration layer (µs range) if you need to separate enqueue from drain. This is the leading indicator: latency moves first, occupancy second, drops third.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -801,7 +774,7 @@
           }
         }
       ],
-      "title": "Storage write latency — p50, p95, p99",
+      "title": "Storage write latency p50, p95, p99",
       "type": "timeseries"
     },
     {
@@ -822,7 +795,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Heap used against the configured maximum (jvm_memory_bytes_used / jvm_memory_bytes_max, area=heap). The ring buffer and the writer's in-flight batches live here: a heap running near its limit turns into long GC pauses, which stall the writer and show up as p99 latency spikes one panel up. Normal is a sawtooth well below the limit line. Used climbing toward the limit with no sawtooth is the leak signature.",
+      "description": "Heap used against the configured maximum (jvm_memory_used_bytes / jvm_memory_max_bytes, area=heap). The ring buffer and the writer's in-flight batches live here: a heap running near its limit turns into long GC pauses, which stall the writer and show up as p99 latency spikes one panel up. Normal is a sawtooth well below the limit line. Used climbing toward the limit with no sawtooth is the leak signature.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -954,7 +927,7 @@
           }
         }
       ],
-      "title": "JVM heap — used vs limit",
+      "title": "JVM heap used vs limit",
       "type": "timeseries"
     },
     {
@@ -962,7 +935,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Seconds spent in garbage collection per second of wall clock, per collector (rate of jvm_gc_collection_seconds_sum) — effectively the fraction of time the JVM is paused or collecting. Below 0.02 (2%) is background noise; sustained above 0.10 means the writer and every collectd thread are losing meaningful time to GC, and heap sizing comes before any ring-buffer tuning. Spikes here should line up with p99 write-latency spikes under the shared crosshair.",
+      "description": "Seconds spent in garbage collection per second of wall clock, per collector (rate of jvm_gc_collection_seconds_sum), effectively the fraction of time the JVM is paused or collecting. Below 0.02 (2%) is background noise; sustained above 0.10 means the writer and every collectd thread are losing meaningful time to GC, and heap sizing comes before any ring-buffer tuning. Spikes here should line up with p99 write-latency spikes under the shared crosshair.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1072,7 +1045,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "The same occupancy as the driver panel, but in raw samples with the configured capacity (onms_ts_ring_buffer_max_size) as a dashed line — the engineer's view for sizing decisions. A capacity step change marks a restart with a new org.opennms.timeseries.config.ring_buffer_size. If bursts crest at, say, 6k against an 8k capacity, doubling the buffer absorbs them; if occupancy rides the capacity line continuously, no buffer size will save you — the drain (writer_threads, plugin batching, backend) is the constraint.",
+      "description": "The same occupancy as the driver panel, but in raw samples with the configured capacity (org_opennms_timeseries_ring_buffer_max_size_value) as a dashed line. This is the engineer's view for sizing decisions. A capacity step change marks a restart with a new org.opennms.timeseries.config.ring_buffer_size. If bursts crest at, say, 6k against an 8k capacity, doubling the buffer absorbs them; if occupancy rides the capacity line continuously, no buffer size will save you. The drain (writer_threads, plugin batching, backend) is the constraint.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1204,7 +1177,7 @@
           }
         }
       ],
-      "title": "Ring buffer — absolute occupancy and capacity",
+      "title": "Ring buffer absolute occupancy and capacity",
       "type": "timeseries"
     }
   ],
