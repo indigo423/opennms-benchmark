@@ -34,7 +34,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
-          terraform_version: "~1.5"
+          terraform_version: "~1.12"
 
       - name: make fmt
         run: make fmt
@@ -50,7 +50,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
-          terraform_version: "~1.5"
+          terraform_version: "~1.12"
 
       - name: make validate-azure
         run: make validate-azure
@@ -66,7 +66,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
-          terraform_version: "~1.5"
+          terraform_version: "~1.12"
 
       # No AWS credentials are needed or configured: validate checks syntax and
       # types only, and never contacts the provider API.
@@ -84,7 +84,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
-          terraform_version: "~1.5"
+          terraform_version: "~1.12"
 
       # The Makefile passes -upgrade on kvm init so the community dmacvicar/libvirt
       # provider downloads; validate then checks syntax/types only (no host needed).
@@ -102,7 +102,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
-          terraform_version: "~1.5"
+          terraform_version: "~1.12"
 
       - name: make validate-proxmox
         run: make validate-proxmox
@@ -118,7 +118,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
-          terraform_version: "~1.5"
+          terraform_version: "~1.12"
 
       - name: make validate-vmware
         run: make validate-vmware
@@ -137,7 +137,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
-          terraform_version: "~1.5"
+          terraform_version: "~1.12"
 
       - name: make validate-extra-roots
         run: make validate-extra-roots
@@ -179,7 +179,7 @@ jobs:
       # while passing in 22s on a laptop, on this branch and on #264 alike.
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
-          terraform_version: "~1.5"
+          terraform_version: "~1.12"
           terraform_wrapper: false
 
       - name: make validate-topology
