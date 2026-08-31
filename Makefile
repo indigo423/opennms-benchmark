@@ -41,6 +41,9 @@ DEPLOYMENT ?= baseline
 _dep_flag  = $(if $(filter kvm aws proxmox,$(PROVIDER)),--deployment $(DEPLOYMENT))
 # `make plan` still passes the Terraform var directly (it bypasses deploy.sh).
 _dep_tfarg = $(if $(filter kvm aws proxmox,$(PROVIDER)),-var deployment=$(DEPLOYMENT))
+# Generated Ansible inputs are provider-scoped (#277): one inventory and one
+# endpoints manifest per PROVIDER, so two labs can be operated from one checkout.
+INVENTORY  = ansible-inventory.$(PROVIDER).yml
 
 # ── guards ────────────────────────────────────────────────────────────────────
 
@@ -251,13 +254,14 @@ deployment: guard-DEPLOYMENT ## Show + validate one deployment spec (DEPLOYMENT=
 	$(DESCRIPTOR) --validate "$$f" && echo && cat "$$f"
 
 .PHONY: experiment
-experiment: guard-EXPERIMENT ## Run an experiment (EXPERIMENT=<name>, DEPLOYMENT=<slug> to layer its vars)
+experiment: check-provider guard-EXPERIMENT ## Run an experiment (PROVIDER=<p>, EXPERIMENT=<name>, DEPLOYMENT=<slug> to layer its vars)
 	@d="experiments/$(EXPERIMENT)"; \
 	[ -f "$$d/experiment.yml" ] || { echo "Error: no such experiment '$(EXPERIMENT)' ($$d/experiment.yml not found)" >&2; exit 1; }; \
-	[ -f ansible-inventory.yml ] || { echo "Error: ansible-inventory.yml not found; deploy first" >&2; exit 1; }; \
-	[ -f lab-endpoints.json ] || { echo "Error: lab-endpoints.json not found; run 'make endpoints PROVIDER=... DEPLOYMENT=...'" >&2; exit 1; }
-	ansible-playbook --become -i ansible-inventory.yml \
+	[ -f $(INVENTORY) ] || { echo "Error: $(INVENTORY) not found; deploy first" >&2; exit 1; }; \
+	[ -f lab-endpoints.$(PROVIDER).json ] || { echo "Error: lab-endpoints.$(PROVIDER).json not found; run 'make endpoints PROVIDER=$(PROVIDER) DEPLOYMENT=...'" >&2; exit 1; }
+	ansible-playbook --become -i $(INVENTORY) \
 	  experiments/$(EXPERIMENT)/experiment.yml \
+	  --extra-vars="lab_provider=$(PROVIDER)" \
 	  --extra-vars="@opennms-lab-vars.yml" \
 	  $(if $(wildcard $(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml),--extra-vars="@$(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml") \
 	  $(if $(wildcard experiments/$(EXPERIMENT)/opennms-lab-vars.yml),--extra-vars="@experiments/$(EXPERIMENT)/opennms-lab-vars.yml")
@@ -273,10 +277,10 @@ experiments: ## List runnable experiments
 	echo "   runner — see experiments/README.md)"
 
 .PHONY: endpoints
-endpoints: ## Publish lab-endpoints.yml for a running lab (PROVIDER=…, DEPLOYMENT=<slug>)
-	@[ -f ansible-inventory.yml ] || { echo "Error: ansible-inventory.yml not found; deploy first" >&2; exit 1; }
+endpoints: check-provider ## Publish lab-endpoints.<provider>.yml for a running lab (PROVIDER=…, DEPLOYMENT=<slug>)
+	@[ -f $(INVENTORY) ] || { echo "Error: $(INVENTORY) not found; deploy first" >&2; exit 1; }
 	@[ -n "$(PROVIDER)" ] && [ -n "$(DEPLOYMENT)" ] || { echo "Error: set PROVIDER and DEPLOYMENT, or the manifest records neither" >&2; exit 1; }
-	ansible-playbook -i ansible-inventory.yml endpoints-playbook.yml \
+	ansible-playbook -i $(INVENTORY) endpoints-playbook.yml \
 	  --extra-vars="@opennms-lab-vars.yml" \
 	  $(if $(DEPLOYMENT),--extra-vars="lab_deployment=$(DEPLOYMENT)") \
 	  $(if $(PROVIDER),--extra-vars="lab_provider=$(PROVIDER)") \

@@ -8,7 +8,7 @@
 # measuring it. A lab that cannot pass this will produce numbers that look
 # plausible and mean nothing.
 #
-#   make experiment EXPERIMENT=smoke DEPLOYMENT=<slug>
+#   make experiment PROVIDER=<provider> EXPERIMENT=smoke DEPLOYMENT=<slug>
 #
 # Requires a deployment that installs nl6-loadtest and kafka-metrics-report on
 # the monitoring node, and that provisions a Minion able to receive syslog. The
@@ -18,7 +18,7 @@
   hosts: net_sim
   gather_facts: false
   vars:
-    nl6_fleet_endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    nl6_fleet_endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.' ~ lab_provider ~ '.json') | from_json }}"
     nl6_fleet_sim_network: "{{ nl6_fleet_endpoints.generators.nl6.sim_network }}"
     nl6_fleet_start_ip: "{{ smoke_start_ip }}"
     nl6_fleet_count: "{{ smoke_device_count }}"
@@ -29,7 +29,7 @@
   hosts: mon_servers
   gather_facts: false
   vars:
-    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.' ~ lab_provider ~ '.json') | from_json }}"
     broker: "{{ groups['message_broker'][0] }}"
     sink_topic: OpenNMS.Sink.Syslog
   tasks:

@@ -50,7 +50,7 @@ opennms-benchmark/
 ├── experiments/          # Per-scenario benchmark configurations
 ├── azcli/                # Legacy Azure CLI script (reference only)
 ├── opennms-lab-vars.yml  # Global OpenNMS variables
-└── ansible-inventory.yml # Static Ansible inventory
+└── ansible-inventory.<provider>.yml # Static Ansible inventory
 ```
 
 ## Available Experiments

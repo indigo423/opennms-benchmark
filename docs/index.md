@@ -59,11 +59,11 @@ cd ../../bootstrap && ansible-playbook -i inventory site.yml
 cd ..
 make install-collections
 ansible-playbook --user labuser --become \
-  -i ansible-inventory.yml opennms-playbook.yml \
+  -i ansible-inventory.<provider>.yml opennms-playbook.yml \
   --extra-vars="@opennms-lab-vars.yml"
 
 # 5. Run an experiment
-make experiment EXPERIMENT=smoke DEPLOYMENT=<slug>
+make experiment PROVIDER=<provider> EXPERIMENT=smoke DEPLOYMENT=<slug>
 ansible-playbook -i opennms-lab-inventory.yml experiment.yml \
   --extra-vars="@../../opennms-lab-vars.yml"
 ```

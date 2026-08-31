@@ -50,7 +50,7 @@ terraform init
 terraform apply -var-file=../lab.tfvars -var-file=azure.tfvars
 ```
 
-Terraform creates: resource group, proximity placement group, VNet, 4 subnets, NICs (with static IPs), NSG (SSH from operator CIDR only), public IP for monitoring, 6 Ubuntu 24.04 VMs, and writes `ansible-inventory.yml` to the project root.
+Terraform creates: resource group, proximity placement group, VNet, 4 subnets, NICs (with static IPs), NSG (SSH from operator CIDR only), public IP for monitoring, 6 Ubuntu 24.04 VMs, and writes `ansible-inventory.<provider>.yml` to the project root.
 
 ### 4. Verify SSH access
 
@@ -77,7 +77,7 @@ This installs: base packages, Docker Engine, Prometheus Node Exporter, Grafana, 
 make install-collections
 
 ansible-playbook --user labuser --become \
-  -i ansible-inventory.yml \
+  -i ansible-inventory.<provider>.yml \
   opennms-playbook.yml \
   --extra-vars="@opennms-lab-vars.yml"
 ```
@@ -217,7 +217,7 @@ The Ansible and OpenNMS steps are identical. Use `ubuntu` as the admin user inst
 After the stack is deployed, select an experiment and run it:
 
 ```bash
-make experiment EXPERIMENT=smoke DEPLOYMENT=<slug>
+make experiment PROVIDER=<provider> EXPERIMENT=smoke DEPLOYMENT=<slug>
 
 ansible-playbook -i opennms-lab-inventory.yml experiment.yml \
   --extra-vars="@../../opennms-lab-vars.yml"
@@ -250,7 +250,7 @@ Nodes are added to OpenNMS at location `lab-location-01` and assigned ICMP and S
 
 ```bash
 cd bootstrap
-ansible-playbook -i ../ansible-inventory.yml update-playbook.yml
+ansible-playbook -i ../ansible-inventory.<provider>.yml update-playbook.yml
 ```
 
 ### Switch to a different experiment
@@ -264,7 +264,7 @@ Simply run the new experiment's playbook. It reconfigures OpenNMS Core and Minio
 ./deploy.sh --provider kvm --destroy
 ```
 
-This runs `terraform destroy` with the correct tfvars and removes the generated `ansible-inventory.yml`. All VMs, NICs, disks, and network resources are deleted. The libvirt networks (`dev-benchmark-mgmt`, `dev-benchmark-db`, etc. — named `<environment>-<project_name>-<subnet>`) are also removed for KVM.
+This runs `terraform destroy` with the correct tfvars and removes the generated `ansible-inventory.<provider>.yml`. All VMs, NICs, disks, and network resources are deleted. The libvirt networks (`dev-benchmark-mgmt`, `dev-benchmark-db`, etc. — named `<environment>-<project_name>-<subnet>`) are also removed for KVM.
 
 ## Post-Reboot Checklist
 

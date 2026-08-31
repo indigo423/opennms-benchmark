@@ -112,7 +112,7 @@ The same 6-VM lab deploys to two target environments using one shared variable f
 
 Provider-specific values live in `azure.tfvars` and `kvm.tfvars` respectively. Shared network, IP, and VM naming values live in `lab.tfvars`.
 
-The `terraform/modules/inventory` module is shared by both providers and generates the Ansible inventory file (`ansible-inventory.yml`) as a Terraform output.
+The `terraform/modules/inventory` module is shared by both providers and generates the Ansible inventory file (`ansible-inventory.<provider>.yml`) as a Terraform output.
 
 ## Cloud-Init
 

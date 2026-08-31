@@ -66,7 +66,7 @@ terraform init
 terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
 ```
 
-After `terraform apply`, the `inventory` module writes `ansible-inventory.yml` to the repository root.
+After `terraform apply`, the `inventory` module writes `ansible-inventory.<provider>.yml` to the repository root.
 
 ## Modifying Terraform
 
@@ -148,14 +148,14 @@ ansible-playbook -i inventory site.yml --tags net-snmp
 
 ```bash
 cd bootstrap
-ansible-playbook -i ../ansible-inventory.yml update-playbook.yml
+ansible-playbook -i ../ansible-inventory.<provider>.yml update-playbook.yml
 ```
 
 ### Reboot all VMs
 
 ```bash
 cd bootstrap
-ansible-playbook -i ../ansible-inventory.yml reboot-playbook.yml
+ansible-playbook -i ../ansible-inventory.<provider>.yml reboot-playbook.yml
 ```
 
 ### Deploy the OpenNMS stack
@@ -164,7 +164,7 @@ ansible-playbook -i ../ansible-inventory.yml reboot-playbook.yml
 make install-collections
 
 ansible-playbook --user labuser --become \
-  -i ansible-inventory.yml \
+  -i ansible-inventory.<provider>.yml \
   opennms-playbook.yml \
   --extra-vars="@opennms-lab-vars.yml"
 ```
@@ -387,7 +387,7 @@ When upstream lands a change you want to consume in the lab:
 make install-collections
 make validate-collections
 ansible-playbook --user labuser --become \
-  -i ansible-inventory.yml opennms-playbook.yml \
+  -i ansible-inventory.<provider>.yml opennms-playbook.yml \
   --extra-vars="@opennms-lab-vars.yml"
 ```
 

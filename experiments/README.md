@@ -5,16 +5,16 @@ The **deployment** is the system under test.
 Keeping them apart is what lets one topology serve several benchmarks, and it is why nothing about load belongs in `deployments/`.
 
 ```bash
-make experiment EXPERIMENT=<name>
+make experiment PROVIDER=<provider> EXPERIMENT=<name>
 ```
 
 That runs `experiments/<name>/experiment.yml` against the generated inventory, with the root variables and the experiment's own overlay layered on top.
 
 ## What an experiment may assume
 
-**The generated inventory.** `ansible-inventory.yml` is written by Terraform and names every host and group. An experiment never ships its own copy: a hand-maintained inventory drifts from the lab silently, and a play that targets an address nothing answers on produces a clean zero rather than an error.
+**The generated inventory.** `ansible-inventory.<provider>.yml` is written by Terraform and names every host and group. An experiment never ships its own copy: a hand-maintained inventory drifts from the lab silently, and a play that targets an address nothing answers on produces a clean zero rather than an error.
 
-**The endpoints manifest.** `lab-endpoints.yml` (and its `.json` sibling) says where telemetry is accepted and where results are read, for the deployment as provisioned. Regenerate it any time with `make endpoints PROVIDER=… DEPLOYMENT=…`. An experiment reads it rather than restating addresses and ports:
+**The endpoints manifest.** `lab-endpoints.<provider>.yml` (and its `.json` sibling) says where telemetry is accepted and where results are read, for the deployment as provisioned. Regenerate it any time with `make endpoints PROVIDER=… DEPLOYMENT=…`. An experiment reads it rather than restating addresses and ports:
 
 ```yaml
 ingestion:

@@ -29,7 +29,7 @@ Providers: `aws`, `azure`, `kvm`, `proxmox`, `vmware`. `DEPLOYMENT` is consumed 
 
 Four layers, orchestrated by `deploy.sh` (which `make deploy` wraps):
 
-1. **`terraform/<provider>/`** — provisions VMs and writes `ansible-inventory.yml`.
+1. **`terraform/<provider>/`** — provisions VMs and writes `ansible-inventory.<provider>.yml`.
 2. **`bootstrap/`** — base tooling on every VM: Docker, Traefik, Prometheus, Grafana,
    Jaeger, nl6, Kafka UI, …
 3. **OpenNMS stack** — the `indigo423.opennms` Galaxy collection pinned in
@@ -52,10 +52,10 @@ Variables layer root → deployment → experiment: `opennms-lab-vars.yml`, then
   per-role blocks (`role_block_size`, `terraform/kvm/main.tf`); `azure` uses the fixed
   `ip_*` values in `terraform/lab.tfvars`. They disagree for every role except `database`:
   `192.0.2.200` is Core on `kvm` and Monitoring on `azure`. Read the generated
-  `ansible-inventory.yml` instead. Tracked in #161.
+  `ansible-inventory.<provider>.yml` instead. Tracked in #161.
 - `ansible.cfg` owns `roles_path`. Never set `ANSIBLE_ROLES_PATH` — the env var overrides
   the file, and CI has already silently drifted that way once.
-- `ansible-inventory.yml` (generated) and `vault_pass.secret` are gitignored. The vault
+- `ansible-inventory.<provider>.yml` and `lab-endpoints.<provider>.*` (generated, one set per provider so two labs can be operated from one checkout, #277) and `vault_pass.secret` are gitignored. The vault
   password comes from `ANSIBLE_VAULT_PASSWORD_FILE`.
 - Lint targets take their file lists from `git ls-files`, so a new script is covered the
   moment it is tracked — and not at all while it is untracked.
