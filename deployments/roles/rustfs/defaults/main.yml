@@ -29,9 +29,9 @@ rustfs_pkg_url: >-
 # misleading rather than merely loose. They move as a pair; Renovate groups them.
 #
 # renovate: datasource=pypi depName=boto3
-rustfs_boto3_version: "1.43.84"
+rustfs_boto3_version: "1.43.85"
 # renovate: datasource=pypi depName=botocore
-rustfs_botocore_version: "1.43.84"
+rustfs_botocore_version: "1.43.85"
 
 rustfs_install_dir: /opt/rustfs
 rustfs_data_dir: /var/lib/rustfs
