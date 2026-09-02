@@ -143,6 +143,14 @@ def bounded_slice(consumer, topic, start_offsets=None, replay_bounds=None):
     reads the same records. Otherwise end offsets are the high watermark
     captured once, up front: anything produced after this point belongs to the
     next report, not this one.
+
+    Returns (bounds, lost). `lost` counts records the caller asked for that the
+    broker had already deleted, because a start offset below the low watermark
+    is silently unsatisfiable: Kafka can only serve from the oldest surviving
+    record. Clamping without saying so answers a different question than the one
+    asked and reports the result as if it were the answer -- measured 2026-09-02,
+    a 1,811 s window came back as 596 s of data with a clean bill of health,
+    because retention.bytes held only about eleven minutes at that fleet size.
     """
     from confluent_kafka import TopicPartition
 
@@ -153,19 +161,24 @@ def bounded_slice(consumer, topic, start_offsets=None, replay_bounds=None):
     if not partitions:
         raise TransportError(f"topic {topic!r} has no partitions")
 
-    assignment, bounds = [], {}
+    assignment, bounds, lost = [], {}, Counter()
     for part in partitions:
         low, high = consumer.get_watermark_offsets(TopicPartition(topic, part), timeout=10, cached=False)
         if replay_bounds and str(part) in replay_bounds:
             prev = replay_bounds[str(part)]
-            start, end = max(int(prev["start"]), low), int(prev["end"])
+            requested, end = int(prev["start"]), int(prev["end"])
         else:
-            start = int(start_offsets.get(str(part), low)) if start_offsets else low
-            start, end = max(start, low), high
+            requested = int(start_offsets.get(str(part), low)) if start_offsets else low
+            end = high
+        start = max(requested, low)
+        # Only a caller-supplied start can be aged out. Without one the request
+        # IS the low watermark, so there is nothing to have lost.
+        if (start_offsets or replay_bounds) and requested < low:
+            lost["retention_truncated"] += low - requested
         assignment.append(TopicPartition(topic, part, start))
         bounds[part] = {"start": start, "end": end}
     consumer.assign(assignment)
-    return bounds
+    return bounds, lost
 
 
 def consume(consumer, topic, bounds, timeout):
@@ -587,6 +600,10 @@ TEMPLATE = """<!DOCTYPE html>
 
 WARNING_TEXT = {
     "poll_timeout": "the read stopped before every partition reached its end offset",
+    "retention_truncated": (
+        "records had already been deleted by topic retention before the read began, so the window "
+        "starts later than requested and the rate describes a shorter period than asked for"
+    ),
     "undecodable": "records could not be parsed as a CollectionSet",
     "no_record_timestamp": "records carried no broker timestamp and were excluded",
     "no_collection_timestamp": "records carried no collection timestamp and were excluded",
@@ -654,8 +671,11 @@ def main(argv=None):
         }
     )
     try:
-        bounds = bounded_slice(consumer, args.topic, start_offsets, replay_bounds)
+        bounds, lost = bounded_slice(consumer, args.topic, start_offsets, replay_bounds)
         samples, records, resources, nodes, errors = consume(consumer, args.topic, bounds, args.timeout)
+        # Merged after the read so a truncated slice is reported alongside
+        # whatever else went wrong, rather than instead of it.
+        errors.update(lost)
     except (TransportError, KafkaException) as exc:
         # KafkaException as well as our own: an unreachable broker fails inside
         # list_topics(), raised by the client library rather than by us.
