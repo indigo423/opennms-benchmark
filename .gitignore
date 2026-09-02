@@ -101,3 +101,10 @@ __pycache__/
 # benchmark-report bundles
 experiments/*/results/bundle/
 experiments/*/results/*-report.tar.gz
+
+# Run logs that ARE the result, against the blanket *.log above. A campaign's
+# log is the timestamped record of how its .jsonl came to exist, and without it
+# the numbers have no provenance. `git add <dir>` honours .gitignore silently,
+# so without this negation the data lands in a commit and the log that explains
+# it does not, with nothing said either way.
+!experiments/*/results/*.log

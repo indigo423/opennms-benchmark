@@ -1,0 +1,38 @@
+[00:58:44] OpenNMS restarted for the heap change; holding 15 min before the first window
+[01:13:44] starting fleet sweep on 8 vCPU / 16 GiB / 10 GiB heap
+[01:13:44] === RUNG 10,051 devices ===
+[01:13:44]   no growth needed; measuring the fleet as it stands
+[01:23:45]   settled: 10055 services, held 10.0 min (scan=0)
+[01:23:45]   measuring 900s
+[02:09:11]   services=10055 cpu=4.457c (55.7%) mc/dev=0.4432 heap=8.37G walk=666ms L=19.6 q_max=7.0 zero=True ratio=0.9987
+[02:09:11] !!! KNEE at 10055 services: heap 9.47 GiB of 10.0
+[02:09:11] === sweep complete ===
+[08:20:40] starting fleet sweep on 8 vCPU / 16 GiB / 10 GiB heap
+[08:20:40] === RUNG 12,000 devices ===
+[08:22:38]   nl6 fleet now 12,051
+[08:23:10]   Triggering import      ... done | provision rc=0 at 06:22:44
+[08:23:10]   services=10165/12000 import=0 scan=10
+[08:23:40]   services=10993/12000 import=0 scan=0
+[08:24:10]   services=11854/12000 import=0 scan=0
+[08:34:41]   settled: 12055 services, held 10.0 min (scan=0)
+[08:34:41]   measuring 900s
+[08:50:53]   services=12055 cpu=6.071c (75.9%) mc/dev=0.5036 heap=8.1G walk=750ms L=66.3 q_max=5418.0 zero=True ratio=0.0155
+[08:50:53] !!! KNEE at 12055 services: completion ratio 0.0155
+[08:50:53] === sweep complete ===
+[09:44:07] starting fleet sweep on 8 vCPU / 16 GiB / 10 GiB heap
+[09:44:07] === RUNG 13,500 devices ===
+[09:45:37]   nl6 fleet now 13,551
+[09:46:08]   Triggering import      ... done | provision rc=0 at 07:45:43
+[09:46:08]   services=12144/13500 import=0 scan=10
+[09:46:38]   services=12521/13500 import=0 scan=2
+[09:47:08]   services=12697/13500 import=0 scan=0
+[09:47:38]   services=12837/13500 import=0 scan=0
+[09:48:09]   services=12951/13500 import=0 scan=0
+[09:48:39]   services=13091/13500 import=0 scan=0
+[09:49:09]   services=13221/13500 import=0 scan=0
+[09:49:39]   services=13365/13500 import=0 scan=5
+[10:00:10]   settled: 13555 services, held 10.0 min (scan=0)
+[10:00:10]   measuring 900s
+[10:16:35]   services=13555 cpu=6.829c (85.4%) mc/dev=0.5038 heap=8.87G walk=746ms L=76.1 q_max=882.0 zero=True ratio_med=0.9985
+[10:16:35] !!! KNEE at 13555 services: old-gen GC 1.47/min (full collections)
+[10:16:35] === sweep complete ===

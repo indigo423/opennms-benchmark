@@ -10,6 +10,24 @@
 # py311 is the floor we support (Debian 12); runners and lab VMs ship 3.12.
 target-version = "py311"
 
+# Campaign drivers preserved exactly as they were run, kept as provenance for
+# numbers that have been published. They are evidence, not maintained code: the
+# value of a driver here is that it is byte-for-byte what produced the .jsonl
+# beside it, and reformatting one to satisfy a linter would quietly break that
+# guarantee for no benefit. Nothing imports them and nothing runs them again.
+#
+# Anything under experiments/*/bin that IS maintained stays linted; this is one
+# directory, named in full, not a pattern that will silently grow.
+exclude = ["experiments/pm-snmp-latency/results/bin"]
+
+# Required, not optional. `make lint-python` passes an explicit file list from
+# `git ls-files`, and ruff ignores `exclude` for paths named on the command line
+# unless this is set. Without it the block above is silently inert: it looks
+# like a carve-out, lints clean when ruff is run on a directory, and still fails
+# in CI. Verified by running `uvx ruff check --config ruff.toml $(git ls-files
+# '*.py')` both ways.
+force-exclude = true
+
 # These are report-generation scripts with wide f-strings and long literal URLs;
 # 88 would be churn for no readability gain.
 line-length = 120
