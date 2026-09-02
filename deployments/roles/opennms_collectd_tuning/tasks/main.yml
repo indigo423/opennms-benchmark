@@ -24,9 +24,19 @@
 
 # Proves the value on disk, so a regexp that silently matched nothing is a
 # failure rather than a clean run over an unchanged file.
+#
+# Anchored on the root element, exactly as the replace above is. An unanchored
+# grep reads whichever threads=" comes first in the file, so if the replace had
+# matched nothing it would compare a per-service parameter instead: a false
+# failure normally, and a false PASS whenever that parameter happens to hold the
+# value being asked for. The second grep narrows the matched element back to the
+# attribute, so stdout_lines[0] stays threads="N" for the assertion below.
 - name: Read back the configured thread count
-  ansible.builtin.command:
-    cmd: grep -oE 'threads="[0-9]+"' {{ opennms_collectd_tuning_config }}
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      grep -oE '<collectd-configuration[^>]*threads="[0-9]+"' {{ opennms_collectd_tuning_config }}
+      | grep -oE 'threads="[0-9]+"'
   register: collectd_tuning_live
   changed_when: false
 
