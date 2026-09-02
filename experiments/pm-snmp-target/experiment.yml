@@ -156,17 +156,21 @@
           - "samples        {{ pm_res.totals.samples }}"
           - >-
             window_rate    {{ ((pm_res.totals.samples | default(0) | float)
-                               / (pm_target_window_seconds | default(660) | float)) | round(1) }}/s
+                               / (pm_target_window_seconds | default(900) | float)) | round(1) }}/s
           - >-
             metrics/hour   {{ ((pm_res.totals.samples | default(0) | float)
-                               / (pm_target_window_seconds | default(660) | float) * 3600 / 1000000) | round(2) }}M
+                               / (pm_target_window_seconds | default(900) | float) * 3600 / 1000000) | round(2) }}M
           - >-
             coverage       {{ ((pm_res.rate.span_seconds | default(0) | float)
-                               / (pm_target_window_seconds | default(660) | float)) | round(3) }}
+                               / (pm_target_window_seconds | default(900) | float)) | round(3) }}
           - >-
             per-dev/cycle  {{ ((pm_res.totals.samples | default(0) | float)
                                / (pm_res.totals.nodes_seen | default(1) | float)
-                               * (300 / (pm_target_window_seconds | default(660) | float))) | round(0) }}
+                               * (300 / (pm_target_window_seconds | default(900) | float))) | round(0) }}
+          - >-
+            peak/mean      {{ ((pm_res.rate.peak_per_second | default(0) | float)
+                               / ([((pm_res.totals.samples | default(0) | float)
+                                    / (pm_target_window_seconds | default(900) | float)), 1] | max)) | round(2) }}
           - "warnings       {{ pm_res.warnings }}"
       vars:
         pm_res: "{{ pm_target_result_json.content | b64decode | from_json }}"
@@ -178,9 +182,9 @@
       ansible.builtin.assert:
         that:
           - ((pm_res.rate.span_seconds | default(0) | float)
-             / (pm_target_window_seconds | default(660) | float)) >= (pm_target_min_coverage | float)
+             / (pm_target_window_seconds | default(900) | float)) >= (pm_target_min_coverage | float)
           - ((pm_res.rate.span_seconds | default(0) | float)
-             / (pm_target_window_seconds | default(660) | float)) <= (pm_target_max_coverage | float)
+             / (pm_target_window_seconds | default(900) | float)) <= (pm_target_max_coverage | float)
         fail_msg: >-
           Coverage outside [{{ pm_target_min_coverage }}, {{ pm_target_max_coverage }}].
           Below the floor the window did not fill; above the ceiling it drained backlog

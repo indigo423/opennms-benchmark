@@ -43,5 +43,9 @@ pm_device_increments: [25, 75, 150, 250, 250, 250, 250, 250, 250, 250, 150]
 # measures where the window fell rather than what the system did.
 pm_collection_interval: 300
 pm_settle_seconds: 300
-pm_window_seconds: 330
+
+# Integer multiple of the collection interval; see the note in
+# experiments/pm-snmp-target/opennms-lab-vars.yml. Collection arrives in bursts,
+# so a non-integer window lets its phase decide the result.
+pm_window_seconds: 600
 pm_bucket_seconds: 30

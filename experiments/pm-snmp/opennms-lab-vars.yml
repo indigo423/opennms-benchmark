@@ -17,5 +17,17 @@ pm_collection_interval: 300
 # One full interval, so every newly provisioned node has been scheduled and
 # collected once before measurement starts. Each rung costs settle + window.
 pm_settle_seconds: 300
-pm_window_seconds: 330
+
+# WINDOW MUST BE AN INTEGER MULTIPLE OF THE COLLECTION INTERVAL.
+#
+# Collectd staggers nodes across the interval, but only loosely, and after a
+# restart it schedules the whole fleet at once. Measured 2026-08-28 at 3,801
+# devices, peak/mean sample rate was 2.8 before a restart and 3.7 after: work
+# arrives in a burst roughly a third of a cycle wide, then the system idles.
+#
+# Against a bursty arrival a non-integer window captures a whole number of
+# bursts plus an arbitrary fraction, so the phase of the window decides the
+# result. A 660 s window on a 300 s interval is 2.2 cycles and can legitimately
+# see 2 or 3 bursts, a swing of 0.91x to 1.36x on the same system.
+pm_window_seconds: 600
 pm_bucket_seconds: 30
