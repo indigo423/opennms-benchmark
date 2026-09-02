@@ -31,17 +31,19 @@ DESC = ("What it takes to sustain 72 million SNMP metrics per hour in PoweredBy 
 
 
 def main(src: str, dst: str) -> None:
-    s = open(src, encoding="utf-8").read()
+    with open(src, encoding="utf-8") as fh:
+        s = fh.read()
     # Everything up to and including the last </style> belongs in <head>.
     cut = s.rindex("</style>") + len("</style>")
     head, body = s[:cut].strip(), s[cut:].strip()
-    open(dst, "w", encoding="utf-8").write(
-        f'<!DOCTYPE html>\n<html lang="en">\n<head>\n'
-        f'<meta charset="utf-8">\n'
-        f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f'<meta name="description" content="{DESC}">\n'
-        f'{RESET}\n{head}\n</head>\n<body>\n{body}\n</body>\n</html>\n'
-    )
+    with open(dst, "w", encoding="utf-8") as fh:
+        fh.write(
+            f'<!DOCTYPE html>\n<html lang="en">\n<head>\n'
+            f'<meta charset="utf-8">\n'
+            f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            f'<meta name="description" content="{DESC}">\n'
+            f'{RESET}\n{head}\n</head>\n<body>\n{body}\n</body>\n</html>\n'
+        )
     print(f"wrote {dst}")
 
 
