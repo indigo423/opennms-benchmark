@@ -1,0 +1,241 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# One rung: set the provisiond pools, restart the JVM, let collection return to
+# steady state, wait until nothing is scanning, then force a full rescan and
+# time it.
+#
+# Runs from the monitoring node and delegates the Core-side and database-side
+# work, so the whole sweep stays one play.
+#
+# BOTH POOLS MOVE TOGETHER, ON PURPOSE.
+#
+# scanThreads sizes the executor that runs node scans. rescanThreads sizes the
+# scheduled pool that submits interval-driven rescans into it. Which of the two
+# an import with rescanExisting=true draws on is a provisiond implementation
+# detail, and one that has changed across releases. Sweeping only the wrong one
+# would produce a flat curve — the single most expensive way to conclude that
+# threads do not matter. Moving both makes the rung's independent variable
+# "provisiond scan concurrency" rather than a named field, at the cost of not
+# separating the two. Separate them only after the combined curve shows there
+# is something to separate.
+#
+# importThreads and writeThreads are held at stock. They are the next
+# candidates if the curve flattens while the pools are still idle: the
+# CollectInterfaces policy makes each scan persist ~144 snmpinterface rows, so
+# a fleet-wide rescan is a six-figure upsert and the write path is a plausible
+# second ceiling.
+
+- name: "Set the provisiond scan pool to {{ pm_scan_n }}"
+  ansible.builtin.replace:
+    path: "{{ pm_scan_config }}"
+    # \b matters. Without it this pattern also matches the tail of
+    # rescanThreads="10", and the rung would set one pool twice and the other
+    # never — silently, because both spellings end in the same eleven
+    # characters.
+    regexp: '(<provisiond-configuration[^>]*?)\bscanThreads="\d+"'
+    replace: '\1scanThreads="{{ pm_scan_n }}"'
+  delegate_to: "{{ pm_core_host }}"
+  become: true
+
+- name: "Set the provisiond rescan pool to {{ pm_scan_n }}"
+  ansible.builtin.replace:
+    path: "{{ pm_scan_config }}"
+    regexp: '(<provisiond-configuration[^>]*?)rescanThreads="\d+"'
+    replace: '\1rescanThreads="{{ pm_scan_n }}"'
+  delegate_to: "{{ pm_core_host }}"
+  become: true
+
+# Proves the values on disk. A regexp that matched nothing is otherwise a clean
+# run over an unchanged file, and the rung would measure the previous setting
+# under this rung's label.
+- name: "Read back the provisiond pools at rung {{ pm_scan_n }}"
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      grep -oE '<provisiond-configuration[^>]*' {{ pm_scan_config }}
+      | grep -oE '(scan|rescan)Threads="[0-9]+"' | sort
+  register: pm_scan_live
+  delegate_to: "{{ pm_core_host }}"
+  become: true
+  changed_when: false
+
+- name: "Assert both pools took effect at rung {{ pm_scan_n }}"
+  ansible.builtin.assert:
+    that:
+      - pm_scan_live.stdout_lines | sort
+        == ['rescanThreads="' ~ pm_scan_n ~ '"', 'scanThreads="' ~ pm_scan_n ~ '"']
+    fail_msg: >-
+      {{ pm_scan_config }} reads {{ pm_scan_live.stdout_lines }}, not both pools
+      at {{ pm_scan_n }}. One of the two replaces matched nothing.
+    quiet: true
+
+# provisiond-configuration.xml is read at daemon start, so a reload would leave
+# the old pool sizes live while the file claims otherwise.
+- name: "Restart OpenNMS for rung {{ pm_scan_n }}"
+  ansible.builtin.service:
+    name: opennms
+    state: restarted
+  delegate_to: "{{ pm_core_host }}"
+  become: true
+
+- name: "Wait for OpenNMS to answer at rung {{ pm_scan_n }}"
+  ansible.builtin.uri:
+    url: "{{ pm_scan_opennms_base }}/login.jsp"
+    status_code: [200, 302]
+  register: pm_scan_up
+  until: pm_scan_up.status in [200, 302]
+  retries: 60
+  delay: 10
+  changed_when: false
+
+# The scan is measured against steady-state collection because that is the only
+# state it ever runs in. Measuring into the post-restart ramp would give the
+# scan a Minion that is quieter than it will ever really be, and the rung would
+# flatter whichever thread count happened to be tested first.
+- name: "Let collection reach steady state at rung {{ pm_scan_n }}"
+  ansible.builtin.pause:
+    seconds: "{{ pm_scan_settle_seconds }}"
+
+# Provisiond schedules its own rescans from lastcapsdpoll + scan-interval, so a
+# restart on a lab that has been up longer than the foreign source's interval
+# starts a fleet-wide rescan of its own accord. Measuring on top of that reports
+# someone else's scan as this rung's, and reports it as fast, because half of it
+# had already finished before the clock started.
+#
+# If this task exhausts its retries, read it as "the fleet is too large for this
+# gate" before reading it as "the lab is busy". The experiment guards the fleet
+# size up front for exactly that reason; see the SCOPE note in experiment.yml.
+- name: "Wait until nothing is scanning at rung {{ pm_scan_n }}"
+  ansible.builtin.command:
+    cmd: >-
+      sudo -u postgres psql -qtA -d {{ pm_scan_db }}
+      -c "select count(*) from node
+          where {{ pm_scan_where }}
+            and lastcapsdpoll > now() - interval '{{ pm_scan_quiet_seconds }} seconds'"
+  delegate_to: "{{ pm_db_host }}"
+  become: true
+  register: pm_scan_quiet
+  until: pm_scan_quiet.stdout | trim | int == 0
+  retries: "{{ (pm_scan_quiet_timeout | int // (pm_scan_quiet_seconds | int)) | int }}"
+  delay: "{{ pm_scan_quiet_seconds }}"
+  changed_when: false
+
+# Count and instant from one statement, so they cannot drift apart the way two
+# separate reads would. The instant is the database's own clock: mon, core and
+# db need not agree, and a few seconds of skew is a few percent of the answer.
+- name: "Capture the population and the start instant at rung {{ pm_scan_n }}"
+  ansible.builtin.command:
+    cmd: >-
+      sudo -u postgres psql -qtA -d {{ pm_scan_db }}
+      -c "select count(*) || ' ' || extract(epoch from now())
+          from node where {{ pm_scan_where }}"
+  delegate_to: "{{ pm_db_host }}"
+  become: true
+  register: pm_scan_t0_row
+  changed_when: false
+
+- name: "Note the population about to be measured at rung {{ pm_scan_n }}"
+  ansible.builtin.set_fact:
+    pm_scan_expected: "{{ pm_scan_t0_row.stdout.split()[0] }}"
+    pm_scan_t0: "{{ pm_scan_t0_row.stdout.split()[1] }}"
+
+# rescanExisting=true is the whole point of this call and the opposite of what
+# opennms_requisition does: that role passes false so a growing fleet only scans
+# what it added. Here the population is the control, so every node must scan.
+- name: "Force a full rescan at rung {{ pm_scan_n }}"
+  ansible.builtin.uri:
+    url: >-
+      {{ pm_scan_opennms_base }}/rest/requisitions/{{
+        pm_scan_foreign_source }}/import?rescanExisting=true
+    method: PUT
+    user: "{{ pm_scan_user }}"
+    password: "{{ pm_scan_password }}"
+    force_basic_auth: true
+    status_code: [200, 202, 204]
+  changed_when: true
+
+# Emits one "epoch,completed" line per poll, to stdout and to a file on the
+# database host. The last line is the measurement; the rest is the shape, which
+# is what distinguishes a pool that ran flat out for the whole rescan from one
+# that finished a burst early and then trickled.
+- name: "Time the rescan at rung {{ pm_scan_n }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      t0='{{ pm_scan_t0 }}'
+      expected={{ pm_scan_expected }}
+      out=/tmp/pm-scan-threads-{{ pm_scan_n }}.csv
+      : > "$out"
+      while : ; do
+        row=$(sudo -u postgres psql -qtA -d {{ pm_scan_db }} \
+          -c "select count(*) || ' ' || extract(epoch from now())
+              from node where {{ pm_scan_where }}
+                and lastcapsdpoll >= to_timestamp($t0)")
+        # An unreadable database would otherwise leave every comparison below
+        # comparing empty strings, and the rung would spin to its deadline and
+        # report a slow scan instead of a broken probe.
+        [ -n "$row" ] || { echo "psql returned nothing" >&2; exit 1; }
+        done_n=${row%% *}
+        now=${row##* }
+        printf '%s,%s\n' "$now" "$done_n" | tee -a "$out"
+        [ "$done_n" -ge "$expected" ] && break
+        [ $(( ${now%.*} - ${t0%.*} )) -ge {{ pm_scan_timeout_seconds }} ] && break
+        sleep {{ pm_scan_poll_seconds }}
+      done
+  delegate_to: "{{ pm_db_host }}"
+  become: true
+  register: pm_scan_poll
+  changed_when: false
+
+# A rung that hit its deadline is recorded, not fatal: an unfinished rung at a
+# low thread count is a result, and failing here would discard every rung
+# already measured.
+- name: "Record the rung at {{ pm_scan_n }}"
+  ansible.builtin.set_fact:
+    pm_scan_results: "{{ pm_scan_results | default([]) + [pm_scan_row] }}"
+    pm_scan_rows: "{{ pm_scan_rows | default([]) + [pm_scan_line] }}"
+  vars:
+    # Every divisor carries a non-zero default and is written out inline rather
+    # than taken from a sibling. Not defensiveness about runtime values:
+    # ansible-lint renders this block with an empty context, where a sibling is
+    # undefined, coerces to 0, and fails the whole block on division by zero at
+    # lint time.
+    pm_final: "{{ pm_scan_poll.stdout_lines | default(['0,0']) | last }}"
+    pm_done: "{{ (pm_scan_poll.stdout_lines | default(['0,0']) | last).split(',')[1] | int }}"
+    pm_elapsed: >-
+      {{ (((pm_scan_poll.stdout_lines | default(['0,0']) | last).split(',')[0] | float)
+          - (pm_scan_t0 | default(0) | float)) | round(1) }}
+    pm_finished: >-
+      {{ (pm_scan_poll.stdout_lines | default(['0,0']) | last).split(',')[1] | int
+         >= (pm_scan_expected | default(1) | int) }}
+    pm_rate: >-
+      {{ (((pm_scan_poll.stdout_lines | default(['0,0']) | last).split(',')[1] | float)
+          / ([(((pm_scan_poll.stdout_lines | default(['0,0']) | last).split(',')[0] | float)
+               - (pm_scan_t0 | default(0) | float)), 1] | max)) | round(2) }}
+    pm_scan_row:
+      threads: "{{ pm_scan_n }}"
+      nodes: "{{ pm_scan_expected }}"
+      completed: "{{ pm_done }}"
+      elapsed_s: "{{ pm_elapsed | float }}"
+      nodes_per_s: "{{ pm_rate | float }}"
+      # The discriminator. elapsed_s and nodes_per_s mean nothing when this is
+      # false: the rung reports its deadline, which reads as a slow scan rather
+      # than an unfinished one.
+      finished: "{{ pm_finished | bool }}"
+      curve: "/tmp/pm-scan-threads-{{ pm_scan_n }}.csv on {{ pm_db_host }}"
+    pm_scan_line: >-
+      {{ '%-8s %-8s %-10s %-10s %-12s %s' | format(
+         pm_scan_n, pm_scan_expected, pm_done, pm_elapsed, pm_rate,
+         'yes' if pm_finished | bool else 'NO - hit the deadline') }}
+
+- name: "Report rung {{ pm_scan_n }}"
+  ansible.builtin.debug:
+    msg: >-
+      threads={{ pm_scan_n }}
+      scanned {{ pm_scan_results[-1].completed }}/{{ pm_scan_results[-1].nodes }}
+      in {{ pm_scan_results[-1].elapsed_s }}s
+      ({{ pm_scan_results[-1].nodes_per_s }} nodes/s)
+      {{ '' if pm_scan_results[-1].finished | bool
+            else '<- NOT COMPARABLE, the rescan did not finish' }}

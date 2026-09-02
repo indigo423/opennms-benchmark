@@ -1,0 +1,299 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# How fast can this deployment scan a fleet, and what bounds it.
+#
+#   make experiment EXPERIMENT=pm-scan-threads DEPLOYMENT=kfk-exclusive
+#
+# WHY THIS EXISTS
+#
+# pm-collectd-threads established that collection is not capacity-bound here:
+# at 2,150 devices, 0 of 100 Collectd threads were RUNNABLE and steady state
+# reproduced to within 0.03% across every configuration tried. Throughput is
+# bounded by what the fleet emits, not by what OpenNMS can collect.
+#
+# Scanning is the opposite, and until now has never been measured. It has only
+# ever been *waited on*: opennms_requisition polls the newest node until its
+# SNMP interfaces appear, and the 1,650-node batch in pm-snmp-target spent
+# several minutes in that loop. "Several minutes" is an anecdote, not a number,
+# and the wait cannot distinguish a slow scan from a scan that finished early
+# in an order the poll did not anticipate.
+#
+# WHY THE TWO PATHS ARE COMPARABLE
+#
+# A node scan walks the agent's system group, ifTable/ifXTable and
+# ipAddressTable. For a 144-port CRS-X that is on the order of 1,500 varbinds.
+# A collection of the same device moves 1,580 samples per cycle. To within a
+# rounding error, one scan costs one collection: the same SNMP, over the same
+# Kafka RPC path, through the same single Minion.
+#
+# What differs is the concurrency each was given. Collectd was raised to 100
+# threads deliberately and with evidence. Provisiond was deliberately left at
+# stock: provisioning was scoped out of the #225 campaign and pinned, so that
+# collection was the only variable and every rung stayed comparable. That was
+# the right call there, and it is exactly why scanning is still unmeasured.
+#
+# This experiment is the other campaign, with the scoping inverted. Provisiond
+# concurrency becomes the variable; collection and the fleet become the pinned
+# controls. It is not a loose end of #225 and does not revise anything it
+# concluded, which held collection throughput fixed against a fixed
+# provisioning configuration and remains true.
+#
+# SCOPE: THE 3,801-DEVICE FLEET, NOT A LARGER ONE.
+#
+# This is written for the fleet the 72M campaign measured, and the quiescence
+# gate below is what ties it to that size. Scans are held off by waiting until
+# no node has completed one recently, which works while the daily rescan
+# arrives as a burst that can be waited out.
+#
+# It stops working on a large fleet. With a one-day scan-interval and N nodes
+# spread across it, a 60 s window expects N/1440 completions, so the spread
+# smears into a continuous trickle as N grows: at 7,000 nodes a "no scans
+# recently" gate was observed never to pass at all. The guard on
+# pm_scan_max_nodes below turns that into an immediate failure rather than a
+# rung that burns its whole quiet timeout and then dies without saying why.
+#
+# On a fleet past that line the gate has to go, and scan activity becomes a
+# covariate instead: sample the background completion rate first, then subtract
+# it from the rung. That is a different experiment and it is not this one.
+#
+# WHAT IS MEASURED
+#
+# Wall-clock time for every node in one foreign source to complete a scan,
+# after an import with rescanExisting=true, as a function of the provisiond
+# thread pools. The observable is node.lastcapsdpoll, which provisiond stamps
+# when a scan finishes. Read from Postgres rather than the ReST API: the count
+# and the instant it describes come out of one statement, so they cannot drift
+# apart, and there is no date-format guesswork in a query string.
+#
+# WHAT THIS RESULT IS NOT
+#
+# The scan does not run against an idle Minion. Collection continues at
+# ~20,000 samples/s throughout, and that traffic shares the RPC path. So this
+# measures the scan throughput *available alongside steady-state collection*,
+# which is the operationally interesting figure and not the same as scan
+# throughput on a quiet system. Fleet size is therefore a hard control: it is
+# recorded before the sweep and asserted unchanged after it.
+#
+# READ THE completed COLUMN FIRST.
+#
+# elapsed and nodes/s are only meaningful when completed == nodes. A rung that
+# timed out reports the deadline as its elapsed time, which looks like a slow
+# rung rather than an unfinished one. The table prints both so the two cannot
+# be confused, and the comparison at the end drops any rung that did not
+# finish.
+
+- name: Sweep the provisiond scan thread pools
+  hosts: mon_servers
+  gather_facts: false
+  vars:
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    pm_core_host: "{{ groups['core'][0] }}"
+    pm_db_host: "{{ groups['database'][0] }}"
+    pm_scan_db: "{{ endpoints.measurement.database.name }}"
+    pm_scan_opennms_base: >-
+      http://{{ endpoints.measurement.opennms.host }}:{{ endpoints.measurement.opennms.port }}/opennms
+    # One predicate, written once. Every query in the sweep selects exactly the
+    # same population; two spellings that drift by a nodetype filter would make
+    # "expected" and "completed" count different things and the rung would
+    # never converge.
+    pm_scan_where: >-
+      foreignsource = '{{ pm_scan_foreign_source }}' and nodetype <> 'D'
+  tasks:
+    - name: Assert the sweep has values to sweep
+      ansible.builtin.assert:
+        that:
+          - pm_scan_values | length > 0
+          - pm_scan_values | map('int') | min > 0
+          - pm_scan_values | unique | length == pm_scan_values | length
+        fail_msg: >-
+          pm_scan_values must be non-empty, positive and free of duplicates.
+          A repeated value measures the same configuration twice and reports it
+          under two labels.
+        quiet: true
+
+    - name: Assert the provisiond configuration exists
+      ansible.builtin.stat:
+        path: "{{ pm_scan_config }}"
+      register: pm_scan_cfg
+      delegate_to: "{{ pm_core_host }}"
+      become: true
+      failed_when: not pm_scan_cfg.stat.exists | default(false)
+      changed_when: false
+
+    # The stock file carries these as attributes of the root element. If a
+    # future OpenNMS moves them to child elements the anchored replace in
+    # rung.yml would match nothing, set nothing, and the sweep would report
+    # four identical rungs as "threads make no difference".
+    - name: Read the thread pools provisiond starts with
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          grep -oE '<provisiond-configuration[^>]*' {{ pm_scan_config }}
+          | grep -oE '(scan|rescan|import|write)Threads="[0-9]+"'
+      register: pm_scan_stock
+      delegate_to: "{{ pm_core_host }}"
+      become: true
+      changed_when: false
+
+    - name: Assert both swept pools are attributes of the root element
+      ansible.builtin.assert:
+        that:
+          - pm_scan_stock.stdout is search('scanThreads="[0-9]+"')
+          - pm_scan_stock.stdout is search('rescanThreads="[0-9]+"')
+        fail_msg: >-
+          {{ pm_scan_config }} does not carry scanThreads and rescanThreads on
+          <provisiond-configuration>. The replace in rung.yml would match
+          nothing and every rung would measure the same configuration.
+          Found: {{ pm_scan_stock.stdout_lines | default([]) }}
+        quiet: true
+
+    - name: Report the thread pools provisiond starts with
+      ansible.builtin.debug:
+        msg: "stock provisiond pools: {{ pm_scan_stock.stdout_lines }}"
+
+    # nodetype and lastcapsdpoll are the whole measurement. A schema that spells
+    # either differently fails every psql call in the sweep with a syntax error
+    # 900 s into the first rung; failing here costs nothing and names the cause.
+    - name: Assert the node table carries the columns the sweep reads
+      ansible.builtin.command:
+        cmd: >-
+          sudo -u postgres psql -qtA -d {{ pm_scan_db }}
+          -c "select count(*) from information_schema.columns
+              where table_name = 'node'
+                and column_name in ('lastcapsdpoll', 'foreignsource', 'nodetype')"
+      delegate_to: "{{ pm_db_host }}"
+      become: true
+      register: pm_scan_columns
+      changed_when: false
+      failed_when: pm_scan_columns.stdout | trim != '3'
+
+    - name: Count the nodes the sweep will rescan
+      ansible.builtin.command:
+        cmd: >-
+          sudo -u postgres psql -qtA -d {{ pm_scan_db }}
+          -c "select count(*) from node where {{ pm_scan_where }}"
+      delegate_to: "{{ pm_db_host }}"
+      become: true
+      register: pm_scan_population
+      changed_when: false
+
+    # Without this the sweep cannot fail. An empty or misspelled foreign source
+    # makes every rung's target zero, "completed >= expected" is true on the
+    # first poll, and each rung reports a sub-second scan of nothing at all.
+    - name: Assert the foreign source holds nodes to rescan
+      ansible.builtin.assert:
+        that:
+          - pm_scan_population.stdout | trim | int > 0
+        fail_msg: >-
+          Foreign source '{{ pm_scan_foreign_source }}' holds no nodes, so every
+          rung would complete instantly against an empty population and report
+          it as an infinitely fast scan. Provision the fleet first, or correct
+          pm_scan_foreign_source.
+        quiet: true
+
+    # The quiescence gate in rung.yml is only meaningful while the daily rescan
+    # is a burst rather than a trickle. Past that the gate cannot pass, and
+    # without this guard the first rung waits out its full quiet timeout and
+    # fails on a message about a poll that never converged, which says nothing
+    # about the actual cause.
+    - name: Assert the fleet is inside the size this sweep is written for
+      ansible.builtin.assert:
+        that:
+          - pm_scan_population.stdout | trim | int <= (pm_scan_max_nodes | int)
+        fail_msg: >-
+          '{{ pm_scan_foreign_source }}' holds
+          {{ pm_scan_population.stdout | trim }} nodes, past the
+          {{ pm_scan_max_nodes }} this sweep is written for. Above that a
+          one-day scan-interval spreads rescans into a continuous trickle, the
+          quiescence gate in rung.yml never passes, and every rung would burn
+          {{ pm_scan_quiet_timeout }}s before failing for a reason that has
+          nothing to do with thread counts. Measuring a fleet this size needs
+          the gate replaced by a background-rate covariate, which is a
+          different experiment.
+        quiet: true
+
+    - name: Record the fleet the sweep is measuring
+      ansible.builtin.uri:
+        url: "{{ endpoints.generators.nl6.url }}/api/v1/status"
+        return_content: true
+      register: pm_scan_fleet_before
+      changed_when: false
+
+    - name: Assert the fleet is running
+      ansible.builtin.assert:
+        that:
+          - pm_scan_fleet_before.json.data.running_devices | int > 0
+        fail_msg: >-
+          nl6 reports no running devices. Every scan would fail its SNMP walk,
+          persist nothing, and the sweep would time out at every rung for a
+          reason that has nothing to do with thread counts.
+        quiet: true
+
+    - name: Report the starting conditions
+      ansible.builtin.debug:
+        msg: >-
+          {{ pm_scan_population.stdout | trim }} nodes in
+          '{{ pm_scan_foreign_source }}' against
+          {{ pm_scan_fleet_before.json.data.running_devices }} running devices
+          — sweeping {{ pm_scan_values }}
+
+    - name: Run the sweep
+      ansible.builtin.include_tasks: rung.yml
+      loop: "{{ pm_scan_values }}"
+      loop_control:
+        loop_var: pm_scan_n
+
+    # Collection load shares the RPC path with the scan, so the fleet is the
+    # control that makes two rungs comparable at all. A fleet that changed
+    # mid-sweep — another experiment running, a generator restart — invalidates
+    # the comparison, and it is far better to say so than to publish a curve
+    # whose independent variable was not the only thing that moved.
+    - name: Record the fleet after the sweep
+      ansible.builtin.uri:
+        url: "{{ endpoints.generators.nl6.url }}/api/v1/status"
+        return_content: true
+      register: pm_scan_fleet_after
+      changed_when: false
+
+    - name: Report the sweep
+      ansible.builtin.debug:
+        msg: >-
+          {{ ['threads  nodes    completed  elapsed_s  nodes_per_s  finished']
+             + pm_scan_rows | default([]) }}
+
+    - name: Report the fastest configuration that actually finished
+      ansible.builtin.debug:
+        msg: >-
+          Best of the rungs that completed:
+          {{ (pm_scan_results | default([]) | selectattr('finished')
+              | sort(attribute='nodes_per_s') | last)
+             | default({'threads': 'none finished'}, true) }}
+
+    - name: Assert the fleet did not move under the sweep
+      ansible.builtin.assert:
+        that:
+          - pm_scan_fleet_after.json.data.running_devices | int
+            == pm_scan_fleet_before.json.data.running_devices | int
+        fail_msg: >-
+          The fleet changed from
+          {{ pm_scan_fleet_before.json.data.running_devices }} to
+          {{ pm_scan_fleet_after.json.data.running_devices }} running devices
+          during the sweep. Collection load shares the Minion with the scan, so
+          the rungs were measured against different background loads and cannot
+          be compared. Re-run with the fleet held fixed.
+        quiet: true
+
+    - name: Assert at least one rung finished
+      ansible.builtin.assert:
+        that:
+          - pm_scan_results | default([]) | selectattr('finished') | list | length > 0
+        fail_msg: >-
+          No rung completed its rescan inside
+          {{ pm_scan_timeout_seconds }}s, so no two rungs can be compared.
+          Either the deadline is too short for this fleet, or scans are not
+          completing at all — check that the newest node in
+          '{{ pm_scan_foreign_source }}' has SNMP interfaces before blaming
+          the deadline.
+        quiet: true
