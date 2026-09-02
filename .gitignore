@@ -97,3 +97,7 @@ __pycache__/
 *.py[cod]
 .ruff_cache/
 
+
+# benchmark-report bundles
+experiments/*/results/bundle/
+experiments/*/results/*-report.tar.gz

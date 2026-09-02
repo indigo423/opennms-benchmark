@@ -1,0 +1,215 @@
+{
+  "experiment": {
+    "question": "How much infrastructure sustains 72 million SNMP metrics per hour?",
+    "independent_variable": "workload.parameters.devices",
+    "variant": "3801-devices",
+    "plan": "Grow a simulated SNMP fleet on one physical host until the metric rate passes 72 million per hour, hold it, and measure once over a window that is an integer multiple of the collection interval. Report the configuration the rate needed and the headroom left at that rate."
+  },
+  "sut": {
+    "version_identity": { "version": "36.0.3", "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)" },
+    "jvm": { "version": "17.0.16", "heap": "-Xms8g -Xmx8g", "gc": "G1GC", "flags": "JAVA_HEAP_SIZE=8192 in opennms.conf, unchanged throughout the campaign" },
+    "db_version": "PostgreSQL 18",
+    "tss_backend": "kafka-exclusive",
+    "config_delta": "collectd-configuration.xml: threads 50 -> 100; thresholding-enabled=false on every service, thresholds.xml emptied and threshd-configuration.xml packages removed. org.opennms.features.kafka.producer.cfg: forward.metrics=true, metricTopic=metrics (exclusive forwarding, EmptyResourceStorageDao, no local time-series store). opennms.conf: OPENNMS_DATABASE_CONNECTION_MAXPOOL and MAXSIZE 50 -> 250, MINPOOL 25 (environment variables; opennms-datasources.xml reads them as ${env:...|50}). postgresql.conf/conf.d, pgtune web profile for 8 vCPU and 16 GB: max_connections 400, shared_buffers 3.9GB, effective_cache_size 11.7GB, work_mem 10MB, maintenance_work_mem 1GB, max_parallel_workers 8, random_page_cost 1.1, effective_io_concurrency 200. Kafka server.properties: log.segment.bytes 1GiB -> 128MiB, log.retention.bytes 512MiB per partition, log.retention.hours 24. Provisioning: foreign source nl6-pm-72m with two detectors (ICMP, SNMP) instead of the stock suite and one MatchingSnmpInterfacePolicy (ifAdminStatus=1 and ifOperStatus=1 -> ENABLE_COLLECTION), all nodes pinned to location lab-location-01.",
+    "provisioner": "ssh-package"
+  },
+  "host": {
+    "cpu": "2 x Intel Xeon E5-2650 v4 @ 2.20 GHz, 24 physical cores / 48 threads, 26 vCPU allocated across 6 VMs",
+    "ram_gb": 251,
+    "disk": "ZFS pool, 834 GB raw / 808 GiB usable, SATA SSD, thick provisioned; 570 GB allocated to the VMs",
+    "os": "Ubuntu 24.04 LTS cloud image on Proxmox VE 9.2.2",
+    "generator_colocated": true,
+    "hygiene_notes": "Dell PowerEdge R630, q35 machine type, cpu type = host, NUMA enabled, 2 NUMA nodes, 30 MB L3 per socket. 2.20 GHz base / 2.90 GHz turbo, neither pinned. 26 vCPU against 24 physical cores, so mildly oversubscribed at peak. Memory never close: 56 GB of 251 GB allocated."
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 simulated agents, 3801 Cisco CRS-X core routers, 144 interfaces each, SNMP v2c community public, addressed in 10.42.0.0/16 one /24 per 250-device batch",
+    "generator_version": "ghcr.io/labmonkeys-space/nl6:v0.22.1",
+    "parameters": {
+      "devices": 3801,
+      "interval_s": 300,
+      "window_s": 900,
+      "interfaces_per_device": 144,
+      "monitored_nodes": 3803,
+      "collectable_services": 3805
+    }
+  },
+  "run": {
+    "id": "pm-snmp-target-1",
+    "started_at": "2026-08-28T12:00:00Z",
+    "ended_at": "2026-08-30T21:00:00Z",
+    "trial": 1
+  },
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "host.disk",
+    "host.generator_colocated",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters"
+  ],
+  "measurements": {
+    "tsdb": { "kind": "prometheus", "url": "http://192.168.10.40:9090/prometheus", "version": "3.14.0" },
+    "window": { "start": "2026-08-28T12:00:00Z", "end": "2026-08-30T21:00:00Z" },
+    "resolution": "10m",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": ["pm-snmp-target", "kafka-exclusive", "nl6", "poweredby-2026"]
+    },
+    "figures": [
+      {
+        "id": "cpu",
+        "title": "CPU busy per virtual machine, full observation window",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": { "dashboard": "Node Exporter Full", "panel": "CPU Basic" },
+        "series": [
+          { "label": "core (8 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[10m])) * 100", "decimals": 1 },
+          { "label": "loadgen (2 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"netsim-benchmark-01:9100\",mode=\"idle\"}[10m])) * 100", "decimals": 1 },
+          { "label": "minion (4 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[10m])) * 100", "decimals": 1 },
+          { "label": "database (8 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"db-benchmark-01:9100\",mode=\"idle\"}[10m])) * 100", "decimals": 1 }
+        ]
+      },
+      {
+        "id": "minion-load",
+        "title": "Minion system load across the 2 to 4 vCPU resize, 27 August",
+        "unit": "load average",
+        "kind": "line",
+        "source": { "dashboard": "Node Exporter Full", "panel": "System Load (panel 7)" },
+        "window": { "start": "2026-08-27T16:00:00Z", "end": "2026-08-28T02:00:00Z" },
+        "resolution": "1m",
+        "note": "Outside the observation window by design: the resize happened on 27 August at 22:25 CEST, before the measured run began.",
+        "series": [
+          { "label": "load, 1 min", "expr": "node_load1{instance=\"minion-benchmark-01:9100\"}", "decimals": 2 },
+          { "label": "load, 5 min", "expr": "node_load5{instance=\"minion-benchmark-01:9100\"}", "decimals": 2 },
+          { "label": "load, 15 min", "expr": "node_load15{instance=\"minion-benchmark-01:9100\"}", "decimals": 2 },
+          { "label": "CPU cores, the saturation line", "expr": "count(count by (cpu) (node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\"}))", "decimals": 0 }
+        ]
+      },
+      {
+        "id": "collectd",
+        "title": "Collectd thread pool and task queue, peak per 10 minutes",
+        "unit": "threads / tasks (peak)",
+        "kind": "peak-line",
+        "source": { "dashboard": "Prometheus: OpenNMS Core Internals", "panel": "Metric Collection: Thread Pool / Scheduler" },
+        "series": [
+          { "label": "active threads, 10-min peak", "expr": "max_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[10m])", "decimals": 0 },
+          { "label": "queued tasks, 10-min peak", "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[10m])", "decimals": 0 }
+        ]
+      },
+      {
+        "id": "db-pool",
+        "title": "Core's database connection pool, per 10 minutes",
+        "unit": "connections",
+        "kind": "peak-line",
+        "source": { "dashboard": "Prometheus: OpenNMS Core Internals", "panel": "Database Connections (HikariCP)" },
+        "series": [
+          { "label": "active, 10-min peak", "expr": "max_over_time(com_zaxxer_hikari_pool_opennms_activeconnections{instance=\"core-benchmark-01:9299\"}[10m])", "decimals": 0 },
+          { "label": "idle, 10-min minimum", "expr": "min_over_time(com_zaxxer_hikari_pool_opennms_idleconnections{instance=\"core-benchmark-01:9299\"}[10m])", "decimals": 0 },
+          { "label": "threads waiting, 10-min peak", "expr": "max_over_time(com_zaxxer_hikari_pool_opennms_threadsawaitingconnection{instance=\"core-benchmark-01:9299\"}[10m])", "decimals": 0 }
+        ]
+      },
+      {
+        "id": "heap",
+        "title": "JVM heap on Core",
+        "unit": "GiB",
+        "kind": "line",
+        "source": { "dashboard": "Prometheus: Java Virtual Machine", "panel": "Heap Usage" },
+        "series": [
+          { "label": "heap used", "expr": "jvm_memory_used_bytes{instance=\"core-benchmark-01:9299\",area=\"heap\"} / 1024 / 1024 / 1024", "decimals": 2 }
+        ]
+      },
+      {
+        "id": "mem",
+        "title": "Memory used on the Core VM",
+        "unit": "GiB",
+        "kind": "line",
+        "source": { "dashboard": "Node Exporter Full", "panel": "Memory Basic (Used)" },
+        "series": [
+          { "label": "used (excl. cache/buffers)", "expr": "(node_memory_MemTotal_bytes{instance=\"core-benchmark-01:9100\"} - node_memory_MemFree_bytes{instance=\"core-benchmark-01:9100\"} - node_memory_Buffers_bytes{instance=\"core-benchmark-01:9100\"} - node_memory_Cached_bytes{instance=\"core-benchmark-01:9100\"}) / 1024 / 1024 / 1024", "decimals": 2 }
+        ]
+      },
+      {
+        "id": "gc",
+        "title": "Garbage collection cost on Core",
+        "unit": "GC seconds per minute",
+        "kind": "line",
+        "source": { "dashboard": "Prometheus: Java Virtual Machine", "panel": "Garbage Collection Duration" },
+        "series": [
+          { "label": "G1 Young Generation", "expr": "rate(jvm_gc_collection_seconds_sum{instance=\"core-benchmark-01:9299\",gc=\"G1 Young Generation\"}[10m]) * 60", "decimals": 3 },
+          { "label": "G1 Concurrent GC", "expr": "rate(jvm_gc_collection_seconds_sum{instance=\"core-benchmark-01:9299\",gc=\"G1 Concurrent GC\"}[10m]) * 60", "decimals": 3 }
+        ]
+      },
+      {
+        "id": "cpu-3h",
+        "title": "CPU busy per virtual machine, three-hour sample at one-minute resolution",
+        "unit": "% of each VM's own vCPU",
+        "kind": "line",
+        "source": { "dashboard": "Node Exporter Full", "panel": "CPU Basic (panel 77)" },
+        "window": { "start": "2026-08-29T22:00:00Z", "end": "2026-08-30T01:00:00Z" },
+        "resolution": "1m",
+        "series": [
+          { "label": "core (8 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[1m])) * 100", "decimals": 1 },
+          { "label": "loadgen (2 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"netsim-benchmark-01:9100\",mode=\"idle\"}[1m])) * 100", "decimals": 1 },
+          { "label": "minion (4 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[1m])) * 100", "decimals": 1 },
+          { "label": "database (8 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"db-benchmark-01:9100\",mode=\"idle\"}[1m])) * 100", "decimals": 1 },
+          { "label": "kafka (2 vCPU)", "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"kafka-benchmark-01:9100\",mode=\"idle\"}[1m])) * 100", "decimals": 1 }
+        ]
+      },
+      {
+        "id": "net-3h",
+        "title": "Network throughput per link, three-hour sample",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": { "dashboard": "Node Exporter Full", "panel": "Network Traffic Basic (panel 74)" },
+        "window": { "start": "2026-08-29T22:00:00Z", "end": "2026-08-30T01:00:00Z" },
+        "resolution": "1m",
+        "note": "Both directions summed, read at one end of each bridge. A five-minute rate range at a one-minute step, because a one-minute range aliases the collection burst.",
+        "series": [
+          { "label": "minion <-> loadgen (sim)", "expr": "sum(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[5m])) * 8 / 1000000", "decimals": 2 },
+          { "label": "minion <-> kafka", "expr": "sum(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1000000", "decimals": 2 },
+          { "label": "core <-> kafka", "expr": "sum(rate(node_network_receive_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[5m])) * 8 / 1000000", "decimals": 2 },
+          { "label": "core <-> database (db)", "expr": "sum(rate(node_network_receive_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1000000", "decimals": 2 }
+        ]
+      },
+      {
+        "id": "threads",
+        "title": "JVM thread states on Core",
+        "unit": "threads",
+        "kind": "line",
+        "source": { "dashboard": "Prometheus: Java Virtual Machine", "panel": "Thread State" },
+        "series": [
+          { "label": "WAITING", "expr": "jvm_threads_state{instance=\"core-benchmark-01:9299\",state=\"WAITING\"}", "decimals": 0 },
+          { "label": "TIMED_WAITING", "expr": "jvm_threads_state{instance=\"core-benchmark-01:9299\",state=\"TIMED_WAITING\"}", "decimals": 0 },
+          { "label": "RUNNABLE", "expr": "jvm_threads_state{instance=\"core-benchmark-01:9299\",state=\"RUNNABLE\"}", "decimals": 0 },
+          { "label": "BLOCKED", "expr": "jvm_threads_state{instance=\"core-benchmark-01:9299\",state=\"BLOCKED\"}", "decimals": 0 }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      { "id": "q-rate", "question": "What sustained metric rate did 3,801 simulated SNMP devices produce on one physical host?", "answer_ref": "#sustained-rate" },
+      { "id": "q-headroom", "question": "Was any component saturated at that rate?", "answer_ref": "#headroom" },
+      { "id": "q-detail", "question": "Does a one-minute view contradict the ten-minute buckets the headline rests on?", "answer_ref": "#three-hours" }
+    ],
+    "gaps": [
+      { "question": "What rate survives real SNMP agent response times?", "why": "The simulated agents answer from an in-memory table in microseconds, never fail and never rate-limit. A real agent is CPU-bound on the device and answers in tens to hundreds of milliseconds, dropping under load. Collectd threads block on that round trip, so the same thread count sustains a fraction of the devices.", "validity": "external" },
+      { "question": "What do timeouts and retries cost?", "why": "They were never exercised. In production each retry holds a Collectd thread for the full timeout, which is the dominant consumer of a pool this report sizes purely against successful walks.", "validity": "external" },
+      { "question": "Does the rate hold over a routed network?", "why": "All six VMs sit on one physical host connected by in-kernel Linux bridges: sub-millisecond, zero loss, zero jitter. A routed WAN adds variable latency, loss, MTU and QoS effects to every walk.", "validity": "external" },
+      { "question": "Does the rate hold for a heterogeneous fleet?", "why": "One identical device profile with 144 interfaces was used throughout, so per-device metric counts are a scaling reference and not an average over a real mix. In production walk time and attribute count vary by an order of magnitude between models.", "validity": "external" },
+      { "question": "What does resilience cost?", "why": "Single Core, single Minion, single broker, no HA anywhere. Redundancy and failover add capacity requirements this lab never paid, so the vCPU figures are not a highly available sizing.", "validity": "internal" },
+      { "question": "What does continuous discovery load cost?", "why": "The fleet was provisioned once and then held in steady state. A production estate rescans continuously and carries requisition churn and topology updates, none of which are in these figures.", "validity": "internal" },
+      { "question": "How do these figures transfer to current hardware?", "why": "The host is 2016-era Broadwell silicon at 2.20 GHz. Newer cores do more per clock, so the per-core throughput here is pessimistic. It is the one caveat in the reader's favour, and it is unquantified.", "validity": "external" },
+      { "question": "Is node scanning, rather than collection, the first ceiling on a single Minion?", "why": "Collection was never the limiting factor: sampled repeatedly at this fleet size, none of the 100 Collectd threads was runnable. But provisioning 1,650 new nodes through the one Minion spent several minutes retrying before SNMP interfaces persisted, and only one Minion was ever measured. Scan throughput is the suspected practical ceiling and this run does not bound it.", "validity": "internal" }
+    ]
+  }
+}
