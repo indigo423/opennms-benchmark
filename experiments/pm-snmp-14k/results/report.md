@@ -64,6 +64,19 @@ The completion ratio corroborates it from the other side. Its median was 0.9994 
 
 {{figure completion}}
 
+That window was measured on a JVM that had been grown through four fleet sizes without a restart, which this report originally listed as its largest doubt. The doubt has since been tested rather than argued. OpenNMS was restarted at 20:02:30Z and the same 14,004 services re-measured over a rescan-free window, 21:05 to 21:20Z, three full cycles.
+
+| | grown JVM, 14:25 | fresh JVM, 21:05 |
+|---|---:|---:|
+| Core CPU, median | 83.1% | 81.0% |
+| Old-generation GC | 1.89/min | 1.47/min |
+| Queue floor at zero | 70% of samples | 80% of samples |
+| Queue peak, median | 353 tasks | 207 tasks |
+| Completion ratio, median | 0.9994 | 0.9991 |
+| Heap used, median | 9.09 GiB | 9.16 GiB |
+
+The fresh JVM is modestly better and not qualitatively different. Heap is unchanged to within a percent, and the garbage collector runs 22% less often. So the memory pressure at this fleet size is substantially its steady cost, not residue from the growth, and the original rung stands. The re-measured window is shorter, three cycles against six, because rolling rescans began at 21:21 and ended the clean period.
+
 ## What the far side of the limit looks like {#past-the-limit}
 
 It does not crash. It goes permanently late, and it stays that way. Over the 1,800 second window measured at 15,004 collectable services, 45 minutes after the last provisioning scan finished, the pending queue never once fell below **8,475 tasks** and finished at **13,342**.
@@ -77,6 +90,8 @@ The thread pool tells the same story from the other side, and more starkly than 
 {{figure failing-state}}
 
 Old-generation collections run at a median of 3.58 per minute, against 1.89 at 14,004. That is nearly double for 7% more fleet, and it is the clearest evidence that the extra CPU is garbage collection rather than collection work. The two constraints the earlier sections treated as separate candidates turn out to be the same constraint reached by different routes.
+
+One thing this state is, and the report should say so plainly: not a pure fleet-size result. Provisiond was running rolling rescans in 15% of the samples in this window, where the passing rung at 14,004 had none at all. The next section quantifies what that load costs. It is not enough to explain this failure, because at 14,004 with rescans running in 95% of samples the queue floor still reached zero in a third of them, where here it never fell below 8,475 and grew monotonically throughout. The direction of the result is not in doubt. Where exactly the limit sits between the two rungs is affected by it.
 
 Two things this state is not. It is not the provisioning scan: that ended at 16:35:09, 45 minutes before this window opened, and the backlog has grown throughout rather than drained. It is also not a transient after the fleet grew. The fleet grew at 15:52, almost 90 minutes before the window closed, and there is no sign of recovery at any point in that time.
 
@@ -110,6 +125,29 @@ Heap percentage on its own is not a pressure signal, because G1 fills whatever c
 {{figure gc}}
 
 One caveat cuts both ways. This JVM has been running since before the fleet was grown from 10,000 and has never been restarted at this size, so part of that memory pressure may be residue from four growth steps rather than the steady cost of this fleet. Restarting Core and re-measuring would separate them, and until that is done the memory figures are an upper bound on the true steady-state cost.
+
+## What the rolling rescans cost {#rescan-cost}
+
+About 14 points of CPU, and the difference between a queue that empties and one that does not. This is the same fleet, the same 14,004 services and the same JVM, separated only by whether provisiond happened to be rescanning.
+
+| | rescans idle | rescans running |
+|---|---:|---:|
+| Core CPU, median | 81.0% | 94.6% |
+| Queue floor, median | 0 tasks | 450 tasks |
+| Queue floor at zero | 80% of samples | 32% of samples |
+| Collectd threads, mean | 81 | 100, pinned |
+| Old-generation GC | 1.47/min | 2.11/min |
+| Completion ratio, median | 0.9991 | 0.9965 |
+
+The boundary is sharp and it is visible. At 21:21 provisiond's scheduled pool goes from zero to its ten-thread ceiling and stays there, and the Collectd queue floor lifts off zero within one cycle.
+
+{{figure rescan-cost}}
+
+The reason this matters more than a footnote is duty cycle. Provisioning 1,000 nodes into this deployment was timed at **0.409 node scans per second** through a scan pool that runs at its stock core size of 10 threads. At that rate a full rescan of 14,000 nodes takes about **9.5 hours**, against a `scan-interval` of one day. The right-hand column above is therefore not an occasional disturbance. It is roughly **40% of the deployment's life**.
+
+That reframes the headroom the rest of this report describes. A clean window at 14,004 shows a system with room to spare. For two of every five hours, that room is spent on rescanning rather than on absorbing more devices, and the completion ratio, the thread pool and the queue floor all move toward the failing rung's signature without the fleet having grown at all.
+
+It also identifies the pool to look at first. Collectd was tuned from 50 threads to 100 with evidence. Provisiond's scan pool has never been varied, and at this fleet size it is what sets the duty cycle above.
 
 ## What the cleanroom assumption is worth {#what-cleanroom-buys}
 
