@@ -1,0 +1,274 @@
+{
+ "activeTargets": [
+  {
+   "discoveredLabels": {
+    "__address__": "core-benchmark-01:9299",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "app": "core",
+    "job": "jmx"
+   },
+   "labels": {
+    "app": "core",
+    "instance": "core-benchmark-01:9299",
+    "job": "jmx"
+   },
+   "scrapePool": "jmx",
+   "scrapeUrl": "http://core-benchmark-01:9299/metrics",
+   "globalUrl": "http://core-benchmark-01:9299/metrics",
+   "lastError": "",
+   "lastScrape": "2026-09-03T07:22:09.35526421Z",
+   "lastScrapeDuration": 1.4082050879999999,
+   "health": "up",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "minion-benchmark-01:9299",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "app": "minion",
+    "job": "jmx"
+   },
+   "labels": {
+    "app": "minion",
+    "instance": "minion-benchmark-01:9299",
+    "job": "jmx"
+   },
+   "scrapePool": "jmx",
+   "scrapeUrl": "http://minion-benchmark-01:9299/metrics",
+   "globalUrl": "http://minion-benchmark-01:9299/metrics",
+   "lastError": "Get \"http://minion-benchmark-01:9299/metrics\": dial tcp 192.0.2.208:9299: connect: connection refused",
+   "lastScrape": "2026-09-03T07:22:07.117926174Z",
+   "lastScrapeDuration": 0.000876874,
+   "health": "down",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "victoriametrics:9100",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "job": "node"
+   },
+   "labels": {
+    "instance": "victoriametrics:9100",
+    "job": "node"
+   },
+   "scrapePool": "node",
+   "scrapeUrl": "http://victoriametrics:9100/metrics",
+   "globalUrl": "http://victoriametrics:9100/metrics",
+   "lastError": "",
+   "lastScrape": "2026-09-03T07:22:08.530599863Z",
+   "lastScrapeDuration": 0.046854894,
+   "health": "up",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "core-benchmark-01:9100",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "job": "node"
+   },
+   "labels": {
+    "instance": "core-benchmark-01:9100",
+    "job": "node"
+   },
+   "scrapePool": "node",
+   "scrapeUrl": "http://core-benchmark-01:9100/metrics",
+   "globalUrl": "http://core-benchmark-01:9100/metrics",
+   "lastError": "",
+   "lastScrape": "2026-09-03T07:22:06.070309276Z",
+   "lastScrapeDuration": 0.731511166,
+   "health": "up",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "db-benchmark-01:9100",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "job": "node"
+   },
+   "labels": {
+    "instance": "db-benchmark-01:9100",
+    "job": "node"
+   },
+   "scrapePool": "node",
+   "scrapeUrl": "http://db-benchmark-01:9100/metrics",
+   "globalUrl": "http://db-benchmark-01:9100/metrics",
+   "lastError": "",
+   "lastScrape": "2026-09-03T07:22:18.495840962Z",
+   "lastScrapeDuration": 0.101494466,
+   "health": "up",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "kafka-benchmark-01:9100",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "job": "node"
+   },
+   "labels": {
+    "instance": "kafka-benchmark-01:9100",
+    "job": "node"
+   },
+   "scrapePool": "node",
+   "scrapeUrl": "http://kafka-benchmark-01:9100/metrics",
+   "globalUrl": "http://kafka-benchmark-01:9100/metrics",
+   "lastError": "",
+   "lastScrape": "2026-09-03T07:22:13.052598247Z",
+   "lastScrapeDuration": 0.143325654,
+   "health": "up",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "minion-benchmark-01:9100",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "job": "node"
+   },
+   "labels": {
+    "instance": "minion-benchmark-01:9100",
+    "job": "node"
+   },
+   "scrapePool": "node",
+   "scrapeUrl": "http://minion-benchmark-01:9100/metrics",
+   "globalUrl": "http://minion-benchmark-01:9100/metrics",
+   "lastError": "",
+   "lastScrape": "2026-09-03T07:22:08.469656083Z",
+   "lastScrapeDuration": 0.095294167,
+   "health": "up",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "mon-benchmark-01:9100",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "job": "node"
+   },
+   "labels": {
+    "instance": "mon-benchmark-01:9100",
+    "job": "node"
+   },
+   "scrapePool": "node",
+   "scrapeUrl": "http://mon-benchmark-01:9100/metrics",
+   "globalUrl": "http://mon-benchmark-01:9100/metrics",
+   "lastError": "",
+   "lastScrape": "2026-09-03T07:22:15.623732648Z",
+   "lastScrapeDuration": 0.163980099,
+   "health": "up",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "netsim-benchmark-01:9100",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "job": "node"
+   },
+   "labels": {
+    "instance": "netsim-benchmark-01:9100",
+    "job": "node"
+   },
+   "scrapePool": "node",
+   "scrapeUrl": "http://netsim-benchmark-01:9100/metrics",
+   "globalUrl": "http://netsim-benchmark-01:9100/metrics",
+   "lastError": "",
+   "lastScrape": "2026-09-03T07:22:20.552368739Z",
+   "lastScrapeDuration": 0.102573187,
+   "health": "up",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  },
+  {
+   "discoveredLabels": {
+    "__address__": "localhost:9090",
+    "__always_scrape_classic_histograms__": "false",
+    "__convert_classic_histograms_to_nhcb__": "false",
+    "__metrics_path__": "/metrics",
+    "__scheme__": "http",
+    "__scrape_interval__": "15s",
+    "__scrape_native_histograms__": "false",
+    "__scrape_timeout__": "10s",
+    "job": "prometheus"
+   },
+   "labels": {
+    "instance": "localhost:9090",
+    "job": "prometheus"
+   },
+   "scrapePool": "prometheus",
+   "scrapeUrl": "http://localhost:9090/metrics",
+   "globalUrl": "/metrics",
+   "lastError": "server returned HTTP status 404 Not Found",
+   "lastScrape": "2026-09-03T07:22:06.914519464Z",
+   "lastScrapeDuration": 0.000651364,
+   "health": "down",
+   "scrapeInterval": "15s",
+   "scrapeTimeout": "10s"
+  }
+ ],
+ "droppedTargets": [],
+ "droppedTargetCounts": {
+  "jmx": 0,
+  "node": 0,
+  "prometheus": 0
+ }
+}

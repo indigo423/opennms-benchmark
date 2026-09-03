@@ -1,0 +1,55 @@
+experiment:
+  question: "What are Core and the Minion actually doing over five collection cycles at 14,000 devices?"
+  independent_variable: workload.parameters.devices
+  variant: 14000-devices-live-5-cycles
+  plan: "Arm every live collector on Core and the Minion, run for five 300 s collection cycles, then finalize. Fleet held at 14,000 devices, no injected latency, OpenNMS restarted 2026-09-02T20:02:30Z. GC logging was enabled at runtime with jcmd VM.log because neither JVM is started with -Xlog, so the GC logs are pulled separately from /var/tmp/gclog."
+workload:
+  axis: snmp-collection
+  generator_scenario: "nl6 cisco_crs_x.json, 14,000 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-55"
+remote_dir: /var/tmp/benchmark-capture
+prometheus:
+  url: http://192.168.10.40:9090/prometheus
+  allow: []
+  step: 15s
+hosts:
+  core-benchmark-01:
+    ssh: core-benchmark-01
+    sudo: true
+    os:
+      procfs_interval: 5s
+      sar: true
+      perf: {freq: 99}
+    pcap:
+      interfaces: [enp6s18, enp6s19, enp6s20]
+      # 40 GB per interface. Sized so the window does not wrap: the busiest
+      # interface runs at 23.5 MB/s, so 1500 s needs ~35 GB. 185 GB free.
+      ring: {file_mb: 512, files: 80}
+      # Catch-all, NOT the default monitoring-port filter. An empty string here
+      # would be falsy and silently fall back to DEFAULT_BPF.
+      bpf: "greater 0"
+    jvms:
+      opennms:
+        match: "_OPENNMS_LAUNCH"
+        jfr: {settings: profile, max_size: 2g}
+        snapshots: 60s
+        heap_dump: false
+  minion-benchmark-01:
+    ssh: minion-benchmark-01
+    sudo: true
+    os:
+      procfs_interval: 5s
+      sar: true
+      perf: {freq: 99}
+    pcap:
+      interfaces: [enp6s18, enp6s19, enp6s20]
+      # 3 GB per interface, 9 GB total against 14 GB free. This DOES wrap:
+      # enp6s19 runs at 17 MB/s so 3 GB holds ~3 min, enp6s20 at 5.1 MB/s holds
+      # ~10 min. The ring keeps the END of the window, not the start.
+      ring: {file_mb: 256, files: 12}
+      bpf: "greater 0"
+    jvms:
+      minion:
+        match: "org.apache.karaf.main.Main"
+        jfr: {settings: profile, max_size: 2g}
+        snapshots: 60s
+        heap_dump: false
