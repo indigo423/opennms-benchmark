@@ -108,3 +108,16 @@ experiments/*/results/*-report.tar.gz
 # so without this negation the data lands in a commit and the log that explains
 # it does not, with nothing said either way.
 !experiments/*/results/*.log
+
+# benchmark-capture payloads. The artifact is tens of GB of pcap, perf, JFR,
+# procfs tarballs and Prometheus series; only the manifest, the config, the
+# checksums and the orchestrator log are small enough and useful enough to
+# track. Everything else is reproducible only by re-running the capture, and
+# is kept on disk rather than in git.
+experiments/*/results/hosts/
+experiments/*/results/prometheus/series/
+experiments/*/results/kafka/
+
+# Scratch scripts pool_sweep.py writes before scp-ing them to the host, regenerated every run
+experiments/*/results/.prep.py
+experiments/*/results/.set_threads.py
