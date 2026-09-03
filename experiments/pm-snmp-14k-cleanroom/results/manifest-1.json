@@ -1,0 +1,519 @@
+{
+  "experiment": {
+    "question": "What does a 14,000-device cleanroom deployment look like at steady state, and how much room is left in it?",
+    "independent_variable": "workload.parameters.devices",
+    "variant": "14000-devices-cleanroom-steady-state-7h",
+    "plan": "Describe the deployment as it ran over a seven hour window, 00:00 to 07:00 local time (UTC+2), 22:00Z to 05:00Z, with the fleet held at 14,000 devices, no injected latency and no restart. Provisiond's rolling rescans run for the first hour of the window and are idle after, which is representative of normal operation rather than a lull. Every rate is a window integral over an integer number of 300 s cycles. Configuration is read from the running hosts, and the per-device sample composition from decoded Kafka records."
+  },
+  "sut": {
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    },
+    "jvm": {
+      "version": "21.0.12+8-1-24.04-Ubuntu (OpenJDK)",
+      "heap": "-Xms8192m -Xmx10240m",
+      "gc": "G1GC",
+      "flags": "JAVA_HEAP_SIZE=10240 and JAVA_INITIAL_HEAP_SIZE=8192 in opennms.conf; ADDITIONAL_MANAGER_OPTIONS carries -XX:+UseG1GC and the Prometheus JMX exporter on 9299. No -Xlog GC logging is configured."
+    },
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "tss_backend": "kafka-exclusive",
+    "config_delta": "",
+    "provisioner": "ssh-package"
+  },
+  "host": {
+    "cpu": "2 x Intel Xeon E5-2650 v4 @ 2.20 GHz, 24 physical cores / 48 threads; 28 vCPU running across 6 VMs",
+    "ram_gb": 252,
+    "disk": "ZFS pool scummbar, 808 GiB, 579 used; local-lvm 171 GiB and local 94 GiB unused by the lab",
+    "os": "Proxmox VE 9.2.2, kernel 7.0.2-6-pve; guests Ubuntu 24.04.4 LTS cloud image",
+    "generator_colocated": true,
+    "hygiene_notes": "Dell PowerEdge R630, node lechuck. Every VM: q35, cpu=host, numa=1. 28 running vCPU against 24 physical cores, mildly oversubscribed at peak; 60 GiB of 252 assigned to VMs. Read live from the Proxmox API."
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 v0.28.0, cisco_crs_x.json profile, 14,000 simulated Cisco CRS-X core routers with 144 interfaces each, SNMP v2c community public, 10.42.0.0/16 one /24 per 250 devices across third octets 0-55",
+    "generator_version": "ghcr.io/labmonkeys-space/nl6:v0.28.0",
+    "parameters": {
+      "devices": 14000,
+      "nodes_in_inventory": 14002,
+      "collectable_services": 14004,
+      "snmp_interfaces": 2016000,
+      "interfaces_per_device": 144,
+      "interval_s": 300,
+      "window_s": 25200,
+      "samples_per_device_per_cycle": 1738
+    }
+  },
+  "run": {
+    "id": "pm-snmp-14k-cleanroom-1",
+    "started_at": "2026-09-02T22:00:00Z",
+    "ended_at": "2026-09-03T05:00:00Z",
+    "trial": 1
+  },
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "host.cpu",
+    "host.ram_gb",
+    "host.generator_colocated",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters"
+  ],
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-02T22:00:00Z",
+      "end": "2026-09-03T05:00:00Z"
+    },
+    "resolution": "1m",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "14000-devices",
+        "kfk-exclusive",
+        "cleanroom",
+        "steady-state",
+        "7h"
+      ]
+    },
+    "figures": [
+      {
+        "id": "throughput",
+        "title": "Collections completed per second against the rate the fleet requires",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "Required is the daemon's own collectable service count divided by the 300 s interval. A window integral of the counter is the honest rate; the rolling median is shown for shape only.",
+        "series": [
+          {
+            "label": "achieved, 5-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 2
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"} / 300",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Collectd pending queue, rolling one-minute peak and floor",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd task queue"
+        },
+        "note": "The floor is the test. Seven hours with the floor returning to zero every cycle is a system that completes its work.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "threads",
+        "title": "Collectd thread pool occupancy against its 100-thread ceiling",
+        "unit": "threads",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd threads"
+        },
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 1
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "cpu-core-minion-db",
+        "title": "CPU busy: Core, Minion and database",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic"
+        },
+        "series": [
+          {
+            "label": "core (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "minion (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "db (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"db-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          }
+        ]
+      },
+      {
+        "id": "cpu-kafka-netsim",
+        "title": "CPU busy: Kafka broker and network simulator",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic"
+        },
+        "series": [
+          {
+            "label": "kafka (2 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"kafka-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "netsim (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"netsim-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          }
+        ]
+      },
+      {
+        "id": "load",
+        "title": "One-minute load per vCPU, every collection VM",
+        "unit": "load / vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "System Load"
+        },
+        "note": "Normalised by vCPU count so a 2-vCPU broker and an 8-vCPU Core read on one scale. Above 1.0 means runnable work is queuing.",
+        "series": [
+          {
+            "label": "core",
+            "expr": "node_load1{instance=\"core-benchmark-01:9100\"} / 8",
+            "decimals": 2
+          },
+          {
+            "label": "minion",
+            "expr": "node_load1{instance=\"minion-benchmark-01:9100\"} / 4",
+            "decimals": 2
+          },
+          {
+            "label": "database",
+            "expr": "node_load1{instance=\"db-benchmark-01:9100\"} / 8",
+            "decimals": 2
+          },
+          {
+            "label": "kafka",
+            "expr": "node_load1{instance=\"kafka-benchmark-01:9100\"} / 2",
+            "decimals": 2
+          },
+          {
+            "label": "netsim",
+            "expr": "node_load1{instance=\"netsim-benchmark-01:9100\"} / 4",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "memory",
+        "title": "Memory in use per VM",
+        "unit": "% of RAM",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Memory Basic"
+        },
+        "series": [
+          {
+            "label": "core",
+            "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=\"core-benchmark-01:9100\"} / node_memory_MemTotal_bytes{instance=\"core-benchmark-01:9100\"})",
+            "decimals": 1
+          },
+          {
+            "label": "minion",
+            "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=\"minion-benchmark-01:9100\"} / node_memory_MemTotal_bytes{instance=\"minion-benchmark-01:9100\"})",
+            "decimals": 1
+          },
+          {
+            "label": "db",
+            "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=\"db-benchmark-01:9100\"} / node_memory_MemTotal_bytes{instance=\"db-benchmark-01:9100\"})",
+            "decimals": 1
+          },
+          {
+            "label": "kafka",
+            "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=\"kafka-benchmark-01:9100\"} / node_memory_MemTotal_bytes{instance=\"kafka-benchmark-01:9100\"})",
+            "decimals": 1
+          },
+          {
+            "label": "netsim",
+            "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=\"netsim-benchmark-01:9100\"} / node_memory_MemTotal_bytes{instance=\"netsim-benchmark-01:9100\"})",
+            "decimals": 1
+          }
+        ]
+      },
+      {
+        "id": "heap-gc",
+        "title": "Core JVM heap against its ceiling, and old-generation collections",
+        "unit": "GiB and per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: Java Virtual Machine",
+          "panel": "Heap"
+        },
+        "note": "Heap percentage is not a pressure signal: G1 fills whatever ceiling it is given. Old-generation collections are.",
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"} / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"} / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "net-sim",
+        "title": "SNMP on the simulator bridge: Minion enp6s20 and netsim enp6s19",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Network Traffic"
+        },
+        "note": "The same wire seen from both ends. The two lines should coincide; where they do, nothing is lost on the bridge.",
+        "series": [
+          {
+            "label": "minion enp6s20, SNMP to the fleet",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          },
+          {
+            "label": "netsim enp6s19, SNMP from the fleet",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"netsim-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"netsim-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "net-kafka",
+        "title": "Kafka segment: Minion RPC responses and Core producer",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Network Traffic"
+        },
+        "note": "The RPC responses the Minion returns to Kafka outweigh the SNMP that produced them. Transport costs more than telemetry.",
+        "series": [
+          {
+            "label": "minion enp6s19, RPC to Kafka",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          },
+          {
+            "label": "core enp6s20, RPC + metrics",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          },
+          {
+            "label": "kafka enp6s19, all",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"kafka-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"kafka-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "db",
+        "title": "Database connection pool on Core during collection",
+        "unit": "connections",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "HikariCP pool"
+        },
+        "note": "Read from the client side, since no PostgreSQL exporter runs in this lab. Metrics never touch PostgreSQL under exclusive Kafka forwarding; what the pool carries is Collectd scheduling state, the self-monitoring JDBC collections and provisiond.",
+        "series": [
+          {
+            "label": "active connections",
+            "expr": "com_zaxxer_hikari_pool_opennms_activeconnections{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          },
+          {
+            "label": "idle connections",
+            "expr": "com_zaxxer_hikari_pool_opennms_idleconnections{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          },
+          {
+            "label": "threads awaiting a connection",
+            "expr": "com_zaxxer_hikari_pool_opennms_threadsawaitingconnection{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          },
+          {
+            "label": "pool maximum",
+            "expr": "com_zaxxer_hikari_poolconfig_opennms_maximumpoolsize{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "db-io",
+        "title": "Database VM disk I/O",
+        "unit": "MB/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Disk IOps"
+        },
+        "series": [
+          {
+            "label": "read",
+            "expr": "rate(node_disk_read_bytes_total{instance=\"db-benchmark-01:9100\",device=\"sda\"}[5m]) / 1e6",
+            "decimals": 2
+          },
+          {
+            "label": "write",
+            "expr": "rate(node_disk_written_bytes_total{instance=\"db-benchmark-01:9100\",device=\"sda\"}[5m]) / 1e6",
+            "decimals": 2
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "id": "q-what",
+        "question": "What is this deployment, and what does the cleanroom assumption mean?",
+        "answer_ref": "#what-this-is"
+      },
+      {
+        "id": "q-host",
+        "question": "What host is the lab deployed on, and how are the VMs sized?",
+        "answer_ref": "#host-and-vms"
+      },
+      {
+        "id": "q-network",
+        "question": "How are the machines connected and routed?",
+        "answer_ref": "#network"
+      },
+      {
+        "id": "q-core-config",
+        "question": "What was changed on the OpenNMS Core from stock?",
+        "answer_ref": "#core-config"
+      },
+      {
+        "id": "q-pg-config",
+        "question": "What was changed on PostgreSQL from stock?",
+        "answer_ref": "#postgres-config"
+      },
+      {
+        "id": "q-perdevice",
+        "question": "What exactly is collected per device, and how does it scale?",
+        "answer_ref": "#per-device"
+      },
+      {
+        "id": "q-rate",
+        "question": "Exactly how many metrics per second and per hour are collected on the 5-minute interval?",
+        "answer_ref": "#metric-rate"
+      },
+      {
+        "id": "q-snmp-wire",
+        "question": "What latency and utilisation does the SNMP traffic between Minion and simulator show?",
+        "answer_ref": "#snmp-wire"
+      },
+      {
+        "id": "q-delay",
+        "question": "What is the delay from collection to the metric being consumable on Kafka?",
+        "answer_ref": "#collection-to-kafka"
+      },
+      {
+        "id": "q-util-core",
+        "question": "How utilised are Core, Minion and the database?",
+        "answer_ref": "#util-core-minion-db"
+      },
+      {
+        "id": "q-db-usage",
+        "question": "What does the database do during a collection cycle?",
+        "answer_ref": "#database-usage"
+      },
+      {
+        "id": "q-util-edge",
+        "question": "How utilised are Kafka and the network simulator?",
+        "answer_ref": "#util-kafka-netsim"
+      },
+      {
+        "id": "q-headroom",
+        "question": "How much is left, and is there headroom for SNMP agent outages?",
+        "answer_ref": "#headroom"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Why is the first hour of the window busier than the rest?",
+        "why": "Provisiond's scheduled rescan of existing nodes ran in two bursts, 00:05 to 00:32 and 00:59 to 01:04 local time, driven by its scheduled pool; the import pool was at zero throughout, so nothing new was provisioned. At the 0.409 node scans per second measured on this fleet a full rescan of 14,000 nodes takes about 9.5 hours against a one-day scan-interval, so roughly 40% of any window is expected to carry it. This one carries it for about 27 minutes of 420, less than that average, not more.",
+        "validity": "internal"
+      },
+      {
+        "question": "What happens when real agents time out?",
+        "why": "Never exercised. The simulated agents answer in about 0.1 ms and never fail. A timeout holds a Collectd thread for the full retry budget, and the headroom section can only reason about that, not measure it. Response-time sensitivity is the subject of a separate measurement.",
+        "validity": "external"
+      },
+      {
+        "question": "Do the delay figures describe what a consumer sees?",
+        "why": "They describe when the broker accepted the record, not when any consumer read it; consumer lag on the metrics topic was not measured. The delay capture also ran 05:45Z to 06:10Z, after this window closed, because the topic retains about eleven minutes and nothing from inside the window survived. The Full GC rate that explains its second mode was measured inside the window and matches the capture period, so the mechanism transfers even though the records do not.",
+        "validity": "construct"
+      },
+      {
+        "question": "How repeatable are these figures?",
+        "why": "One seven hour window on one deployment. The steady-state figures are consistent with the shorter windows measured on the same fleet earlier the same day, but no independent trial exists.",
+        "validity": "conclusion"
+      },
+      {
+        "question": "Can this be rebuilt from the repository?",
+        "why": "Not exactly. The Core heap of 10240 MiB, the simulator VM at 4 vCPU / 8 GiB and nl6 at v0.28.0 exist only on the running lab; deployments/kfk-exclusive/topology.yml still describes a smaller generator.",
+        "validity": "external"
+      }
+    ]
+  }
+}
