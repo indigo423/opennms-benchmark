@@ -8,6 +8,7 @@ verdict:
   - { k: "Throughput ceiling", v: "17.50/s", n: "collections, 2.0x the 8.78/s at 100 threads" }
   - { k: "Core CPU at the knee", v: "28.6%", n: "of 8 vCPU: still thread-bound" }
   - { k: "Shortfall at 5,250", v: "85/h", n: "collections not done, 0.14%, compounding" }
+  - { k: "Metric rate at 5,000", v: "103.7M/h", n: "28,822 samples a second, 1,738 per device per cycle" }
 caveats: |
   This is a single search on one deployment, one 900 s window per rung, three cycles each, with no repetition.
   The step is 500 devices to 5,000 and 250 above it, so the knee is bracketed to within 250 and not located more finely.
@@ -75,6 +76,30 @@ The completion-ratio gauge in that figure is shown because it is what the dashbo
 The cumulative shortfall over the hold is 645 collections; the queue floor rose from 41 in the first hour to 656 at the end. The two numbers are the same number, which is the point: nothing was lost, nothing timed out, and no thread stalled. The pool delivers 62,960 collections an hour, which is 5,247 services per 300 s cycle, and the fleet asks for 5,254. That is the capacity of 200 threads at this latency, located to a handful of devices by seven hours of arithmetic rather than by a finer search.
 
 It is a slow failure, and it would not stay slow. A backlog that grows 80 tasks an hour is a fleet whose collection times drift later each cycle, and at some depth the scheduler stops delaying collections and starts skipping them. Where that depth is was not measured. At 5,000, the last passing rung, the queue returned to zero every cycle and none of this happens.
+
+## Metric rate {#metric-rate}
+
+**103.7 million metrics an hour at 5,000 devices, the last rung that completes its cycle.** Collectd finished 14,925 collections in that rung's 900 s window against the 15,012 that 5,004 collectable services on a 300 s interval require, 99.4% of the required rate, and every fleet collection carries 1,738 numeric samples. At 5,250 the pool's ceiling of 62,960 collections an hour is 109.4 million metrics an hour, and that is the most this collector can deliver at this latency, whatever the fleet size.
+
+| Step | 5,000 devices, last pass | 5,250 devices, 7.75 h hold |
+|---|---:|---:|
+| Collectable services | 5,004 | 5,254 |
+| Collection interval | 300 s | 300 s |
+| Collections per second required | 16.680 | 17.513 |
+| Collections completed in the window | 14,925 in 900 s | 487,974 in 27,900 s |
+| Collections per second achieved | 16.583 | 17.490 |
+| Samples per collection, decoded from the wire | 1,738 | 1,738 |
+| **Samples per second** | **28,822** | **30,398** |
+| **Metrics per hour** | **103,758,600** | **109,432,105** |
+| Metrics per five-minute cycle | 8,646,550 | 9,119,342 |
+
+The 1,738 is not carried over from the cleanroom report; it was read again from this fleet's wire. The live capture at 5,250 decoded 27,183 consecutive records from the `metrics` topic over 1,560 s: 27,163 carried exactly 1,738 numeric samples across 148 resources, and the remaining 20 were the Core's and the Minion's own JMX and JDBC collections, four services over five cycles. The composition is the one the cleanroom report set out, 1,728 interface counters on 144 interfaces plus ten node, BGP and temperature attributes, so the fleet figure is really a 720,000-interface figure at 5,000 devices and transfers to other devices only at the same interface density.
+
+The topic count is also an independent check on the daemon's counter. 27,183 records in 1,560 s is 17.43 collections a second on the wire against 17.49 from the counter over the hold, 0.4% apart on a window that is not an integer number of cycles. What Collectd says it completed is what Kafka received.
+
+{{figure metric-rate}}
+
+The figure is the completion counter multiplied by 1,738, against the fleet's requirement multiplied by the same. The two lines separate at 5,250 by a margin the axis cannot show, 0.14%, which is the whole finding of the previous section: the metric rate at the knee is not a cliff but a ceiling, 30,400 samples a second, that the fleet's demand has just crossed. Against the cleanroom's 81,134 samples a second at 14,000 devices with the agents answering in 0.1 ms, this deployment delivers 37% of the metric rate with 100% of the same hardware, because 200 threads waiting 75 ms per PDU can start only so many collections.
 
 ## What runs out, and what does not {#what-runs-out}
 

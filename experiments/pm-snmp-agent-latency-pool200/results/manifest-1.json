@@ -183,6 +183,29 @@
         ]
       },
       {
+        "id": "metric-rate",
+        "title": "Samples per second delivered against the rate the fleet requires",
+        "unit": "samples/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "The completion counter multiplied by the 1,738 samples every fleet collection carries, decoded from the topic. Required is the collectable service count over the 300 s interval, times the same 1,738. A window integral is the honest rate; the rolling rate is shown for shape.",
+        "series": [
+          {
+            "label": "achieved, 5-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m]) * 1738",
+            "decimals": 0
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"} / 300 * 1738",
+            "decimals": 0
+          }
+        ]
+      },
+      {
         "id": "cpu",
         "title": "Core CPU against the thread pool: the control",
         "unit": "% and threads",
@@ -296,6 +319,11 @@
         "id": "q-slow",
         "question": "What does the failure at 5,250 look like over hours rather than one window?",
         "answer_ref": "#the-slow-fail"
+      },
+      {
+        "id": "q-rate",
+        "question": "How many metrics does this fleet produce, and at which rung?",
+        "answer_ref": "#metric-rate"
       },
       {
         "id": "q-mechanism",
