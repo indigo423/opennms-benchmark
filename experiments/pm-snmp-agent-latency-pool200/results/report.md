@@ -62,7 +62,7 @@ The completion-ratio gauge in that figure is shown because it is what the dashbo
 
 {{figure overnight}}
 
-| Hour, UTC+2 | Collections done | Required | Shortfall | Queue floor at start |
+| Hour, UTC+2 | [Collections done]{.fx title="increase(opennms_collectd_taskscompleted[1h]) at the end of the hour; the last row uses [2700s]"} | [Required]{.fx title="opennms_collectd_collectableservicecount / 300 × seconds in the row: 5,254 / 300 × 3,600 = 63,048"} | [Shortfall]{.fx title="required − done"} | [Queue floor at start]{.fx title="min of opennms_collectd_taskqueuependingcount over the hour"} |
 |---|---:|---:|---:|---:|
 | 01:30 to 02:30 | 62,962 | 63,048 | 86 | 41 |
 | 02:30 to 03:30 | 62,972 | 63,048 | 76 | 116 |
@@ -83,15 +83,15 @@ It is a slow failure, and it would not stay slow. A backlog that grows 80 tasks 
 
 | Step | 5,000 devices, last pass | 5,250 devices, 7.75 h hold |
 |---|---:|---:|
-| Collectable services | 5,004 | 5,254 |
+| Collectable services | [5,004]{.fx title="opennms_collectd_collectableservicecount: 5,000 fleet devices + Core and Minion carrying 2 services each"} | [5,254]{.fx title="opennms_collectd_collectableservicecount: 5,250 fleet devices + Core and Minion carrying 2 services each"} |
 | Collection interval | 300 s | 300 s |
-| Collections per second required | 16.680 | 17.513 |
-| Collections completed in the window | 14,925 in 900 s | 487,974 in 27,900 s |
-| Collections per second achieved | 16.583 | 17.490 |
-| Samples per collection, decoded from the wire | 1,738 | 1,738 |
-| **Samples per second** | **28,822** | **30,398** |
-| **Metrics per hour** | **103,758,600** | **109,432,105** |
-| Metrics per five-minute cycle | 8,646,550 | 9,119,342 |
+| Collections per second required | [16.680]{.fx title="5,004 services / 300 s"} | [17.513]{.fx title="5,254 services / 300 s"} |
+| Collections completed in the window | [14,925 in 900 s]{.fx title="increase(opennms_collectd_taskscompleted[900s]) at the end of the rung window, 23:01:58Z"} | [487,974 in 27,900 s]{.fx title="sum of increase(opennms_collectd_taskscompleted[1h]) over the eight hours of the hold, 23:30Z to 07:15Z = 93 cycles"} |
+| Collections per second achieved | [16.583]{.fx title="14,925 / 900 s"} | [17.490]{.fx title="487,974 / 27,900 s"} |
+| Samples per collection, decoded from the wire | [1,738]{.fx title="numeric attributes per CollectionSet record on the metrics topic; 27,163 of 27,183 records in the live capture carried exactly this"} | [1,738]{.fx title="same decode"} |
+| **[Samples per second]{.fx title="achieved collections/s × samples per collection"}** | **[28,822]{.fx title="16.583 × 1,738"}** | **[30,398]{.fx title="17.490 × 1,738"}** |
+| **[Metrics per hour]{.fx title="samples/s × 3,600"}** | **[103,758,600]{.fx title="14,925 / 900 × 1,738 × 3,600"}** | **[109,432,105]{.fx title="487,974 / 27,900 × 1,738 × 3,600"}** |
+| [Metrics per five-minute cycle]{.fx title="samples/s × 300, i.e. what one cycle actually delivered, not what the fleet asks for"} | [8,646,550]{.fx title="14,925 / 900 × 1,738 × 300 = 4,975 collections per cycle × 1,738"} | [9,119,342]{.fx title="487,974 / 27,900 × 1,738 × 300 = 5,247 collections per cycle × 1,738"} |
 
 The 1,738 is not carried over from the cleanroom report; it was read again from this fleet's wire. The live capture at 5,250 decoded 27,183 consecutive records from the `metrics` topic over 1,560 s: 27,163 carried exactly 1,738 numeric samples across 148 resources, and the remaining 20 were the Core's and the Minion's own JMX and JDBC collections, four services over five cycles. The composition is the one the cleanroom report set out, 1,728 interface counters on 144 interfaces plus ten node, BGP and temperature attributes, so the fleet figure is really a 720,000-interface figure at 5,000 devices and transfers to other devices only at the same interface density.
 
