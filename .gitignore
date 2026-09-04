@@ -117,6 +117,8 @@ experiments/*/results/*-report.tar.gz
 experiments/*/results/hosts/
 experiments/*/results/prometheus/series/
 experiments/*/results/kafka/
+# A superseded capture attempt kept on disk as a fallback; the sealed one is results/.
+experiments/*/results-attempt*/
 
 # Scratch scripts pool_sweep.py writes before scp-ing them to the host, regenerated every run
 experiments/*/results/.prep.py
