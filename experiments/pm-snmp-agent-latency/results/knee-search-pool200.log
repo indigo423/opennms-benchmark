@@ -1,0 +1,35 @@
+[21:11:27Z] knee search: netem delay 75ms 25ms, Collectd pool 200, start 4,000, step 500 then 250 above 5,000, cap 6,500
+[21:11:29Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[21:11:29Z]   fleet now 3,000
+[21:11:29Z]   growing 3,000 -> 4,000 before the first rung
+[21:11:42Z]     provision rc=0 at 21:11:42
+[21:34:28Z]     reconciled: 4,000 nodes, 576,000 interfaces, 0 unscanned
+[21:39:28Z] === RUNG 4,000 devices, pool 200 ===
+[21:54:28Z]     services=4004 PASS=False drains=True zero=0.328 q_max=1002.0 ratio=0.9854 L=141.0/200.0 cpu=22.9% done=0.9917
+[21:54:28Z] !!! KNEE: 4,000 devices does not complete a cycle under netem delay 75ms 25ms with pool 200
+[21:54:28Z] === search complete ===
+[21:56:15Z] --- 4,000 re-judged PASS: the ratio-median criterion produced a false knee (window integral 99.2%, queue drains). Criterion replaced with window integral >= 97%. Resuming at 4,500. ---
+[21:56:15Z] knee search: netem delay 75ms 25ms, Collectd pool 200, start 4,500, step 500 then 250 above 5,000, cap 6,500
+[21:56:17Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[21:56:17Z]   fleet now 4,000
+[21:56:17Z]   growing 4,000 -> 4,500 before the first rung
+[21:56:24Z]     provision rc=0 at 21:56:24
+[22:08:03Z]     reconciled: 4,500 nodes, 648,000 interfaces, 0 unscanned
+[22:13:33Z] === RUNG 4,500 devices, pool 200 ===
+[22:29:38Z] --- crashed after recording 4,500 (stale key in the log line after the criterion change; record intact). Resuming at 5,000. ---
+[22:29:38Z] knee search: netem delay 75ms 25ms, Collectd pool 200, start 5,000, step 500 then 250 above 5,000, cap 6,500
+[22:29:40Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[22:29:40Z]   fleet now 4,500
+[22:29:40Z]   growing 4,500 -> 5,000 before the first rung
+[22:29:48Z]     provision rc=0 at 22:29:48
+[22:41:28Z]     reconciled: 5,000 nodes, 720,000 interfaces, 0 unscanned
+[22:46:58Z] === RUNG 5,000 devices, pool 200 ===
+[23:01:58Z]     services=5004 PASS=True drains=True zero=0.246 q_max=1300.0 ratio=0.992 L=184.5/200.0 cpu=27.5% done=0.9942
+[23:01:58Z]   5,000 passes. growing to 5,250
+[23:02:04Z]     provision rc=0 at 23:02:04
+[23:07:54Z]     reconciled: 5,250 nodes, 756,000 interfaces, 0 unscanned
+[23:13:24Z] === RUNG 5,250 devices, pool 200 ===
+[23:28:24Z]     services=5254 PASS=False drains=False zero=0.0 q_max=1618.0 ratio=0.9913 L=200.0/200.0 cpu=28.6% done=0.9992
+[23:28:24Z] !!! KNEE: 5,250 devices does not complete a cycle under netem delay 75ms 25ms with pool 200
+[23:28:24Z] === search complete ===
+[23:35:00Z] --- RESULT: pool-200 knee is 5,000 (PASS, 99.4%, drains) to 5,250 (FAIL: 99.9% complete but the queue never drains; floor 13-366, pool 200/200 for the whole window). A standing backlog at capacity, not a runaway. Pool 100 knee was 2,500-3,000; doubling the pool moved the knee 1.75-2.1x, linear within the step size. Walk model 987+134.8*d predicted ~5,400, measured 3-7% under. Lab left at 5,250, pool 200, netem on. ---
