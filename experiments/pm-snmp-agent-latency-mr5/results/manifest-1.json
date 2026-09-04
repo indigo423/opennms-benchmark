@@ -40,7 +40,7 @@
       "window_s": 900,
       "interfaces_per_device": 144,
       "samples_per_device_per_cycle": 1738,
-      "collectd_threads": 200,
+      "collectd_threads": "200 for the search; one rung at 300 on the failing fleet",
       "max_repetitions": 5,
       "max_vars_per_pdu": 10,
       "requests_per_collection": 58
@@ -49,7 +49,7 @@
   "run": {
     "id": "pm-snmp-agent-latency-mr5-1",
     "started_at": "2026-09-04T12:02:00Z",
-    "ended_at": "2026-09-04T18:32:00Z",
+    "ended_at": "2026-09-04T19:55:00Z",
     "trial": 1
   },
   "comparability_key": [
@@ -282,6 +282,38 @@
             "decimals": 2
           }
         ]
+      },
+      {
+        "id": "pool300",
+        "title": "The failing fleet with 300 threads: pool occupancy and Core CPU",
+        "unit": "% and threads",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-04T19:35:00Z",
+          "end": "2026-09-04T19:55:00Z"
+        },
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic"
+        },
+        "note": "Same 12,250 devices that failed at 200 threads, after a restart with threads=300. The rolling mean sits at 237 with the ceiling at 300 and the CPU at 72%; the window opens three minutes into the range, after the settle.",
+        "series": [
+          {
+            "label": "Core CPU busy, % of 8 vCPU",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "Collectd threads, rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 1
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          }
+        ]
       }
     ]
   },
@@ -308,6 +340,11 @@
         "answer_ref": "#what-binds"
       },
       {
+        "id": "q-pool300",
+        "question": "Was it the pool or the processor at 12,250? One rung at 300 threads.",
+        "answer_ref": "#pool-300"
+      },
+      {
         "id": "q-cost",
         "question": "What did the attribute buy against the two earlier searches?",
         "answer_ref": "#against-the-defaults"
@@ -320,8 +357,8 @@
     ],
     "gaps": [
       {
-        "question": "Is the knee where the pool binds, or where the CPU binds?",
-        "why": "At 12,250 the pool is pinned at 200 and the Core is at 74.5%; both are near their limits. One rung at 300 threads on the same fleet separates them; it is reported in its own section if it ran before this report was rendered.",
+        "question": "How far does 300 threads carry at max-repetitions 5?",
+        "why": "One rung at 12,250 passed with the pool at 237 of 300 and the CPU at 72%. The pool arithmetic reaches 300 near 15,500 and the CPU reaches the cleanroom's 85% near 14,500; which comes first was not searched. It is the cleanroom's ceiling either way.",
         "validity": "conclusion"
       },
       {

@@ -1,0 +1,13 @@
+[19:21:11Z] rung at threads=300, fleet held at 12,250
+[19:21:14Z]   collectd-configuration.xml threads=300, restarting
+[19:22:49Z]   up in 69s, pid 855346, NMT flag present, MALLOC_ARENA_MAX present
+[19:22:49Z]   waiting for one cycle, a drained queue, then settle
+[19:32:49Z]   handing over to knee_search for the window
+[19:32:49Z] knee search: netem delay 75ms 25ms, Collectd pool 300, start 12,250, step 500, cap 12,250
+[19:32:51Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[19:32:52Z]   fleet now 12,250
+[19:32:53Z]     reconciled: 12,250 nodes, 1,764,000 interfaces, 0 unscanned
+[19:37:53Z] === RUNG 12,250 devices, pool 300 ===
+[19:52:54Z]     services=12254 PASS=True drains=True zero=0.295 q_max=788.0 ratio=0.9897 L=236.8/300.0 cpu=72.1% done=1.0017
+[19:52:54Z] cap 12,250 reached without failure
+[19:52:54Z] === search complete ===

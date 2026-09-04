@@ -2,19 +2,19 @@
 author: "Ronny Trommer <ronny@opennms.com>"
 eyebrow: "PoweredBy 2026 · SNMP performance management · agent response time · max-repetitions 5"
 title: "One attribute moves the ceiling<br>from 5,000 to 11,750 devices"
-lede: "Same Core, same Minion, same 200 threads, same 50 to 100 milliseconds on every SNMP packet. One attribute in snmp-config.xml, max-repetitions 2 to 5, cut a collection from 149 requests to 58 and moved the knee from 5,000 to 5,250 devices up to 11,750 to 12,250. At the new knee the pool, the processor and the heap all arrive within a rung of each other."
+lede: "Same Core, same Minion, same 200 threads, same 50 to 100 milliseconds on every SNMP packet. One attribute in snmp-config.xml, max-repetitions 2 to 5, cut a collection from 149 requests to 58 and moved the knee from 5,000 to 5,250 devices up to 11,750 to 12,250. At the new knee the pool still binds first: the same fleet passes with 300 threads at 72% CPU, and the processor and the heap are one to two rungs behind."
 verdict:
   - { k: "Knee", v: "11,750 to 12,250", n: "devices at 50 to 100 ms per PDU, 200 threads, max-repetitions 5", hero: true }
   - { k: "Against the default", v: "2.3x", n: "the pool-200 knee of 5,000 to 5,250 at max-repetitions 2" }
   - { k: "Requests per collection", v: "58", n: "down from 149, measured on the wire" }
-  - { k: "Core CPU at the knee", v: "74.5%", n: "of 8 vCPU: no longer idle" }
+  - { k: "300 threads at 12,250", v: "pass", n: "pool 237 of 300, Core CPU 72.1%: it was the pool" }
   - { k: "Metric rate at 11,750", v: "245.0M/h", n: "68,050 samples a second, 1,738 per device per cycle" }
 caveats: |
   This is a single search on one deployment, one 900 s window per rung, three cycles each, with no repetition.
   The step is 1,000 devices to 10,250 and 500 above it, so the knee is bracketed to within 500 and not located more finely.
   The 58 requests per collection were read for one device over one collection; nl6 truncates per response, so a device with a long interface name in the last row may take one more.
   The injected latency is uniform between 50 and 100 ms on every response packet, a clean approximation of a real SNMP agent that must consult line cards or the control-plane CPU, and not a measurement of any particular device.
-  Whether the pool or the processor binds first at 12,250 is not settled by this search alone; a rung at 300 threads on the same fleet answers it and is reported separately.
+  The rung at 300 threads is a single window on the failing fleet after a restart, not a search; how far 300 threads carry was not measured.
 method: |
   The latency injection and the pool are unchanged from the pool-200 search: `tc qdisc netem delay 75ms 25ms` on the simulator's SNMP interface, uniform 50 to 100 ms per packet, and `threads="200"` in `collectd-configuration.xml`.
 
@@ -101,7 +101,7 @@ The 12,250 column is the ceiling, not a rate the fleet can keep: it is what 200 
 
 ## What binds now {#what-binds}
 
-**Three things arrive together, and this search cannot fully separate them.**
+**Three things arrive close together; the rung in the next section separates them.**
 
 {{figure threads}}
 
@@ -119,6 +119,23 @@ The Minion, which executes the walks, is at 31% of four vCPU and carries 28 Mbit
 
 {{figure minion}}
 
+## One rung at 300 threads {#pool-300}
+
+**The same 12,250 devices pass with 300 threads.** After the search stopped, the pool was raised to 300 in `collectd-configuration.xml`, OpenNMS restarted, and one 900 s window measured on the fleet that had just failed.
+
+| 12,250 devices | 200 threads | 300 threads |
+|---|---:|---:|
+| Queue at zero | never | 30% of samples |
+| Queue, peak | 4,327 | 788 |
+| Pool, mean / ceiling | 200.0 / 200 | 236.8 / 300 |
+| Collections done / required | 97.6% | 100.2% |
+| Core CPU | 74.5% | 72.1% |
+| Verdict | fail | pass |
+
+{{figure pool300}}
+
+So at 12,250 it was the pool. With 100 more threads the pool still touches its ceiling at the crest of every cycle's wave, but between waves it falls to about 50 and the queue drains there, which the 200-thread pool never managed; the mean occupancy is 237, and the processor is no busier than before; it is fractionally less busy, because a pool that is pinned keeps the scheduler and the queue working for nothing. The CPU column is the one to watch from here: 72% at 12,250 with either pool, rising about 6.5 points per thousand devices, meets the cleanroom's 85% near 14,500, and the 300-thread pool's own arithmetic runs out near 15,500. Whichever comes first, it is the cleanroom's limit of 14,004 to 15,004 on this Core, and the thread lever has at most two rungs left in it.
+
 ## What the attribute bought {#against-the-defaults}
 
 **A factor of 2.3 in fleet size, for one line of configuration.** Three searches, one Core, one latency:
@@ -131,11 +148,11 @@ The Minion, which executes the walks, is at 31% of four vCPU and carries 28 Mbit
 | Seconds a thread holds a collection | 11.5 | 11.5 | 4.4 |
 | Throughput ceiling, collections/s | 8.78 | 17.50 | 39.9 |
 | Core CPU at the failing rung | 15.9% | 28.6% | 74.5% |
-| What bound | the pool | the pool | the pool, with CPU and heap in sight |
+| What bound | the pool | the pool | the pool, confirmed at 300 threads |
 
 Doubling the pool doubled the fleet and left the processor idle. Cutting the requests per collection by 2.6 raised the fleet by 2.3 and used the processor. The two levers are not alike: threads convert waiting into memory, and there was memory to spare; fewer requests remove the waiting, and what remains is work. This deployment at 50 to 100 ms per packet is now within 16% of its cleanroom limit of 14,004 devices at 0.1 ms.
 
-There is one lever left on the pool side, and it is worth exactly one rung. With the CPU at 74.5% and the heap starting to collect the old generation, a pool of 300 could carry the queue at 12,250, but not far beyond; the Core's processor and its 10 GiB heap are now the constraints the cleanroom found, arriving at the fleet size the cleanroom found them at. That is the outcome the research predicted: at `max-repetitions` 5 to 6 the collector stops being thread-bound and becomes the CPU-bound collector the cleanroom measured.
+There is one lever left on the pool side, and the rung at 300 threads shows it is worth one to two rungs: 12,250 passes with room, and the Core's processor and its 10 GiB heap arrive near 14,500, the fleet size the cleanroom found them at with agents answering in 0.1 ms. That is the outcome the research predicted: at `max-repetitions` 5 to 6 the collector stops being thread-bound and becomes the CPU-bound collector the cleanroom measured.
 
 ## How it was done {#how-it-was-done}
 
@@ -145,4 +162,4 @@ OpenNMS was restarted at 11:50 UTC, twelve minutes before the first rung, in the
 
 The fleet was grown from 5,250 in steps of 1,000 to 10,250 and then 500. Each growth step was provisioned through the existing requisition, and the driver refused to open a window until the database showed exactly nodes × 144 interfaces with no node unscanned. That reconciliation earned its keep once: at 6,250 one node of the thousand added had lost its initial scan to a provisiond race at import time (`nodeReq ... cannot be null`) and sat with zero interfaces. A `forceRescan` event did nothing; the node was deleted and the requisition re-imported with `rescanExisting=false`, which scanned only the node it re-created, in six seconds. The race did not recur in the remaining 6,000 nodes.
 
-Per rung: 1,000 new nodes scanned in 25 to 40 minutes at the stock 10-thread provisiond pool, provisiond observed idle, 300 s settle, 900 s window. Ten rungs between 12:02 and 18:27 UTC on 4 September. The driver stopped itself at the failing rung and the fleet was held at 12,250 with the latency and the attribute still applied.
+Per rung: 1,000 new nodes scanned in 25 to 40 minutes at the stock 10-thread provisiond pool, provisiond observed idle, 300 s settle, 900 s window. Ten rungs between 12:02 and 18:27 UTC on 4 September. The driver stopped itself at the failing rung. The 300-thread rung followed at 19:21 UTC: `threads="300"`, a restart (up in 69 s with NMT and `MALLOC_ARENA_MAX` intact), one full cycle, the queue observed at zero, 300 s settle, reconciliation, 300 s settle, one 900 s window from 19:37:53. The fleet was held at 12,250 with the latency, the attribute and the 300-thread pool still applied.
