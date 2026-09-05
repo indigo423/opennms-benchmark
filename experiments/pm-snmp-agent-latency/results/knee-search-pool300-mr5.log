@@ -27,3 +27,13 @@
 [21:45:25Z]     services=13254 PASS=True drains=True zero=0.148 q_max=1623.0 ratio=0.997 L=261.9/300.0 cpu=83.1% done=0.9965
 [21:45:25Z]   13,250 passes. growing to 13,750
 [21:45:57Z]     provision rc=0 at 21:45:57
+[23:54:04Z]     RECONCILE TIMEOUT: 13750|1|1979856
+[00:14:50Z] === RUNG 13,750 devices, pool 300 ===
+[00:29:50Z]     services=13754 PASS=True drains=True zero=0.131 q_max=1963.0 ratio=0.9986 L=288.1/300.0 cpu=85.9% done=1.0047
+[00:29:50Z]   13,750 passes. growing to 14,250
+[00:30:28Z]     provision rc=0 at 00:30:28
+[02:38:51Z]     RECONCILE TIMEOUT: 14250|1|2051856
+[02:43:51Z] === RUNG 14,250 devices, pool 300 ===
+[02:58:51Z]     services=14254 PASS=False drains=False zero=0.0 q_max=13954.0 ratio=0.9884 L=300.0/300.0 cpu=90.4% done=0.9578
+[02:58:51Z] !!! KNEE: 14,250 devices does not complete a cycle under netem delay 75ms 25ms with pool 300
+[02:58:51Z] === search complete ===
