@@ -1,0 +1,420 @@
+{
+  "experiment": {
+    "question": "What is the Core doing at its ceiling: 14,250 devices at 50 to 100 ms per PDU, max-repetitions 5, 300 threads, the rung that failed?",
+    "independent_variable": "workload.parameters.devices",
+    "variant": "14250-devices-maxrep5-pool300-ceiling",
+    "plan": "Hold the failing rung of the 300-thread search and capture Core and Minion for seven cycles with every live collector (JFR, GC logs, perf, procfs, pcap, the metrics topic), then describe the state before the Core is resized to 32 GiB with a 20 GiB heap. Nothing is changed during the window."
+  },
+  "sut": {
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    },
+    "jvm": {
+      "version": "21.0.12+8-1-24.04-Ubuntu (OpenJDK)",
+      "heap": "-Xms8192m -Xmx10240m",
+      "gc": "G1GC",
+      "flags": "JAVA_HEAP_SIZE=10240, JAVA_INITIAL_HEAP_SIZE=8192, -XX:+UseG1GC, -XX:NativeMemoryTracking=summary, MALLOC_ARENA_MAX=4 (systemd drop-in), Prometheus JMX exporter on 9299."
+    },
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "tss_backend": "kafka-exclusive",
+    "config_delta": "One change against the pool-200 search. Everything else is identical.\n\nOpenNMS Core, snmp-config (Config Manager, rest/cm/snmp-config/default)\n  definition max-repetitions=\"5\" for range 10.42.0.0 to 10.42.255.255\n  root unchanged: version v2c, read-community public, timeout 1800, retry 1, max-vars-per-pdu 10, max-repetitions 2\n  the file etc/snmp-config.xml is ignored on this release; the CM copy is authoritative\n  verified on the wire: N=0 M=5 on every table GETBULK, 58 requests and 4.4 s per collection (149 and 11.5 s at the default)\n\nOpenNMS Core, unchanged from the pool-200 search\n  collectd-configuration.xml: threads 300, thresholding-enabled false on every service\n  opennms.conf: JAVA_HEAP_SIZE 10240, JAVA_INITIAL_HEAP_SIZE 8192, -XX:+UseG1GC, -XX:NativeMemoryTracking=summary; MALLOC_ARENA_MAX=4 via systemd drop-in\n  opennms.conf: OPENNMS_DATABASE_CONNECTION_MAXPOOL and MAXSIZE 250, MINPOOL 25\n  opennms.conf: 13 daemons disabled (Pollerd, Bsmd, Ticketer, Correlator, Queued,\n                Actiond, Notifd, Scriptd, Rtcd, SnmpPoller, EnhancedLinkd, Statsd,\n                Ackd, PerspectivePoller); Syslogd enabled\n  org.opennms.features.kafka.producer.cfg: forward.metrics true, metricTopic metrics\n  org.opennms.core.ipc.strategy kafka; org.opennms.timeseries.strategy osgi, no store\n  provisiond and datacollection: no file on disk, compiled-in defaults\n\nsimulator, netsim-benchmark-01, unchanged\n  tc qdisc netem delay 75ms 25ms on enp6s19, uniform 50 to 100 ms per packet, responses only\n\nPostgreSQL, unchanged\n  conf.d/10-benchmark-tuning.conf, pgtune web profile for 16 GiB / 8 vCPU\n  max_connections 400, shared_buffers 3997MB, effective_cache_size 11993MB",
+    "provisioner": "ssh-package"
+  },
+  "host": {
+    "cpu": "2 x Intel Xeon E5-2650 v4 @ 2.20 GHz, 24 physical cores / 48 threads; 28 vCPU running across 6 VMs",
+    "ram_gb": 252,
+    "disk": "ZFS pool scummbar, 808 GiB, SATA SSD",
+    "os": "Proxmox VE 9.2.2, guests Ubuntu 24.04.4 LTS",
+    "generator_colocated": true,
+    "hygiene_notes": "Dell PowerEdge R630, node lechuck. Core 8 vCPU / 16 GiB, Minion 4 / 8, netsim 4 / 8. Unchanged from the cleanroom run."
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 v0.28.0, cisco_crs_x.json, 144 interfaces per device, SNMP v2c, 10.42.0.0/16 one /24 per 250 devices; uniform 50-100 ms per-packet delay injected on the simulator bridge; GETBULK max-repetitions 5 for the fleet range",
+    "generator_version": "ghcr.io/labmonkeys-space/nl6:v0.28.0",
+    "parameters": {
+      "devices": "14,250, held",
+      "injected_latency_ms": "uniform 50-100 (netem delay 75ms 25ms)",
+      "interval_s": 300,
+      "window_s": 2100,
+      "interfaces_per_device": 144,
+      "samples_per_device_per_cycle": 1738,
+      "collectd_threads": 300,
+      "max_repetitions": 5,
+      "max_vars_per_pdu": 10,
+      "requests_per_collection": 58
+    }
+  },
+  "run": {
+    "id": "pm-snmp-agent-latency-mr5-live-1",
+    "started_at": "2026-09-05T07:45:00Z",
+    "ended_at": "2026-09-05T08:20:00Z",
+    "trial": 1
+  },
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters"
+  ],
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-05T07:45:00Z",
+      "end": "2026-09-05T08:20:00Z"
+    },
+    "resolution": "15s",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "agent-latency",
+        "50-100ms",
+        "max-repetitions-5",
+        "pool-300",
+        "ceiling",
+        "live-capture",
+        "kfk-exclusive"
+      ]
+    },
+    "figures": [
+      {
+        "id": "throughput",
+        "title": "Collections completed per second against the rate the fleet requires",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "Required is the daemon's own collectable service count divided by the 300 s interval. Achieved sits below it for the whole window: the collector cannot keep up and the gap is what the queue accumulates.",
+        "series": [
+          {
+            "label": "achieved, 5-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 2
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "last_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]) / 300",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Collectd pending queue, rolling one-minute peak and floor",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd task queue"
+        },
+        "note": "The floor never touches zero: this is the runaway the 300-thread search stopped at, seven cycles of it.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "threads",
+        "title": "Collectd thread pool occupancy against its 300-thread ceiling",
+        "unit": "threads",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd threads"
+        },
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 1
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "last_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          }
+        ],
+        "note": "JMX gauge from Collectd. At this fleet the pool is at its ceiling in every sample: collections take longer under a starved processor, so 300 slots are never enough, and the queue below never drains."
+      },
+      {
+        "id": "cpu-core-minion-db",
+        "title": "CPU busy: Core, Minion and database",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic"
+        },
+        "series": [
+          {
+            "label": "core (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "minion (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "db (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"db-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          }
+        ]
+      },
+      {
+        "id": "load",
+        "title": "One-minute load per vCPU, every collection VM",
+        "unit": "load / vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "System Load"
+        },
+        "note": "Normalised by vCPU count so a 2-vCPU broker and an 8-vCPU Core read on one scale. Above 1.0 means runnable work is queuing.",
+        "series": [
+          {
+            "label": "core",
+            "expr": "last_over_time(node_load1{instance=\"core-benchmark-01:9100\"}[1m]) / 8",
+            "decimals": 2
+          },
+          {
+            "label": "minion",
+            "expr": "last_over_time(node_load1{instance=\"minion-benchmark-01:9100\"}[1m]) / 4",
+            "decimals": 2
+          },
+          {
+            "label": "database",
+            "expr": "last_over_time(node_load1{instance=\"db-benchmark-01:9100\"}[1m]) / 8",
+            "decimals": 2
+          },
+          {
+            "label": "kafka",
+            "expr": "last_over_time(node_load1{instance=\"kafka-benchmark-01:9100\"}[1m]) / 2",
+            "decimals": 2
+          },
+          {
+            "label": "netsim",
+            "expr": "last_over_time(node_load1{instance=\"netsim-benchmark-01:9100\"}[1m]) / 4",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "heap-gc",
+        "title": "Core JVM heap against its ceiling, and old-generation collections",
+        "unit": "GiB and per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: Java Virtual Machine",
+          "panel": "Heap"
+        },
+        "note": "Heap between 8 and 10 GiB against the 10 GiB ceiling, old-generation collections at 2.3 a minute. This is the ceiling the cleanroom report named at 14,000 devices with 0.1 ms agents, reached here with 50 to 100 ms agents, max-repetitions 5 and 300 threads.",
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"}[5m]) / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"}[5m]) / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "net-sim",
+        "title": "SNMP on the simulator bridge: Minion enp6s20 and netsim enp6s19",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Network Traffic"
+        },
+        "note": "The same wire seen from both ends. The two lines should coincide; where they do, nothing is lost on the bridge.",
+        "series": [
+          {
+            "label": "minion enp6s20, SNMP to the fleet",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          },
+          {
+            "label": "netsim enp6s19, SNMP from the fleet",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"netsim-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"netsim-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "net-kafka",
+        "title": "Kafka segment: Minion RPC responses and Core producer",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Network Traffic"
+        },
+        "note": "The RPC responses the Minion returns to Kafka outweigh the SNMP that produced them. Transport costs more than telemetry.",
+        "series": [
+          {
+            "label": "minion enp6s19, RPC to Kafka",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          },
+          {
+            "label": "core enp6s20, RPC + metrics",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          },
+          {
+            "label": "kafka enp6s19, all",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"kafka-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"kafka-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "db",
+        "title": "Database connection pool on Core during collection",
+        "unit": "connections",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "HikariCP pool"
+        },
+        "note": "Read from the client side, since no PostgreSQL exporter runs in this lab. Metrics never touch PostgreSQL under exclusive Kafka forwarding; what the pool carries is Collectd scheduling state, the self-monitoring JDBC collections and provisiond.",
+        "series": [
+          {
+            "label": "active connections",
+            "expr": "last_over_time(com_zaxxer_hikari_pool_opennms_activeconnections{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "idle connections",
+            "expr": "last_over_time(com_zaxxer_hikari_pool_opennms_idleconnections{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "threads awaiting a connection",
+            "expr": "last_over_time(com_zaxxer_hikari_pool_opennms_threadsawaitingconnection{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "pool maximum",
+            "expr": "last_over_time(com_zaxxer_hikari_poolconfig_opennms_maximumpoolsize{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "cpu-kafka-netsim",
+        "title": "CPU busy: Kafka broker and network simulator",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic"
+        },
+        "series": [
+          {
+            "label": "kafka (2 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"kafka-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "netsim (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"netsim-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "id": "q-state",
+        "question": "What does the failing rung look like over seven cycles?",
+        "answer_ref": "#the-state"
+      },
+      {
+        "id": "q-ceiling",
+        "question": "Which resource is the ceiling: processor, heap, pool, or something downstream?",
+        "answer_ref": "#the-ceiling"
+      },
+      {
+        "id": "q-rate",
+        "question": "How many metrics does the ceiling deliver?",
+        "answer_ref": "#metric-rate"
+      },
+      {
+        "id": "q-others",
+        "question": "Is anything else in the lab near a limit?",
+        "answer_ref": "#everything-else"
+      },
+      {
+        "id": "q-next",
+        "question": "What the resize is expected to change",
+        "answer_ref": "#what-next"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Was this a steady failing state or still degrading?",
+        "why": "The fleet had been at 14,250 since 02:43 UTC, five hours before the window. The queue floor and the old-generation rate are read across the window to say whether they were still moving.",
+        "validity": "internal"
+      },
+      {
+        "question": "Is the CPU share collection or GC?",
+        "why": "Both rise together; the GC log and JFR in the capture separate them, and this report reads the JMX collection-time counters, not the JFR.",
+        "validity": "construct"
+      },
+      {
+        "question": "Does the failure mode transfer to a real fleet?",
+        "why": "14,250 simulated devices with identical MIB trees; a real fleet's tables vary in size and the per-collection cost with them.",
+        "validity": "external"
+      },
+      {
+        "question": "Would a larger heap alone move the ceiling, or does CPU bind first?",
+        "why": "At 90% CPU and 22% of wall time in GC the two are entangled; the resize to 32 GiB / 20 GiB heap that follows this capture is the experiment that separates them.",
+        "validity": "conclusion"
+      }
+    ]
+  }
+}

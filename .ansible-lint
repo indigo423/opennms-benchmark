@@ -14,6 +14,8 @@
 # exclusion guarded nothing while the path that replaced it was unguarded.
 exclude_paths:
   - .ansible/
+  # benchmark-capture's run configs are plain YAML, not Ansible.
+  - experiments/*/results*/capture.yaml
 
 # experiments/inventory/ holds nl6 node-provisioning tooling, so ansible-lint
 # mis-detects playbooks there as inventory sources. Pin the gNMI deploy playbook
