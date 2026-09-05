@@ -3,7 +3,7 @@
     "question": "With one snmp-config attribute changed, max-repetitions 2 to 5, where does the same 200-thread collector stop completing its cycle at 50 to 100 ms per PDU, and what binds there?",
     "independent_variable": "workload.parameters.devices",
     "variant": "agent-latency-50-100ms-knee-search-pool200-maxrep5",
-    "plan": "Hold everything from the pool-200 search (netem delay 75ms 25ms on the simulator, Collectd threads 200) and change one thing: max-repetitions 5 for the 10.42.0.0/16 range, applied through the Config Manager REST API. Verify the change on the wire before measuring. Grow the fleet from 5,250 in steps of 1,000 to 10,000, then 500, one 900 s window per rung, stop at the first rung that fails. Search upward only: nl6 has no selective delete."
+    "plan": "Hold everything from the pool-200 search (netem delay 75ms 25ms on the simulator, Collectd threads 200) and change one thing: max-repetitions 5 for the 10.42.0.0/16 range, applied through the Config Manager REST API. Verify the change on the wire before measuring. Grow the fleet from 5,250 in steps of 1,000 to 10,000, then 500, one 900 s window per rung, stop at the first rung that fails. Search upward only: nl6 has no selective delete. After the knee at 200 threads, the pool was raised to 300 and the search continued from 12,250 in steps of 500 to the cleanroom bracket, to find where the collector stops being thread-bound."
   },
   "sut": {
     "version_identity": {
@@ -34,7 +34,7 @@
     "generator_scenario": "nl6 v0.28.0, cisco_crs_x.json, 144 interfaces per device, SNMP v2c, 10.42.0.0/16 one /24 per 250 devices; uniform 50-100 ms per-packet delay injected on the simulator bridge; GETBULK max-repetitions 5 for the fleet range",
     "generator_version": "ghcr.io/labmonkeys-space/nl6:v0.28.0",
     "parameters": {
-      "devices": "5,250 then 6,250, 7,250, 8,250, 9,250, 10,250, 10,750, 11,250, 11,750, 12,250",
+      "devices": "5,250 then 6,250, 7,250, 8,250, 9,250, 10,250, 10,750, 11,250, 11,750, 12,250 at 200 threads; then 12,250, 12,750, 13,250, 13,750, 14,250 at 300 threads",
       "injected_latency_ms": "uniform 50-100 (netem delay 75ms 25ms)",
       "interval_s": 300,
       "window_s": 900,
@@ -49,7 +49,7 @@
   "run": {
     "id": "pm-snmp-agent-latency-mr5-1",
     "started_at": "2026-09-04T12:02:00Z",
-    "ended_at": "2026-09-04T19:55:00Z",
+    "ended_at": "2026-09-05T03:00:00Z",
     "trial": 1
   },
   "comparability_key": [
@@ -285,18 +285,18 @@
       },
       {
         "id": "pool300",
-        "title": "The failing fleet with 300 threads: pool occupancy and Core CPU",
+        "title": "The 300-thread search: pool occupancy and Core CPU from 12,250 to 14,250",
         "unit": "% and threads",
         "kind": "line",
         "window": {
           "start": "2026-09-04T19:35:00Z",
-          "end": "2026-09-04T19:55:00Z"
+          "end": "2026-09-05T03:00:00Z"
         },
         "source": {
           "dashboard": "Node Exporter Full",
           "panel": "CPU Basic"
         },
-        "note": "Same 12,250 devices that failed at 200 threads, after a restart with threads=300. The rolling mean sits at 237 with the ceiling at 300 and the CPU at 72%; the window opens three minutes into the range, after the settle.",
+        "note": "Five rungs at 300 threads separated by provisioning steps, two of them two hours long while the driver waited on a node that never scanned. The pool's troughs between waves rise as the CPU climbs past 85%, and in the last rung the pool is pinned because collections take longer, not because there are more of them.",
         "series": [
           {
             "label": "Core CPU busy, % of 8 vCPU",
@@ -312,6 +312,38 @@
             "label": "pool ceiling",
             "expr": "opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}",
             "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "pool300-gc",
+        "title": "The 300-thread search: heap and old-generation collections",
+        "unit": "GiB and per minute",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-04T19:35:00Z",
+          "end": "2026-09-05T03:00:00Z"
+        },
+        "source": {
+          "dashboard": "Prometheus: Java Virtual Machine",
+          "panel": "Heap"
+        },
+        "note": "Old-generation collections go from 15 per window at 12,250 to 36 at 14,250, and the JVM's share of wall time in GC from 11% to 22%. This is the cleanroom's ceiling, reached at the cleanroom's fleet size.",
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"} / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"} / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60",
+            "decimals": 2
           }
         ]
       }
@@ -341,7 +373,7 @@
       },
       {
         "id": "q-pool300",
-        "question": "Was it the pool or the processor at 12,250? One rung at 300 threads.",
+        "question": "How far does the pool of 300 carry, and what stops it?",
         "answer_ref": "#pool-300"
       },
       {
@@ -357,9 +389,14 @@
     ],
     "gaps": [
       {
-        "question": "How far does 300 threads carry at max-repetitions 5?",
-        "why": "One rung at 12,250 passed with the pool at 237 of 300 and the CPU at 72%. The pool arithmetic reaches 300 near 15,500 and the CPU reaches the cleanroom's 85% near 14,500; which comes first was not searched. It is the cleanroom's ceiling either way.",
+        "question": "Where exactly between 13,750 and 14,250 is the CPU knee?",
+        "why": "The step is 500 and the two rungs straddle the cleanroom's 14,004; the failing rung is not marginal (throughput fell, GC 22% of wall time), so the knee sits in the lower half of the bracket. Locating it finer means 250-device rungs at two hours each under the import race.",
         "validity": "conclusion"
+      },
+      {
+        "question": "Were the two timed-out rungs at steady state?",
+        "why": "At 13,750 and 14,250 one node of the 500 added never scanned; the driver waited two hours, then measured with that node at zero interfaces. One collectable service in 14,000 that yields nothing does not move the counters, but the two-hour hold means those fleets had run far longer before their window than the others.",
+        "validity": "internal"
       },
       {
         "question": "Does 58 requests per collection hold for every device?",
