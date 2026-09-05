@@ -144,3 +144,18 @@ postgres_tuning_work_mem_kb: 10235
 # Existing events are deliberately left in the database. Set this back to true
 # to restore the FM ingress; nothing else needs re-provisioning.
 opennms_minion_listeners_enabled: false
+
+# ── Core JVM heap for xxlarge-mem ─────────────────────────────────────────────
+# Replaces the root's opennms_jvm_conf in full (hash replace, see the header).
+# The root formula caps the heap at 8192 so numbers stay comparable across
+# 16 GiB cores; this deployment's core moved to xxlarge-mem (32 GiB) on
+# 2026-09-05 after the agent-latency campaign found the Core at 14,250
+# devices spending 22% of wall time in old-generation GC on a 10 GiB heap.
+# 20480 MiB is 62.5% of 32 GiB, leaving 12 GiB for PostgreSQL's client side,
+# thread stacks (about 125 KB each at 300 Collectd threads), NMT and the OS.
+# Initial equals maximum: a heap that grows under load pays the resize in
+# pauses the benchmark would then attribute to the fleet.
+opennms_jvm_conf:
+  JAVA_HEAP_SIZE: "20480"
+  JAVA_INITIAL_HEAP_SIZE: "20480"
+  ADDITIONAL_MANAGER_OPTIONS: "-XX:+UseG1GC -XX:NativeMemoryTracking=summary -javaagent:/opt/prom-jmx-exporter/jmx_prometheus_javaagent.jar=9299:/opt/prom-jmx-exporter/config.yaml"

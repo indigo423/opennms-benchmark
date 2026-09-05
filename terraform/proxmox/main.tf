@@ -21,6 +21,12 @@ locals {
     # class must keep meaning what it did.
     xxlarge  = { memory = 16384, vcpu = 8 }
     xxxlarge = { memory = 16384, vcpu = 16 }
+    # The GC-pressure case the note above defers to. Measured on Core on
+    # 2026-09-05 at 14,250 devices (300 Collectd threads, max-repetitions 5):
+    # heap pinned at 8 to 10 GiB of a 10 GiB ceiling, 36 old-generation
+    # collections per 15 min, 22% of wall time in GC, throughput falling.
+    # Same vCPU as xxlarge, twice the memory, for a 20 GiB heap.
+    xxlarge-mem = { memory = 32768, vcpu = 8 }
   }
 
   subnet_cidr = {

@@ -126,6 +126,8 @@ variable "instance_types" {
     # they were added for is about.
     xxlarge  = "m6i.4xlarge"
     xxxlarge = "m6i.8xlarge"
+    # 8 vCPU with more memory; m6i.4xlarge already carries 64 GiB.
+    xxlarge-mem = "m6i.4xlarge"
   }
 }
 
@@ -147,8 +149,9 @@ variable "instance_types_smoke" {
     xlarge = "t3a.large"
     # Smoke proves the stack starts; it does not measure. Both CPU-heavy tiers
     # collapse onto the same burstable type on purpose.
-    xxlarge  = "t3a.large"
-    xxxlarge = "t3a.large"
+    xxlarge     = "t3a.large"
+    xxxlarge    = "t3a.large"
+    xxlarge-mem = "t3a.large"
   }
 }
 

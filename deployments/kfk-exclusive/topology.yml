@@ -33,10 +33,15 @@ roles:
     # relocated the constraint rather than removing it, and every time it landed
     # here. At 200 Collectd threads on 4 vCPU, Core reached 15,666 samples/s but
     # spiked to load 124 and starved its own Minion-RPC consumer for 11 minutes
-    # -- throughput bought with stability. Memory is NOT raised with it: heap is
-    # pinned at 8192 and 5.7 GB of the 16 GB was still free at that load.
+    # -- throughput bought with stability. Memory was NOT raised with it: heap
+    # was pinned at 8192 and 5.7 GB of the 16 GB was still free at that load.
+    #
+    # xxlarge-mem since 2026-09-05: the agent-latency campaign raised the heap
+    # to 10240 and then found the Core at 14,250 devices spending 22% of wall
+    # time in old-generation GC, throughput falling, the heap pinned at 8 to 10
+    # GiB. 32 GiB carries a 20 GiB heap (JAVA_HEAP_SIZE in the overlay).
     count: 1
-    size: xxlarge
+    size: xxlarge-mem
     # 200, not the 100 in disk-sizes.tfvars: a timed run accumulates RRD/JRB,
     # logs and instrumentation.log for its whole duration, and running Core out
     # of disk mid-run ends the measurement without ending the run.
