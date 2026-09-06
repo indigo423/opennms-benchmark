@@ -1,0 +1,51 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Parameters for the #225 target sweep. Everything else comes from
+# experiments/pm-snmp.
+
+# Homogeneous CRS-X, not nl6's default mixed set. The whole target arithmetic
+# rests on a per-device density figure, and a mixed fleet's average is not a
+# scaling reference — it changes meaning whenever the mix does. CRS-X is the
+# densest profile at 144 interfaces, and is what #230 measured 2,800
+# samples/device/cycle on.
+#
+# The name must carry the .json suffix even though the profile is a DIRECTORY of
+# per-OID files: nl6 rejects the bare directory name with "invalid resource file
+# name (expected <device-type>.json)". Verified against nl6 v0.22.1.
+pm_resource_file: cisco_crs_x.json
+
+pm_foreign_source: nl6-pm-72m
+
+# Increments, not totals. Cumulative fleet:
+#
+#   25, 100, 250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2150
+#
+# Target is 72M metrics/HOUR = 20,000 samples/s = 6M per 300 s cycle, which at
+# ~2,800 samples/device/cycle needs ~2,150 devices. The sweep walks up to it
+# rather than starting there, because a fleet that never collected cleanly
+# reports a rate that describes nothing.
+#
+# Dense early rungs are cheap and catch a broken chain in the first ~12 minutes.
+# 1,500 is deliberate: it is the exact fleet #230 measured at 14,014 samples/s
+# on a t3a.large, so this run has one directly comparable point rather than only
+# an extrapolation.
+#
+# No entry may exceed 254. Each rung is placed in its own third octet
+# (10.42.<rung-index>.1, see pm-snmp/rung.yml), so a larger increment runs off
+# the end of that /24 and silently overlaps the next rung's range.
+pm_device_increments: [25, 75, 150, 250, 250, 250, 250, 250, 250, 250, 150]
+
+# Left at pm-snmp's values on purpose. Each rung costs settle + window = 630 s,
+# so 11 rungs is ~2 h of measurement before provisioning and scan time. Shorten
+# either and the window stops spanning a full collection interval, which
+# measures where the window fell rather than what the system did.
+pm_collection_interval: 300
+pm_settle_seconds: 300
+
+# Integer multiple of the collection interval; see the note in
+# experiments/pm-snmp-target/opennms-lab-vars.yml. Collection arrives in bursts,
+# so a non-integer window lets its phase decide the result.
+pm_window_seconds: 600
+pm_bucket_seconds: 30

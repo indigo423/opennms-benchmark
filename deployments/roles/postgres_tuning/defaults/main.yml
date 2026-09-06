@@ -1,0 +1,64 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Values follow pgtune's "Web application" profile, derived from the host's own
+# facts rather than written out as constants, because this database gets resized
+# during a benchmark campaign and a constant silently stops matching the VM.
+# https://pgtune.leopard.in.ua/
+
+postgres_tuning_pg_version: "{{ pg_version | default(18) }}"
+postgres_tuning_conf_dir: /etc/postgresql/{{ postgres_tuning_pg_version }}/main/conf.d
+postgres_tuning_file: 10-benchmark-tuning.conf
+
+# Must exceed every pool that connects, summed, plus headroom for psql and
+# maintenance. OpenNMS Horizon opens three, and the sum is what matters:
+#
+#   main pool   OPENNMS_DATABASE_CONNECTION_MAXSIZE   250   (opennms_env, lab vars)
+#   two others  maxSize="50" each, fixed                100
+#                                                      ----
+#                                                       350
+#
+# 400 leaves headroom for superuser_reserved_connections, psql and the metrics
+# exporter. Raise this BEFORE raising the pool: a pool larger than the server
+# allows fails at connect time, and OpenNMS surfaces that as daemons blocking
+# rather than as a database error.
+#
+# Note the coupling to work_mem below, which divides by max_connections: going
+# 200 -> 400 halves it from ~10 MB to ~5 MB per sort node. That is the intended
+# trade and the reason this is not simply set enormous.
+postgres_tuning_max_connections: 400
+
+# 25% of RAM. On ZFS this is deliberately not raised further: the ARC already
+# caches the same blocks, so a larger shared_buffers mostly buys double caching.
+postgres_tuning_shared_buffers_mb: "{{ (ansible_memtotal_mb * 0.25) | int }}"
+
+# 75% of RAM. A planner hint about total cache available, not an allocation, so
+# it may legitimately overlap the ARC.
+postgres_tuning_effective_cache_size_mb: "{{ (ansible_memtotal_mb * 0.75) | int }}"
+
+postgres_tuning_maintenance_work_mem_mb: "{{ [(ansible_memtotal_mb / 16) | int, 2048] | min }}"
+
+# pgtune's web formula: (RAM - shared_buffers) / (max_connections * 3), halved
+# again for parallel workers. Per sort/hash node, not per connection, so an
+# over-generous value multiplied by max_connections is how a box OOMs.
+postgres_tuning_work_mem_kb: >-
+  {{ (((ansible_memtotal_mb - (ansible_memtotal_mb * 0.25)) * 1024)
+      / (postgres_tuning_max_connections | int * 3) / 2) | int }}
+
+postgres_tuning_max_worker_processes: "{{ ansible_processor_vcpus }}"
+postgres_tuning_max_parallel_workers: "{{ ansible_processor_vcpus }}"
+postgres_tuning_max_parallel_workers_per_gather: "{{ [(ansible_processor_vcpus / 2) | int, 1] | max }}"
+postgres_tuning_max_parallel_maintenance_workers: "{{ [(ansible_processor_vcpus / 2) | int, 1] | max }}"
+
+# SSD/NVMe-backed. random_page_cost near 1.0 tells the planner a random read is
+# barely dearer than a sequential one, which is true here and false on spinning
+# disk. The lab's zpool is SSD-backed.
+postgres_tuning_random_page_cost: "1.1"
+postgres_tuning_effective_io_concurrency: 200
+
+postgres_tuning_wal_buffers_mb: 16
+postgres_tuning_min_wal_size_gb: 1
+postgres_tuning_max_wal_size_gb: 4
+postgres_tuning_checkpoint_completion_target: "0.9"
+postgres_tuning_default_statistics_target: 100

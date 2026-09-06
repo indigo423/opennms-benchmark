@@ -1,0 +1,39 @@
+experiment:
+  question: "What are Core and the Minion doing over five collection cycles at 17,250 devices on the resized Core (32 GiB, 20 GiB heap), 50-100 ms per SNMP PDU, max-repetitions 5 and 300 threads, and does the rung complete a cycle in steady state?"
+  independent_variable: workload.parameters.devices
+  variant: 17250-devices-maxrep5-pool300-32g-live-5-cycles
+  plan: "Arm the collectors and run for five 300 s collection cycles, then finalize. Fleet held at 17,250 devices, the first rung the 300-thread search marked as failing on the 32 GiB Core; that verdict came from a window opened 16 min after the Proxmox host rebooted and 500 nodes were imported. In steady state the Core completes 58.4 collections/s against the 57.5 required, a 1.5% margin, pool 300/300, CPU 85%, old-generation GC 0/min. Two earlier attempts at this capture (results-attempt1 with perf, JFR, snapshots and a catch-all pcap on the Core; results-attempt2 with JFR and snapshots only) each pushed the Core from 85% to 99% CPU within two to three minutes and the completion rate collapsed to 6-12/s with the queue climbing past 8,000: the JVM collectors alone tip this Core over. This attempt leaves the Core JVM unobserved: procfs and sysstat only, GC logging via jcmd VM.log into /var/tmp/gclog (pulled by hand), and one jcmd Thread.print taken by hand mid-window. The Minion (14-44% of 4 vCPU) keeps every collector. The Core was restarted before arming to clear the backlog attempt 2 left, and given two cycles to settle. The Core profile itself comes from results-attempt1 whose JFR recorded the collapse: the hot paths (JAXB unmarshalling of RPC responses, storeResult, per-resource node lookups in the Kafka producer) are the same at 85% and 99%. No Kafka topic capture: that tool is gone; the 1,738 samples per collection measured at 14,250 still apply."
+workload:
+  axis: snmp-collection
+  generator_scenario: "nl6 cisco_crs_x.json, 17,250 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-68, netem delay 75ms 25ms on the simulator, GETBULK max-repetitions 5"
+remote_dir: /var/tmp/benchmark-capture
+prometheus:
+  url: http://192.168.10.40:9090/prometheus
+  allow: []
+  step: 15s
+hosts:
+  core-benchmark-01:
+    ssh: core-benchmark-01
+    sudo: true
+    os:
+      procfs_interval: 5s
+      sar: true
+  minion-benchmark-01:
+    ssh: minion-benchmark-01
+    sudo: true
+    os:
+      procfs_interval: 5s
+      sar: true
+      perf: {freq: 99}
+    pcap:
+      interfaces: [enp6s18, enp6s19, enp6s20]
+      # 3 GB per interface, 9 GB total against 14 GB free. The Kafka side
+      # (enp6s19) wraps in ~2.5 min and keeps the END of the window.
+      ring: {file_mb: 256, files: 12}
+      bpf: "greater 0"
+    jvms:
+      minion:
+        match: "org.apache.karaf.main.Main"
+        jfr: {settings: profile, max_size: 2g}
+        snapshots: 60s
+        heap_dump: false

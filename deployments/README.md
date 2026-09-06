@@ -79,7 +79,15 @@ Not currently enforced; see #173.
 | `medium` | 2 | 8 GiB | |
 | `large` | 4 | 8 GiB | elasticsearch |
 | `xlarge` | 4 | 16 GiB | core |
-| `xxlarge-mem` | 8 | 32 GiB | standalone VictoriaMetrics target; memory rises with vCPU because the store sizes its caches by RAM |
+| `xxlarge` | 8 | 16 GiB | CPU-heavy core |
+| `xxxlarge` | 16 | 16 GiB | CPU-heavy core |
+| `xxlarge-mem` | 8 | 32 GiB | core under GC pressure: 20 GiB heap; also the standalone VictoriaMetrics target, whose store sizes its caches by RAM |
+
+The two CPU-heavy classes hold memory at `xlarge`'s 16 GiB and raise only vCPU, the same way `medium` and `large` differ only in vCPU at 8 GiB.
+That is deliberate: OpenNMS pins `JAVA_HEAP_SIZE` at 8192, so heap does not scale with cores, and Core measured 10.3 GB used of 16 GB while saturating 4 vCPU.
+Raise memory when GC pressure demands it, not alongside vCPU.
+`xxlarge-mem` is that case: it was added when the Core at 14,250 devices spent 22% of wall time in old-generation collection on a 10 GiB heap that could not grow inside 16 GiB.
+On AWS these map to `m6i.4xlarge`/`m6i.8xlarge`, which carry more memory because EC2 sells vCPU and memory together; the contract the class asserts is the vCPU count.
 
 Each provider owns the class to SKU/flavour mapping (Azure `Standard_D*`, Hetzner `cx*`, or explicit `cores`/`memory` for libvirt and proxmox).
 Disk sizes come from the provider's `disk_sizes_gb`, keyed by role.

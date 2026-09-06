@@ -1,0 +1,13 @@
+{
+ "core": {
+  "tasksmax": 19144,
+  "nofile": 524288,
+  "memtotal_mb": 15991,
+  "threads_max": 127627
+ },
+ "minion": {
+  "nofile": 524288,
+  "tasksmax": 9483,
+  "ports": 28231
+ }
+}

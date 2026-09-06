@@ -1,0 +1,37 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Values to sweep. 200 is included because it is the current setting and the one
+# that appeared to help; the sweep exists to test that rather than assume it.
+# Ordered low to high so a run stopped early still yields a usable curve.
+pm_threads_values: [25, 50, 100, 200]
+
+# One full collection interval is NOT enough after a restart: Collectd schedules
+# a whole fleet from scratch and the first cycle is a ramp. Measured 2026-08-27,
+# a window opened 480 s after restart still covered only 323 s of its 660 s
+# span. Two intervals plus margin.
+pm_threads_settle_seconds: 660
+
+# Two full collection intervals, so every node is collected at least twice and a
+# single unlucky cycle boundary cannot dominate the result.
+
+# WINDOW MUST BE AN INTEGER MULTIPLE OF THE COLLECTION INTERVAL.
+#
+# Collectd staggers nodes across the interval, but only loosely, and after a
+# restart it schedules the whole fleet at once. Measured 2026-08-28 at 3,801
+# devices, peak/mean sample rate was 2.8 before a restart and 3.7 after: work
+# arrives in a burst roughly a third of a cycle wide, then the system idles.
+#
+# Against a bursty arrival a non-integer window captures a whole number of
+# bursts plus an arbitrary fraction, so the phase of the window decides the
+# result. A 660 s window on a 300 s interval is 2.2 cycles and can legitimately
+# see 2 or 3 bursts, a swing of 0.91x to 1.36x on the same system.
+pm_threads_window_seconds: 900
+
+pm_threads_bucket_seconds: 30
+
+# span/window below this means the window did not fill: the rung is reported but
+# excluded from the comparison, because dividing by a short span inflates the
+# rate and invents a winner.
+pm_threads_min_coverage: 0.85

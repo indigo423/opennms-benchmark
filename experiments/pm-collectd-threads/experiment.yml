@@ -1,0 +1,95 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Find the Collectd thread count that maximises sustained collection, holding
+# everything else fixed.
+#
+#   make experiment EXPERIMENT=pm-collectd-threads DEPLOYMENT=kfk-exclusive
+#
+# Threads are the independent variable; fleet size, Core sizing, database
+# tuning and the Minion are controls. Nothing here changes the fleet, so the
+# same devices are measured at every rung.
+#
+# READ THE window_rate COLUMN, NOT span_rate.
+#
+# kafka-metrics-report reports mean_per_second as samples/span, where span is
+# the first-to-last message TIMESTAMP inside the offset bound. That is the right
+# figure for a continuous stream and actively misleading here: if collection
+# does not fill the measurement window, span shrinks, and dividing by it inflates
+# the rate. A 200-thread reading of 15,666/s on 2026-08-27 was exactly this --
+# 5,062,428 samples whose timestamps spanned 323 s of a 660 s window, i.e. 7,670
+# samples/s of real throughput, not 15,666. The apparent 40% gain was a
+# measurement artefact, and the true result was a regression.
+#
+# coverage = span / window. Below pm_threads_min_coverage the rung is reported
+# but must not be compared: the system was still ramping, or it stalled.
+- name: Sweep the Collectd thread count
+  hosts: mon_servers
+  gather_facts: false
+  vars:
+    endpoints: "{{ lookup('file', playbook_dir ~ '/../../lab-endpoints.json') | from_json }}"
+    pm_core_host: "{{ groups['core'][0] }}"
+  tasks:
+    - name: Assert the deployment installed the measurement tool
+      ansible.builtin.stat:
+        path: /usr/local/bin/kafka-metrics-report
+      register: pm_threads_tool
+      failed_when: not pm_threads_tool.stat.exists
+      changed_when: false
+
+    - name: Assert the sweep has values to sweep
+      ansible.builtin.assert:
+        that:
+          - pm_threads_values | length > 0
+          - pm_threads_values | map('int') | min > 0
+          - pm_threads_values | unique | length == pm_threads_values | length
+        fail_msg: >-
+          pm_threads_values must be non-empty, positive and free of duplicates.
+          A repeated value measures the same configuration twice and reports it
+          under two labels.
+        quiet: true
+
+    - name: Record the fleet the sweep is measuring
+      ansible.builtin.uri:
+        url: "{{ endpoints.generators.nl6.url }}/api/v1/status"
+        return_content: true
+      register: pm_threads_fleet
+      changed_when: false
+
+    # The fleet is a control. A sweep that silently ran against a different
+    # device count at some rung compares nothing.
+    - name: Assert the fleet is running
+      ansible.builtin.assert:
+        that:
+          - pm_threads_fleet.json.data.running_devices | int > 0
+        fail_msg: "nl6 reports no running devices; the sweep would measure an idle system."
+        quiet: true
+
+    - name: Run the sweep
+      ansible.builtin.include_tasks: rung.yml
+      loop: "{{ pm_threads_values }}"
+      loop_control:
+        loop_var: pm_threads_n
+        index_var: pm_threads_index
+
+    - name: Report the sweep
+      ansible.builtin.debug:
+        msg: "{{ ['threads  samples      nodes  window_rate  span_rate  coverage  per-dev/cyc'] + pm_threads_rows }}"
+
+    - name: Report the best configuration by sustained throughput
+      ansible.builtin.debug:
+        msg: >-
+          Best of the comparable rungs (coverage >= {{ pm_threads_min_coverage }}):
+          {{ (pm_threads_results | selectattr('coverage', 'ge', pm_threads_min_coverage)
+              | sort(attribute='window_rate') | last) | default({'threads': 'none comparable'}, true) }}
+
+    - name: Assert at least one rung was comparable
+      ansible.builtin.assert:
+        that:
+          - pm_threads_results | selectattr('coverage', 'ge', pm_threads_min_coverage) | list | length > 0
+        fail_msg: >-
+          No rung reached {{ pm_threads_min_coverage }} span/window coverage, so no
+          two rungs can be compared. Raise pm_threads_settle_seconds: the system
+          was still ramping when every window opened.
+        quiet: true

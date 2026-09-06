@@ -1,0 +1,553 @@
+{
+  "capture": {
+    "ended_at": "2026-09-06T01:35:18Z",
+    "hosts": [
+      "core-benchmark-01",
+      "minion-benchmark-01"
+    ],
+    "skill_version": "0.1.0",
+    "started_at": "2026-09-06T01:09:40Z",
+    "units": [
+      {
+        "bytes": 0,
+        "error": null,
+        "id": "core-benchmark-01/os",
+        "status": "ok"
+      },
+      {
+        "bytes": 575872,
+        "error": null,
+        "id": "core-benchmark-01/pull",
+        "status": "ok"
+      },
+      {
+        "bytes": 0,
+        "error": null,
+        "id": "minion-benchmark-01/jvm/minion",
+        "status": "ok"
+      },
+      {
+        "bytes": 0,
+        "error": null,
+        "id": "minion-benchmark-01/os",
+        "status": "ok"
+      },
+      {
+        "bytes": 0,
+        "error": null,
+        "id": "minion-benchmark-01/pcap",
+        "status": "ok"
+      },
+      {
+        "bytes": 6175719952,
+        "error": null,
+        "id": "minion-benchmark-01/pull",
+        "status": "ok"
+      },
+      {
+        "bytes": 3036988,
+        "error": null,
+        "id": "prometheus",
+        "status": "ok"
+      }
+    ]
+  },
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "host.disk",
+    "host.generator_colocated",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters",
+    "workload.fixtures"
+  ],
+  "experiment": {
+    "independent_variable": "workload.parameters.devices",
+    "plan": "Arm the collectors and run for five 300 s collection cycles, then finalize. Fleet held at 17,250 devices, the first rung the 300-thread search marked as failing on the 32 GiB Core; that verdict came from a window opened 16 min after the Proxmox host rebooted and 500 nodes were imported. In steady state the Core completes 58.4 collections/s against the 57.5 required, a 1.5% margin, pool 300/300, CPU 85%, old-generation GC 0/min. Two earlier attempts at this capture (results-attempt1 with perf, JFR, snapshots and a catch-all pcap on the Core; results-attempt2 with JFR and snapshots only) each pushed the Core from 85% to 99% CPU within two to three minutes and the completion rate collapsed to 6-12/s with the queue climbing past 8,000: the JVM collectors alone tip this Core over. This attempt leaves the Core JVM unobserved: procfs and sysstat only, GC logging via jcmd VM.log into /var/tmp/gclog (pulled by hand), and one jcmd Thread.print taken by hand mid-window. The Minion (14-44% of 4 vCPU) keeps every collector. The Core was restarted before arming to clear the backlog attempt 2 left, and given two cycles to settle. The Core profile itself comes from results-attempt1 whose JFR recorded the collapse: the hot paths (JAXB unmarshalling of RPC responses, storeResult, per-resource node lookups in the Kafka producer) are the same at 85% and 99%. No Kafka topic capture: that tool is gone; the 1,738 samples per collection measured at 14,250 still apply.",
+    "question": "What are Core and the Minion doing over five collection cycles at 17,250 devices on the resized Core (32 GiB, 20 GiB heap), 50-100 ms per SNMP PDU, max-repetitions 5 and 300 threads, and does the rung complete a cycle in steady state?",
+    "variant": "17250-devices-maxrep5-pool300-32g-live-5-cycles"
+  },
+  "host": {
+    "cpu": "Intel(R) Xeon(R) CPU E5-2650 v4 @ 2.20GHz, 8 cores",
+    "disk": "sda 200G disk rota=1 QEMU HARDDISK",
+    "os": "Ubuntu 24.04.4 LTS",
+    "ram_gb": 31.34
+  },
+  "run": {
+    "ended_at": "2026-09-06T01:35:18Z",
+    "id": "17250-devices-maxrep5-pool300-32g-live-5-cycles-20260906T010940Z",
+    "started_at": "2026-09-06T01:09:40Z"
+  },
+  "sut": {
+    "config_delta": "ATTEMPT 3 of 3, the sealed capture. Core: procfs 5 s and sysstat only, GC log via jcmd VM.log, one jcmd Thread.print at 01:21:05Z by hand (hosts/core-benchmark-01/jvm/opennms-by-hand/). Minion: JFR profile, jcmd snapshots 60 s, perf 99 Hz, procfs, sysstat, pcap on three interfaces. Window 01:09:51Z to 01:35:30Z, five 300 s cycles plus 40 s. OpenNMS on the Core restarted 00:52Z to clear the backlog attempt 2 left, fully loaded by 01:00Z, two cycles settled before arming. Judged with results/bin/trial.py over 01:10:00Z-01:35:00Z: 57.58 collections/s against 57.51 required, completion 100.1%, queue min 0 and max 611, at zero 5.9% of samples, pool 298.0 mean of 300, Core CPU 82.9%, Minion 54.7% (with its collectors), DB 41.8%, old-gen GC 0, young GC 412 pauses at 174 ms = 4.1% of wall. PASS by the knee search's criterion, with a 0.1% margin.\n\nOpenNMS Core, changed against the 14,250 capture (pm-snmp-agent-latency-mr5-live)\n  VM resized: xxlarge-mem, 8 vCPU, 32 GiB (was 16 GiB); deployments/kfk-exclusive/topology.yml commit f6a9609\n  opennms.conf: JAVA_HEAP_SIZE 20480, JAVA_INITIAL_HEAP_SIZE 20480 (was 10240 / 8192)\n  fleet: 17,250 nl6 devices, 17,254 collectable services (was 14,250 / 14,254); octets 0-68 of 10.42.0.0/16\n\nOpenNMS Core, unchanged\n  snmp-config (Config Manager): definition max-repetitions=\"5\" for 10.42.0.0-10.42.255.255; root v2c, timeout 1800, retry 1, max-vars-per-pdu 10, max-repetitions 2\n  collectd-configuration.xml: threads 300, thresholding-enabled false on every service\n  opennms.conf: -XX:+UseG1GC, -XX:NativeMemoryTracking=summary; MALLOC_ARENA_MAX=4 via systemd drop-in\n  opennms.conf: OPENNMS_DATABASE_CONNECTION_MAXPOOL and MAXSIZE 250, MINPOOL 25\n  opennms.conf: 13 daemons disabled (Pollerd, Bsmd, Ticketer, Correlator, Queued, Actiond, Notifd, Scriptd, Rtcd, SnmpPoller, EnhancedLinkd, Statsd, Ackd, PerspectivePoller); Syslogd enabled\n  log4j2.xml: instrumentation INFO, collectd/ipc/snmp WARN, root DEBUG with per-prefix levels\n  org.opennms.features.kafka.producer.cfg: forward.metrics true, metricTopic metrics, disable.metrics.splitting false\n  org.opennms.core.ipc.strategy kafka; org.opennms.timeseries.strategy osgi, no store\n  provisiond and datacollection: no file on disk, compiled-in defaults\n\nMinion, unchanged: stock Karaf JVM, no -Xmx (default 2 GiB heap), G1, no RPC or SNMP thread settings, org.opennms.core.ipc.kafka.cfg bootstrap.servers only\n\nsimulator, netsim-benchmark-01, unchanged\n  tc qdisc netem delay 75ms 25ms on enp6s19, re-applied after the host reboot of 2026-09-05 23:10Z\n\nPostgreSQL, unchanged\n  conf.d/10-benchmark-tuning.conf, pgtune web profile; max_connections 400, shared_buffers 3997MB, effective_cache_size 11993MB; ssl on, JDBC uses SSL\n\nCapture notes: GC logging enabled at runtime with jcmd VM.log; gc.log copied by hand to hosts/core-benchmark-01/jvm/opennms-by-hand/ before seal.",
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "jvm": {
+      "flags": "20380: -Xms20480m -Xmx20480m -XX:+UseG1GC -XX:NativeMemoryTracking=summary -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError -XX:+StartAttachListener (from /proc/PID/cmdline; no JVM collector ran on the Core in this attempt, see results-attempt1 for the full VM.flags of the same configuration)",
+      "gc": "G1GC",
+      "heap": "-Xms20480m -Xmx20480m"
+    },
+    "tss_backend": "kafka-exclusive",
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    }
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 cisco_crs_x.json, 17,250 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-68, netem delay 75ms 25ms on the simulator, GETBULK max-repetitions 5"
+  },
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-06T01:10:00Z",
+      "end": "2026-09-06T01:35:00Z"
+    },
+    "resolution": "15s",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "agent-latency",
+        "50-100ms",
+        "max-repetitions-5",
+        "pool-300",
+        "32g-core",
+        "20g-heap",
+        "observer-effect",
+        "tuning-trials",
+        "live-capture",
+        "kfk-exclusive"
+      ]
+    },
+    "figures": [
+      {
+        "id": "throughput",
+        "title": "Collections completed per second against the rate the fleet requires",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "Required is the daemon's own collectable service count divided by the 300 s interval. Achieved tracks it within a fraction of a percent for the whole window: the collector keeps up, with nothing to spare.",
+        "series": [
+          {
+            "label": "achieved, 5-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])"
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "last_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]) / 300"
+          }
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Collectd pending queue, rolling one-minute peak and floor",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd pending tasks"
+        },
+        "note": "The floor touches zero once per cycle and the peak stays near 600: the queue is the scheduling wave, not a backlog.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "threads",
+        "title": "Collectd thread pool occupancy against its 300-thread ceiling",
+        "unit": "threads",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd active threads"
+        },
+        "note": "The mean sits at 298 of 300 for the whole window. Every thread that is not in the two-thread gap is waiting on a collection that takes 5.2 s.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "last_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "cpu-core-minion-db",
+        "title": "CPU busy: Core, Minion and database",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Busy"
+        },
+        "note": "The Minion carries its own capture in this window (JFR, perf, three pcap rings); its unobserved figure is about ten points lower.",
+        "series": [
+          {
+            "label": "core (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100"
+          },
+          {
+            "label": "minion (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100"
+          },
+          {
+            "label": "db (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"db-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100"
+          }
+        ]
+      },
+      {
+        "id": "heap-gc",
+        "title": "Core JVM heap against its 20 GiB ceiling, old-generation collections and young-collection time",
+        "unit": "GiB, per minute, and s per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "JVM (JMX exporter)",
+          "panel": "Heap / GC"
+        },
+        "note": "Old-generation collections stay at zero for the whole window. Young collections cost about 2.5 s of pause per minute, 4% of wall time, read from the JMX counter; the GC log in the artifact agrees (412 pauses at 174 ms).",
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"}[5m]) / 1024 / 1024 / 1024"
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"}[5m]) / 1024 / 1024 / 1024"
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60"
+          },
+          {
+            "label": "young-gen pause seconds per minute",
+            "expr": "rate(java_lang_g1_young_generation_collectiontime{instance=\"core-benchmark-01:9299\"}[5m]) / 1000 * 60"
+          }
+        ]
+      },
+      {
+        "id": "observer-throughput",
+        "title": "Capture attempts 1 and 2: collections per second before, during and after the Core was observed",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "window": {
+          "start": "2026-09-06T00:00:00Z",
+          "end": "2026-09-06T00:52:00Z"
+        },
+        "note": "Attempt 1 armed at 00:12:35 with perf, JFR, jcmd snapshots and pcap; attempt 2 at 00:45:53 with JFR and snapshots only. Rates are 3-minute so both series bridge the restart's scrape gap. Both times the achieved rate falls to a fifth of required within three minutes. The 00:31 restart is the recovery from attempt 1.",
+        "series": [
+          {
+            "label": "achieved, 3-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[3m])"
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "last_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[3m]) / 300"
+          }
+        ]
+      },
+      {
+        "id": "observer-cpu-queue",
+        "title": "Capture attempts 1 and 2: Core CPU and the pending queue",
+        "unit": "% and tasks",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Busy"
+        },
+        "window": {
+          "start": "2026-09-06T00:00:00Z",
+          "end": "2026-09-06T00:52:00Z"
+        },
+        "note": "CPU goes from 85% to 99% as each capture arms; the queue climbs towards the whole fleet and never drains until the restart. The queue is plotted in hundreds of tasks so both fit one axis.",
+        "series": [
+          {
+            "label": "core CPU busy, 3-minute",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[3m])) * 100"
+          },
+          {
+            "label": "pending queue, hundreds of tasks",
+            "expr": "last_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[3m]) / 100"
+          }
+        ]
+      },
+      {
+        "id": "trial-threads400",
+        "title": "Trial 1, 400 threads with G1: queue and pool occupancy",
+        "unit": "count",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd pending queue / active threads"
+        },
+        "window": {
+          "start": "2026-09-06T02:00:00Z",
+          "end": "2026-09-06T02:15:00Z"
+        },
+        "note": "With 100 more threads the pool averages 306 and the queue peaks at 217 and sits at zero 82% of the time. The bound moved from the pool to the fleet's own demand.",
+        "series": [
+          {
+            "label": "pending queue, rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "active threads, rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "last_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "trial-parallelgc",
+        "title": "Trial 2, 300 threads with ParallelGC: queue and pool occupancy",
+        "unit": "count",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd pending queue / active threads"
+        },
+        "window": {
+          "start": "2026-09-06T02:35:00Z",
+          "end": "2026-09-06T02:50:00Z"
+        },
+        "note": "The collector change took twelve CPU points off the Core and gave the pool nothing: 300 of 300 threads busy, the queue never below 365. The pool is the bound at 300 threads whatever the processor has to spare.",
+        "series": [
+          {
+            "label": "pending queue, rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "active threads, rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "last_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "trial-both",
+        "title": "Trial 3, 400 threads with ParallelGC: queue and pool occupancy",
+        "unit": "count",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd pending queue / active threads"
+        },
+        "window": {
+          "start": "2026-09-06T03:10:00Z",
+          "end": "2026-09-06T03:25:00Z"
+        },
+        "note": "The pool relief works again, less well: 339 threads busy on average against 306 with G1, and the queue at zero 41% of the time against 82%. Every stop-the-world pause holds all 400 threads.",
+        "series": [
+          {
+            "label": "pending queue, rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "active threads, rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "last_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "db",
+        "title": "Database connection pool on the Core during collection",
+        "unit": "connections",
+        "kind": "line",
+        "source": {
+          "dashboard": "JVM (JMX exporter)",
+          "panel": "HikariCP"
+        },
+        "note": "Every resource in a collection set is one read-only transaction against the node table, 145 per collection; the pool of 250 is used, not exhausted.",
+        "series": [
+          {
+            "label": "active connections",
+            "expr": "last_over_time(com_zaxxer_hikari_pool_opennms_activeconnections{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "idle connections",
+            "expr": "last_over_time(com_zaxxer_hikari_pool_opennms_idleconnections{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "threads awaiting a connection",
+            "expr": "last_over_time(com_zaxxer_hikari_pool_opennms_threadsawaitingconnection{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "pool maximum",
+            "expr": "last_over_time(com_zaxxer_hikari_poolconfig_opennms_maximumpoolsize{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "load",
+        "title": "One-minute load per vCPU, every collection VM",
+        "unit": "load / vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Load"
+        },
+        "note": "The Core runs a load of about 2.5 per vCPU: 300 collection threads plus the response handlers on 8 cores. Nothing else is above one.",
+        "series": [
+          {
+            "label": "core",
+            "expr": "last_over_time(node_load1{instance=\"core-benchmark-01:9100\"}[1m]) / 8"
+          },
+          {
+            "label": "minion",
+            "expr": "last_over_time(node_load1{instance=\"minion-benchmark-01:9100\"}[1m]) / 4"
+          },
+          {
+            "label": "database",
+            "expr": "last_over_time(node_load1{instance=\"db-benchmark-01:9100\"}[1m]) / 8"
+          },
+          {
+            "label": "kafka",
+            "expr": "last_over_time(node_load1{instance=\"kafka-benchmark-01:9100\"}[1m]) / 2"
+          },
+          {
+            "label": "netsim",
+            "expr": "last_over_time(node_load1{instance=\"netsim-benchmark-01:9100\"}[1m]) / 4"
+          }
+        ]
+      },
+      {
+        "id": "net-kafka",
+        "title": "Kafka segment: Minion RPC responses and Core producer",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Network Traffic"
+        },
+        "note": "The XML that both JVMs spend their CPU on is this traffic: SNMP results as formatted XML from the Minion, the same bytes into the Core, plus the Core's protobuf metrics out.",
+        "series": [
+          {
+            "label": "minion enp6s19, RPC to Kafka",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1e6"
+          },
+          {
+            "label": "core enp6s20, RPC + metrics",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[5m])) * 8 / 1e6"
+          },
+          {
+            "label": "kafka enp6s19, all",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"kafka-benchmark-01:9100\",device=\"enp6s19\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"kafka-benchmark-01:9100\",device=\"enp6s19\"}[5m])) * 8 / 1e6"
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "question": "Does 17,250 devices complete a cycle in steady state on the 32 GiB Core?",
+        "answer_ref": "#the-verdict",
+        "id": "q-the-verdict"
+      },
+      {
+        "question": "Why did two attempts to capture this rung collapse the Core?",
+        "answer_ref": "#the-observer",
+        "id": "q-the-observer"
+      },
+      {
+        "question": "What is the Core's CPU spent on, and is the heap still part of it?",
+        "answer_ref": "#where-the-cpu-goes",
+        "id": "q-where-the-cpu-goes"
+      },
+      {
+        "question": "What does one collection cost on the wire, and where does the Minion stand?",
+        "answer_ref": "#the-wire",
+        "id": "q-the-wire"
+      },
+      {
+        "question": "Can the thread pool or the JVM settings turn a 0.1% margin into a real one?",
+        "answer_ref": "#the-trials",
+        "id": "q-the-trials"
+      },
+      {
+        "question": "Is anything else in the lab near a limit?",
+        "answer_ref": "#everything-else",
+        "id": "q-everything-else"
+      },
+      {
+        "question": "Which levers are left, and which of them are configuration?",
+        "answer_ref": "#what-next",
+        "id": "q-what-next"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Is the baseline window a settled state or a fresh restart's first cycles?",
+        "why": "OpenNMS was restarted at 00:52 to clear the backlog attempt 2 left, and the window opened 18 minutes later, after two full cycles. Every service was scheduled in one wave at start, and the queue figure shows that wave still shaping the cycle. A Core that has run for hours at this size spreads the wave; the 23:44 measurement on such a Core, taken 16 minutes after a 500-node import, saw a queue peak of 4,777 instead of 611.",
+        "validity": "internal"
+      },
+      {
+        "question": "Does the Minion's own capture change what the Minion figures say?",
+        "why": "The Minion carried JFR, jcmd snapshots, perf and three pcap rings during the window. Its CPU reads 55% of four vCPU with them and about 44% without, from the polls before arming. The Core's figures are unaffected: nothing ran on the Core JVM.",
+        "validity": "internal"
+      },
+      {
+        "question": "Is one trial window per setting enough?",
+        "why": "Each tuning trial is one 15-minute window after one restart, judged by the same rule as the knee search. Restarts re-synchronise the scheduling wave, so two trials differ in phase as well as in setting. The direction of each effect is clear; the size of the effect is a single sample.",
+        "validity": "conclusion"
+      },
+      {
+        "question": "Does the profile from the collapsed capture describe the steady state?",
+        "why": "The Core's execution profile comes from attempt 1, recorded while the observer had pushed the Core to 99% CPU. The share of samples per code path is the same kind of work at 85% and at 99%, but the thread-state snapshot from that attempt (65 Collectd threads in database reads) is a starved state; the hand-taken dump at 01:21 in the sealed window shows 15.",
+        "validity": "construct"
+      },
+      {
+        "question": "Does a uniform 50 to 100 ms per response stand for a real fleet?",
+        "why": "netem delays every SNMP response by a uniform 50 to 100 ms on the simulator. Real agents answer fast for some tables and slowly for others, and the slow ones time out. The wire measurement (61 requests, 4.74 s per collection) is exact for this shape of latency and only indicative for another.",
+        "validity": "external"
+      },
+      {
+        "question": "Do the completion counter and the effective interval agree?",
+        "why": "The pass rule reads the executor's completed-task counter against the service count over an integer number of cycles. It does not measure each service's own interval. A queue that drains once per cycle bounds the worst delay at the peak wait, about ten seconds here, but the per-service interval was not read from the time series database.",
+        "validity": "construct"
+      }
+    ]
+  }
+}

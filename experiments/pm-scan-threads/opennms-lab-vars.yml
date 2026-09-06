@@ -1,0 +1,81 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Values to sweep, ordered low to high so a run stopped early still yields a
+# usable curve. 10 is first because it is the stock setting and the one every
+# measurement so far was taken under: without it the sweep has nothing to
+# improve on.
+#
+# 100 IS THE RUNG MOST LIKELY TO MISBEHAVE, WHICH IS WHY IT IS LAST.
+#
+# Collectd already holds 100 threads on this deployment. pm-collectd-threads
+# recorded that at 200 Collectd threads Core starved its own rpc-response
+# consumer and Pollerd marked Minion-RPC down. Scan threads block on the same
+# consumer, so 100 scan threads alongside 100 collection threads reaches that
+# neighbourhood from the other side. If the 100 rung regresses rather than
+# saturates, that is the finding, and the three rungs below it are already
+# recorded.
+pm_scan_values: [10, 25, 50, 100]
+
+# The foreign source to rescan. This is the population, and it is the control
+# that makes two rungs comparable: every rung must scan the same nodes.
+# nl6-pm-72m is the one pm-snmp-72m and pm-snmp-target both grew, and the fleet
+# this sweep is written for is the 3,801 devices that campaign measured.
+pm_scan_foreign_source: nl6-pm-72m
+
+# Refuse to run past this. The quiescence gate waits until no node has finished
+# a scan recently, which only ever passes while the daily rescan arrives as a
+# burst. With a one-day scan-interval and N nodes spread across it, a 60 s
+# window expects N/1440 completions, so the burst smears into a trickle as N
+# grows: 3,801 leaves the gate workable, and at 7,000 it was observed never to
+# pass at all. 5,000 is the conservative line between the two, chosen to keep
+# the sweep inside the fleet it was written for rather than as a measured
+# threshold. Past it the gate has to be replaced by a background-rate
+# covariate, which is a different experiment and not a larger value here.
+pm_scan_max_nodes: 5000
+
+pm_scan_config: /opt/opennms/etc/provisiond-configuration.xml
+
+pm_scan_user: admin
+pm_scan_password: admin
+
+# Two full collection intervals plus margin after the restart, matching
+# pm-collectd-threads. The scan must be timed against steady-state collection,
+# because steady-state collection is the only condition under which it ever
+# runs: the two share one Kafka RPC path through one Minion, and a scan
+# measured during the post-restart ramp gets a quieter Minion than it will ever
+# really have.
+pm_scan_settle_seconds: 900
+
+# A node counts as "still scanning nearby" if its scan finished inside this
+# window. Long enough that a slow trickle at the tail of a previous rescan does
+# not read as quiet; short enough that the wait is not most of the rung.
+pm_scan_quiet_seconds: 60
+
+# How long to wait for the system to go quiet before giving up. A foreign source
+# whose scan-interval has come due mid-sweep will never go quiet, and that is
+# worth failing on rather than measuring through: the rung would otherwise time
+# a rescan that was already half done.
+pm_scan_quiet_timeout: 1800
+
+# Deadline for one rescan. The 1,650-node batch in pm-snmp-target completed in
+# minutes at stock threads, so an hour is generous by an order of magnitude for
+# a fleet of this size at any rung. It exists so a rung that has genuinely
+# stalled is recorded as unfinished and the sweep moves on, not so that a slow
+# rung is cut short.
+#
+# Raise it if the 10 rung reports "NO - hit the deadline" while its curve file
+# still shows the count climbing: that is a slow scan, not a stalled one.
+pm_scan_timeout_seconds: 3600
+
+# Poll cadence for the completion curve. At 10 s a rescan that takes three
+# minutes still yields ~18 points, which is enough to see whether the rate is
+# flat or decays, and the query is an indexed count that costs the database
+# nothing next to the scan it is watching.
+pm_scan_poll_seconds: 10
+
+# BUDGET: four rungs, each a restart plus a 900 s settle plus the rescan.
+# Expect roughly 1.5 hours if every rung finishes quickly, and up to 5 if every
+# rung runs to its deadline. Do not start this against a lab someone else is
+# measuring on: the restart per rung interrupts collection fleet-wide.

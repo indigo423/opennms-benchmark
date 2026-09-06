@@ -1,0 +1,11 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# collectd-configuration.xml is read at daemon start. A reload of the OpenNMS
+# service does not re-read the thread count, so the pool would stay at its old
+# size while the file claims otherwise.
+- name: Restart opennms
+  ansible.builtin.service:
+    name: opennms
+    state: restarted

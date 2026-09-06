@@ -5,16 +5,47 @@ description: >-
   benchmarking with metrics leaving Core only via the Kafka Producer, plus
   Pollerd/Trapd/Syslogd fault-management load. No local time-series store —
   the measurement point is the Kafka metrics topic, not the OpenNMS UI.
-  Subnet wiring matches baseline; Elasticsearch is omitted. kvm/aws only.
+  Subnet wiring matches baseline; Elasticsearch is omitted. Renders on
+  kvm, aws and proxmox — it declares no `lab` subnet, which is the only
+  part of the spec vocabulary proxmox refuses.
 roles:
   database:
+    # xlarge, not baseline's small. Metrics never reach PostgreSQL under
+    # exclusive forwarding, which makes "the database is idle here" an easy and
+    # wrong assumption: the FM half of this deployment writes every syslog
+    # message and trap as an event row. Measured 2026-08-27 at 2,150 devices,
+    # the 2-vCPU db was the most saturated component in the lab at 4.87 load
+    # per core against Core's 2.24, doing event inserts and alarm reduction --
+    # not metric persistence. Sized against the event rate, not the metric rate.
+    #
+    # Raised 4 -> 8 vCPU on 2026-08-28: at 4 the database ran a mean load of
+    # 8.77 (2.19 per core) with per-cycle spikes to 47.2. Memory stays at 16 GiB
+    # -- the constraint is CPU. postgres_tuning derives max_worker_processes and
+    # the parallel-worker settings from the host's vCPU count, so they follow
+    # this automatically rather than needing a matching edit.
     count: 1
-    size: small
+    size: xxlarge
     subnets: [mgmt, db]
     groups: [database]
   core:
+    # xxlarge (8 vCPU, 16 GiB): CPU only, memory held at xlarge's 16 GiB.
+    # Sizing the database, then the Minion, then Collectd's thread pool each
+    # relocated the constraint rather than removing it, and every time it landed
+    # here. At 200 Collectd threads on 4 vCPU, Core reached 15,666 samples/s but
+    # spiked to load 124 and starved its own Minion-RPC consumer for 11 minutes
+    # -- throughput bought with stability. Memory was NOT raised with it: heap
+    # was pinned at 8192 and 5.7 GB of the 16 GB was still free at that load.
+    #
+    # xxlarge-mem since 2026-09-05: the agent-latency campaign raised the heap
+    # to 10240 and then found the Core at 14,250 devices spending 22% of wall
+    # time in old-generation GC, throughput falling, the heap pinned at 8 to 10
+    # GiB. 32 GiB carries a 20 GiB heap (JAVA_HEAP_SIZE in the overlay).
     count: 1
-    size: xlarge
+    size: xxlarge-mem
+    # 200, not the 100 in disk-sizes.tfvars: a timed run accumulates RRD/JRB,
+    # logs and instrumentation.log for its whole duration, and running Core out
+    # of disk mid-run ends the measurement without ending the run.
+    disk_gb: 200
     subnets: [mgmt, db, kafka]
     groups: [core]
   kafka:
@@ -24,11 +55,26 @@ roles:
     # Kafka rather than OpenNMS. Revert to small only with headroom evidence.
     count: 1
     size: medium
+    # 250, not the 50 in disk-sizes.tfvars. Kafka is the only persistence
+    # target here, so the broker's disk is sized by run duration rather than by
+    # a nominal per-role pin. Measured in #231: ~380 bytes/sample, so 20k
+    # samples/s is ~27 GB/hour and the 50 GB pin holds under two hours. When it
+    # fills, the broker stops SILENTLY: kafka-metrics-report exits 1 for an
+    # unreachable broker exactly as it does for a warning, so a rung tolerates
+    # a dead broker as merely degraded and the run yields a plausible-looking
+    # partial result. That is #231, which cost a smoke run to diagnose.
+    disk_gb: 250
     subnets: [mgmt, kafka]
     groups: [message_broker, docker_engine, kafka_ui]
   minion:
+    # large, not baseline's small. The Minion executes the SNMP walks that
+    # Collectd's threads block on, so it is the RPC executor for the whole PM
+    # workload, and it carries the syslog and trap ingress at the same time.
+    # Measured 2026-08-27 at 2,150 devices: 2 vCPU at load 1.47, RPC-request
+    # consumer lag 26-33 per partition, and trap reception going intermittent
+    # while the broker reported zero discards -- saturation here, not loss.
     count: 1
-    size: small
+    size: large
     subnets: [mgmt, kafka, sim]
     routes: { sim: net_sim }
     groups: [minion]

@@ -1,0 +1,497 @@
+{
+  "experiment": {
+    "question": "Where is the limit of this deployment in a cleanroom, with no realistic response time or network latency from the simulated devices?",
+    "independent_variable": "workload.parameters.devices",
+    "variant": "cleanroom-bracket-14000-pass-15000-fail",
+    "plan": "Measure two fleet sizes with no injected latency and bracket the cleanroom limit between them. The fleet stood at 14,000 devices after an edge search under 8-12 ms/PDU left it there; that search found a limit under latency, not a cleanroom limit. Measure 14,000 over a window that is an integer multiple of the collection interval, grow to 15,000, let the provisioning scans finish, and measure again. Each window is judged on the campaign's pass criterion: the pending queue must return to zero and the median completion ratio must be at least 0.99."
+  },
+  "sut": {
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    },
+    "jvm": {
+      "version": "21.0.12+8-1-24.04-Ubuntu (OpenJDK)",
+      "heap": "-Xms8192m -Xmx10240m",
+      "gc": "G1GC",
+      "flags": "Read from the running process, not from the deployment record. /opt/opennms/etc/java.conf selects /usr/lib/jvm/java-21-openjdk-amd64/bin/java and the running OpenNMS process is that binary. JAVA_HEAP_SIZE=\"10240\" in opennms.conf sets -Xmx only; -Xms stays at 8192m, so the heap is allowed to expand by 2 GiB at runtime and the used figures below cross that initial size. ADDITIONAL_MANAGER_OPTIONS carries -XX:+UseG1GC and the Prometheus JMX exporter javaagent on port 9299. -XX:+HeapDumpOnOutOfMemoryError is set. UseG1GC resolves true under -XX:+PrintFlagsFinal."
+    },
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "tss_backend": "kafka-exclusive",
+    "config_delta": "collectd-configuration.xml: threads 50 -> 100. Kafka exclusive forwarding (forward.metrics=true, metricTopic=metrics, EmptyResourceStorageDao, no local time-series store). Thresholding disabled on every service. Database connection pool 50 -> 250. JAVA_HEAP_SIZE 8192 -> 10240. Provisiond left entirely at stock: the scan pool reports corePoolSize 10 and maxPoolSize Integer.MAX_VALUE, so with an unbounded queue it runs at 10 threads. NOT IN GIT: the heap change, the netsim resize to 4 vCPU / 8 GiB, and the nl6 bump to v0.28.0 are live-only; deployments/kfk-exclusive/topology.yml still describes the smaller generator. Provisioned by Ansible (indigo423.opennms collection), deployment kfk-exclusive on Proxmox.",
+    "provisioner": "ssh-package"
+  },
+  "host": {
+    "cpu": "2 x Intel Xeon E5-2650 v4 @ 2.20 GHz, 24 physical cores / 48 threads, 28 vCPU allocated across 6 VMs",
+    "ram_gb": 251,
+    "disk": "ZFS pool, SATA SSD, thick provisioned",
+    "os": "Ubuntu 24.04.4 LTS cloud image, kernel 6.8.0-138-generic, on Proxmox VE 9.2.2",
+    "generator_colocated": true,
+    "hygiene_notes": "Dell PowerEdge R630, q35, cpu type = host, NUMA enabled. core 8 vCPU / 16 GiB, database 8 / 16, minion 4 / 8, netsim 4 / 8, kafka 2 / 8, mon 2 / 4. The netsim VM was resized from 2 vCPU / 4 GiB during the latency campaign: at 10,000 devices it ran 71% CPU and 98% memory and was about to OOM."
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 simulated agents, 14,000 Cisco CRS-X core routers, 144 interfaces each, SNMP v2c community public, addressed in 10.42.0.0/16. Grown incrementally by the pm-snmp-latency edge search rather than provisioned in one pass.",
+    "generator_version": "ghcr.io/labmonkeys-space/nl6:v0.28.0",
+    "parameters": {
+      "devices": "14,000 for the first window; 15,000 for the second",
+      "interval_s": 300,
+      "window_s": 1800,
+      "interfaces_per_device": 144,
+      "collectable_services": "14,004 then 15,004",
+      "injected_latency": "none (fq_codel restored on netsim enp6s19 at 14:00:16Z)",
+      "nodes_in_inventory": 14002,
+      "ip_interfaces": 14002,
+      "monitored_services_total": 42006,
+      "snmp_interfaces": "2,015,712 at 14,000 (two nodes unscanned, later remediated); 2,160,000 at 15,000, reconciled exactly",
+      "fleet_nodes_never_scanned": "2 during the window; both rescanned by hand at 15:20:51Z and 15:22:09Z, after it closed",
+      "fleet_grown_at": "2026-09-02T15:52:32Z to 15:53:13Z; provisioning scans completed 16:35:09Z at 0.409 nodes/s",
+      "re_measured": "14,004 re-measured 21:05-21:20Z on a JVM restarted at 20:02:30Z, to separate growth residue from steady cost"
+    }
+  },
+  "run": {
+    "id": "pm-snmp-14k-1",
+    "started_at": "2026-09-02T14:25:00Z",
+    "ended_at": "2026-09-02T14:55:00Z",
+    "trial": 1
+  },
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "host.generator_colocated",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters"
+  ],
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-02T14:25:00Z",
+      "end": "2026-09-02T14:55:00Z"
+    },
+    "resolution": "15s",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "14000-devices",
+        "kfk-exclusive",
+        "cleanroom",
+        "15s-resolution"
+      ]
+    },
+    "figures": [
+      {
+        "id": "bracket-queue",
+        "title": "Collectd pending queue across both fleet sizes",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "window": {
+          "start": "2026-09-02T14:20:00Z",
+          "end": "2026-09-02T17:50:00Z"
+        },
+        "resolution": "15s",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd task queue"
+        },
+        "note": "The whole finding in one figure. At 14,000 the floor returns to zero every cycle. The fleet grew to 15,000 at 15:52 and provisioning scans ran until 16:35, which inflates the middle of this window. After that the floor never returns to zero again and climbs steadily. Plotted every 15 s with a 5-minute rolling range.",
+        "series": [
+          {
+            "label": "rolling 5-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 5-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "bracket-cpu",
+        "title": "Core CPU across both fleet sizes",
+        "unit": "% of 8 vCPU",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-02T14:20:00Z",
+          "end": "2026-09-02T17:50:00Z"
+        },
+        "resolution": "15s",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic"
+        },
+        "note": "One extra vCPU of work appears between the two fleet sizes, more than linear scaling accounts for. The peak between 15:52 and 16:35 is the 1,000-node provisioning scan, not steady state.",
+        "series": [
+          {
+            "label": "core (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          }
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Collectd pending queue, per-minute peak and floor",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd task queue"
+        },
+        "note": "Plotted every 15 s, which is the Prometheus scrape interval, over a 1-minute rolling range. The floor is the test: a queue whose floor returns to zero has completed its cycle; one whose floor rises is accumulating backlog. A 15-second range would make peak and floor the same series.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "latency-removal",
+        "title": "Queue floor across the removal of injected latency",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "window": {
+          "start": "2026-09-02T13:20:00Z",
+          "end": "2026-09-02T14:55:00Z"
+        },
+        "resolution": "15s",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd task queue"
+        },
+        "note": "Wider window than the rest of the report, to show the same fleet on both sides of the change. Plotted every 15 s, the scrape interval, with a 5-minute rolling range so one cycle's burst and drain stays legible across 95 minutes. The netem qdisc was removed at 14:00:16Z; nothing else changed.",
+        "series": [
+          {
+            "label": "rolling 5-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 5-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "threads",
+        "title": "Collectd thread pool occupancy against its 100-thread ceiling",
+        "unit": "threads",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd threads"
+        },
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 1
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          }
+        ],
+        "note": "Plotted every 15 s over a 1-minute rolling range, so a pool that saturates between scrapes is still visible."
+      },
+      {
+        "id": "completion",
+        "title": "Collectd task completion ratio",
+        "unit": "ratio",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Task completion ratio"
+        },
+        "note": "A sawtooth that resets toward zero at each cycle boundary. Judge it on the median, never the minimum.",
+        "series": [
+          {
+            "label": "completion ratio",
+            "expr": "opennms_collectd_taskcompletionratio{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 4
+          }
+        ]
+      },
+      {
+        "id": "throughput",
+        "title": "Collections completed per second against the rate the fleet requires",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "Required is the collectable service count divided by the 300 s interval, read from the same daemon rather than typed in.",
+        "series": [
+          {
+            "label": "achieved",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 2
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"} / 300",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "cpu",
+        "title": "CPU busy per virtual machine",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic"
+        },
+        "series": [
+          {
+            "label": "core (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "netsim (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"netsim-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "minion (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "db (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"db-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          }
+        ]
+      },
+      {
+        "id": "heap",
+        "title": "Core JVM heap against its ceiling",
+        "unit": "GiB",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: Java Virtual Machine",
+          "panel": "Heap"
+        },
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"} / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"} / 1024 / 1024 / 1024",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "gc",
+        "title": "Garbage collection cost and old-generation collection rate",
+        "unit": "s/s and per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: Java Virtual Machine",
+          "panel": "GC"
+        },
+        "note": "Old-generation collections are the pressure signal. Heap percentage is not: G1 fills whatever ceiling it is given.",
+        "series": [
+          {
+            "label": "young GC, seconds per second",
+            "expr": "rate(java_lang_g1_young_generation_collectiontime{instance=\"core-benchmark-01:9299\"}[5m]) / 1000",
+            "decimals": 4
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "failing-state",
+        "title": "Thread pool and old-generation GC at 15,004 services",
+        "unit": "threads and collections/min",
+        "kind": "peak-line",
+        "window": {
+          "start": "2026-09-02T17:20:00Z",
+          "end": "2026-09-02T17:50:00Z"
+        },
+        "resolution": "15s",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd threads"
+        },
+        "note": "The measured failing state, 45 minutes after the provisioning scans ended, so none of it is scan load.",
+        "series": [
+          {
+            "label": "Collectd threads, rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 1
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "rescan-cost",
+        "title": "Collectd queue as provisiond begins a rolling rescan",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "window": {
+          "start": "2026-09-02T21:00:00Z",
+          "end": "2026-09-02T21:36:00Z"
+        },
+        "resolution": "15s",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd task queue"
+        },
+        "note": "Same fleet, same 14,004 services, no change but provisiond. Rescans start at 21:21, when the scheduled pool goes from 0 to its 10-thread ceiling. Before that the floor returns to zero in 80% of samples; after it, in 32%, with a median of 450. Core CPU moves from 81.0% to 94.6% across the same boundary.",
+        "series": [
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "id": "q-limit",
+        "question": "What is the cleanroom limit of this deployment?",
+        "answer_ref": "#the-limit"
+      },
+      {
+        "id": "q-floor",
+        "question": "On what evidence does 14,004 collectable services complete a cycle?",
+        "answer_ref": "#the-floor"
+      },
+      {
+        "id": "q-fails",
+        "question": "What does the far side of the limit look like?",
+        "answer_ref": "#past-the-limit"
+      },
+      {
+        "id": "q-binds",
+        "question": "Which resource binds first as the fleet grows, and roughly where?",
+        "answer_ref": "#what-binds-first"
+      },
+      {
+        "id": "q-rescan",
+        "question": "What do provisiond's rolling rescans cost, and how often are they running?",
+        "answer_ref": "#rescan-cost"
+      },
+      {
+        "id": "q-cleanroom",
+        "question": "What is the cleanroom assumption worth: how much of this capacity survives realistic answer times?",
+        "answer_ref": "#what-cleanroom-buys"
+      },
+      {
+        "id": "q-inventory",
+        "question": "What is actually being collected: how do the device, node and collectable service counts relate?",
+        "answer_ref": "#what-is-counted"
+      },
+      {
+        "id": "q-rate",
+        "question": "What metric rate does the deployment sustain at this fleet size?",
+        "answer_ref": "#metric-rate"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Where between 14,004 and 15,004 services is the limit?",
+        "why": "Bracketed, not located. 14,004 passes and 15,004 fails, so the limit lies between them, but no rung was measured inside that 1,000-service gap. Narrowing it means rebuilding the fleet at an intermediate size, and at the measured scan rate of 0.409 nodes/s a rebuild of roughly 14,500 nodes costs about ten hours of scanning before any measurement can start.",
+        "validity": "conclusion"
+      },
+      {
+        "question": "Is the capacity curve across the earlier cleanroom rungs clean enough to extrapolate from?",
+        "why": "Probably not. CPU per device reads 0.4432, 0.5036 and 0.5038 millicores at 10,055, 12,055 and 13,555 services, then falls to 0.4791 at 14,004, which is not physically sensible. The earlier rungs were measured shortly after each growth step, when rolling rescans were still running, so they likely carry provisioning load this window does not. The trend direction is usable; the slope is not.",
+        "validity": "internal"
+      },
+      {
+        "question": "Was the 15,004 failure a pure fleet-size result?",
+        "why": "Not entirely. Provisiond was running rolling rescans in 15% of the samples in that window, so the failing rung carries some scan load that the passing rung at 14,004 does not. The failure is far more severe than rescan load alone produces: at 14,004 with rescans running in 95% of samples the queue floor still reached zero in a third of samples, where at 15,004 it never fell below 8,475 and grew monotonically. The direction is not in doubt; the exact position of the limit is affected.",
+        "validity": "internal"
+      },
+      {
+        "question": "How much of the memory pressure at 14,000 was residue from growing the fleet?",
+        "why": "Largely none, tested rather than assumed. OpenNMS was restarted at 20:02:30Z and 14,004 services re-measured on a fresh JVM over a rescan-free window. Old-generation collections read 1.47 per minute against 1.89 on the grown JVM, and heap was 9.16 GiB against 9.09, so the pressure is substantially the steady cost of this fleet size rather than accumulated state. The residual 22% difference in GC rate is the part that was residue.",
+        "validity": "internal"
+      },
+      {
+        "question": "What do the two unscanned fleet nodes actually contribute?",
+        "why": "Two of the 14,000 fleet nodes carry an SNMP service but hold no SNMP interfaces and have a null lastcapsdpoll, so provisiond never completed a scan on them. Collectd still schedules them, so they consume a collection slot and return at most node-level data. Their exact sample contribution was not isolated; it is bounded above by two nodes in 14,000 and is immaterial to the rate. Both were rescanned after the window closed and now hold 144 interfaces each, so the condition is resolved on the running system but is preserved here because it was present while these figures were measured.",
+        "validity": "construct"
+      },
+      {
+        "question": "Does the measured rate reflect what a real estate would see?",
+        "why": "The simulated agents answer from an in-memory table in microseconds, never time out, never drop a packet and never rate-limit. The campaign that produced this fleet measured what that assumption is worth: at 8-12 ms per PDU, this same fleet stopped completing its cycle. Real agents answer in 1-10 ms per the research.",
+        "validity": "external"
+      },
+      {
+        "question": "Does the metric rate describe data a user can query?",
+        "why": "Rate is counted from Kafka topic offsets, which measures samples accepted by the broker under exclusive forwarding. It does not establish that a downstream consumer persisted them or that they are queryable.",
+        "validity": "construct"
+      },
+      {
+        "question": "How repeatable is this figure?",
+        "why": "One window, one trial, no repetition and therefore no dispersion statistic. The 3,801-device campaign reproduced to within 0.03% across four runs, but that is a statement about that fleet size and that configuration, not this one.",
+        "validity": "conclusion"
+      },
+      {
+        "question": "Can this configuration be rebuilt from the repository?",
+        "why": "No. The heap raise to 10240, the netsim resize to 4 vCPU / 8 GiB and the nl6 bump to v0.28.0 exist only on the running lab. deployments/kfk-exclusive/topology.yml still describes the smaller generator, so a rebuild from git will fall short of these numbers without an obvious reason why.",
+        "validity": "external"
+      }
+    ]
+  }
+}

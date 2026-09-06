@@ -120,12 +120,18 @@ variable "instance_types" {
     medium = "m6i.xlarge"
     large  = "m6i.xlarge"
     xlarge = "m6i.2xlarge"
+    # 8 and 16 vCPU, mapped by vCPU like every class above: m6i.2xlarge is
+    # 8 vCPU / 32 GiB and m6i.4xlarge 16 vCPU / 64 GiB. EC2 sells vCPU and
+    # memory together, so both carry more memory than the kvm/proxmox classes
+    # of the same name; the contract those classes assert is the vCPU count.
+    xxlarge  = "m6i.2xlarge"
+    xxxlarge = "m6i.4xlarge"
     # 8 vCPU / 32 GiB: the one class whose memory EC2's fixed vCPU:RAM ratio
-    # matches exactly. Same type as xlarge, which that ratio oversizes, so the
-    # two are indistinguishable here and the class asserts nothing aws honours.
-    # The 8 vCPU / 32 GiB contract is real only on kvm and proxmox. Kept so the
-    # Deployment Topologies job can render a spec using this class through the
-    # aws root.
+    # matches exactly. Same type as xlarge and xxlarge, which that ratio
+    # oversizes, so the three are indistinguishable here and the class asserts
+    # nothing aws honours. The 8 vCPU / 32 GiB contract is real only on kvm and
+    # proxmox. Kept so the Deployment Topologies job can render a spec using
+    # this class through the aws root.
     xxlarge-mem = "m6i.2xlarge"
   }
 }
@@ -146,8 +152,10 @@ variable "instance_types_smoke" {
     medium = "t3a.medium"
     large  = "t3a.medium"
     xlarge = "t3a.large"
-    # Smoke proves the stack starts; it does not measure. Collapses onto the
-    # same type as xlarge, as it does in the measured profile above.
+    # Smoke proves the stack starts; it does not measure. Both CPU-heavy tiers
+    # and the memory tier collapse onto the same burstable type on purpose.
+    xxlarge     = "t3a.large"
+    xxxlarge    = "t3a.large"
     xxlarge-mem = "t3a.large"
   }
 }

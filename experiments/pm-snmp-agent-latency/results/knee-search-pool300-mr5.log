@@ -1,0 +1,39 @@
+[19:21:11Z] rung at threads=300, fleet held at 12,250
+[19:21:14Z]   collectd-configuration.xml threads=300, restarting
+[19:22:49Z]   up in 69s, pid 855346, NMT flag present, MALLOC_ARENA_MAX present
+[19:22:49Z]   waiting for one cycle, a drained queue, then settle
+[19:32:49Z]   handing over to knee_search for the window
+[19:32:49Z] knee search: netem delay 75ms 25ms, Collectd pool 300, start 12,250, step 500, cap 12,250
+[19:32:51Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[19:32:52Z]   fleet now 12,250
+[19:32:53Z]     reconciled: 12,250 nodes, 1,764,000 interfaces, 0 unscanned
+[19:37:53Z] === RUNG 12,250 devices, pool 300 ===
+[19:52:54Z]     services=12254 PASS=True drains=True zero=0.295 q_max=788.0 ratio=0.9897 L=236.8/300.0 cpu=72.1% done=1.0017
+[19:52:54Z] cap 12,250 reached without failure
+[19:52:54Z] === search complete ===
+[20:35:25Z] --- how far: 300 threads, max-repetitions 5, from 12,750 by 500 to 15,500. Expected knee 14,000-14,500 on CPU (72% at 12,250, +6.5/1,000) and heap (first old-gen GCs at 12,250); the cleanroom bracket was 14,004-15,004. ---
+[20:35:25Z] knee search: netem delay 75ms 25ms, Collectd pool 300, start 12,750, step 500 then 500 above 15,500, cap 15,500
+[20:35:28Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[20:35:28Z]   fleet now 12,250
+[20:35:28Z]   growing 12,250 -> 12,750 before the first rung
+[20:36:05Z]     provision rc=0 at 20:36:05
+[20:46:47Z]     reconciled: 12,750 nodes, 1,836,000 interfaces, 0 unscanned
+[20:51:47Z] === RUNG 12,750 devices, pool 300 ===
+[21:06:47Z]     services=12754 PASS=True drains=True zero=0.262 q_max=1062.0 ratio=0.9977 L=244.1/300.0 cpu=76.8% done=1.014
+[21:06:47Z]   12,750 passes. growing to 13,250
+[21:07:14Z]     provision rc=0 at 21:07:14
+[21:17:55Z]     reconciled: 13,250 nodes, 1,908,000 interfaces, 0 unscanned
+[21:30:25Z] === RUNG 13,250 devices, pool 300 ===
+[21:45:25Z]     services=13254 PASS=True drains=True zero=0.148 q_max=1623.0 ratio=0.997 L=261.9/300.0 cpu=83.1% done=0.9965
+[21:45:25Z]   13,250 passes. growing to 13,750
+[21:45:57Z]     provision rc=0 at 21:45:57
+[23:54:04Z]     RECONCILE TIMEOUT: 13750|1|1979856
+[00:14:50Z] === RUNG 13,750 devices, pool 300 ===
+[00:29:50Z]     services=13754 PASS=True drains=True zero=0.131 q_max=1963.0 ratio=0.9986 L=288.1/300.0 cpu=85.9% done=1.0047
+[00:29:50Z]   13,750 passes. growing to 14,250
+[00:30:28Z]     provision rc=0 at 00:30:28
+[02:38:51Z]     RECONCILE TIMEOUT: 14250|1|2051856
+[02:43:51Z] === RUNG 14,250 devices, pool 300 ===
+[02:58:51Z]     services=14254 PASS=False drains=False zero=0.0 q_max=13954.0 ratio=0.9884 L=300.0/300.0 cpu=90.4% done=0.9578
+[02:58:51Z] !!! KNEE: 14,250 devices does not complete a cycle under netem delay 75ms 25ms with pool 300
+[02:58:51Z] === search complete ===

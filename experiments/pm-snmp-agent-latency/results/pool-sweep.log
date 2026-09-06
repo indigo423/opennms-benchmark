@@ -1,0 +1,56 @@
+[13:10:58Z] pool sweep: start 100, doubling to cap 1600, fleet held at 3,000
+[13:10:59Z]   limits: {"core": {"tasksmax": 19144, "nofile": 524288, "memtotal_mb": 15991, "threads_max": 127627}, "minion": {"nofile": 524288, "tasksmax": 9483, "ports": 28231}}
+[13:11:00Z]   netem: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[13:11:02Z]   jvm prep: -XX:NativeMemoryTracking=summary,MALLOC_ARENA_MAX=4
+[13:11:02Z] === RUNG threads=100 ===
+[13:15:40Z] --- previous attempt aborted at set_threads (sed corrupted line 1; restored; driver fixed). Restarting sweep. ---
+[13:15:40Z] pool sweep: start 100, doubling to cap 1600, fleet held at 3,000
+[13:15:42Z]   limits: {"core": {"tasksmax": 19144, "nofile": 524288, "memtotal_mb": 15991, "threads_max": 127627}, "minion": {"nofile": 524288, "tasksmax": 9483, "ports": 28231}}
+[13:15:44Z]   netem: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[13:15:46Z]   jvm prep: already in place
+[13:15:46Z] === RUNG threads=100 ===
+[13:24:38Z]   NOTE: MALLOC_ARENA_MAX was not reaching the JVM from opennms.conf (no export in that file does). Moved to a systemd drop-in during rung 100; applies from rung 200. Rung 100 ran with NMT on and arenas uncapped.
+[13:27:55Z] --- attempt 2 aborted: boot probe hit 192.0.2.200 from the workstation, which has no route there; OpenNMS was up in 66 s. Probe moved onto Core. Attempt 3. ---
+[13:27:55Z] pool sweep: start 100, doubling to cap 1600, fleet held at 3,000
+[13:27:57Z]   limits: {"core": {"tasksmax": 19144, "nofile": 524288, "memtotal_mb": 15991, "threads_max": 127627}, "minion": {"nofile": 524288, "tasksmax": 9483, "ports": 28231}}
+[13:27:59Z]   netem: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[13:28:00Z]   jvm prep: already in place
+[13:28:00Z] === RUNG threads=100 ===
+[13:29:45Z]   up in 52s, pid 691607, NMT flag present, MALLOC_ARENA_MAX MISSING
+[14:05:10Z]     tput=8.79/s (87.8% of required, gain None) PASS=False L=100.0/100.0 cpu=15.8% rss=9266MB nmt_thread=NoneMB gc=0.0/min invol_csw=2037.4/s minion_fds=933 udp_drops=0
+[14:05:10Z] !!! ceiling at threads=100: cycle did not complete
+[14:05:10Z] === sweep complete ===
+[15:16:08Z] --- attempt 3 stopped at rung 100 by wrong stop logic (a failing START rung is expected at a fleet held past the knee). Also: env check false-negative (sudo redirect), NMT parser format. All three fixed. Rung 100 retained as valid. Attempt 4 resumes at 200. ---
+[15:16:08Z] pool sweep: start 200, doubling to cap 1600, fleet held at 3,000
+[15:16:10Z]   limits: {"core": {"tasksmax": 19144, "nofile": 524288, "memtotal_mb": 15991, "threads_max": 127627}, "minion": {"nofile": 524288, "tasksmax": 9483, "ports": 28231}}
+[15:16:12Z]   netem: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[15:16:13Z]   jvm prep: already in place
+[15:16:13Z] === RUNG threads=200 ===
+[15:17:42Z]   up in 61s, pid 705370, NMT flag present, MALLOC_ARENA_MAX present
+[15:43:08Z]     tput=9.87/s (98.6% of required, gain None) PASS=False L=120.4/200.0 cpu=17.3% rss=9539MB nmt_thread=127MB gc=0.0/min invol_csw=33.8/s minion_fds=1025 udp_drops=0
+[15:43:08Z] === RUNG threads=400 ===
+[15:44:52Z]   up in 53s, pid 712652, NMT flag present, MALLOC_ARENA_MAX present
+[16:10:20Z]     tput=9.79/s (97.8% of required, gain -0.008) PASS=True L=120.2/400.0 cpu=17.8% rss=9491MB nmt_thread=152MB gc=0.0/min invol_csw=1449.4/s minion_fds=1157 udp_drops=0
+[16:10:20Z]     STOP: throughput gain -0.8% below 20% per doubling
+[16:10:20Z]   first completing pool: threads=400
+[16:10:20Z] !!! ceiling at threads=400: throughput gain -0.8% below 20% per doubling
+[16:10:20Z] === largest completing pool 400; plan recommends 80% of the largest pool before a stop signal, see the jsonl ===
+[16:10:20Z] === sweep complete ===
+[19:32:54Z] --- refinement: where does the burst peak detach from the pool ceiling? 250/300/350, +50, stop when peak < 95% of pool. ---
+[19:32:55Z] pool sweep: start 250, +50 per rung to cap 350, fleet held at 3,000, stop when burst peak < 95% of pool
+[19:32:58Z]   limits: {"core": {"tasksmax": 19144, "nofile": 524288, "memtotal_mb": 15991, "threads_max": 127627}, "minion": {"nofile": 524288, "tasksmax": 9483, "ports": 28231}}
+[19:33:00Z]   netem: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[19:33:01Z]   jvm prep: already in place
+[19:33:01Z] === RUNG threads=250 ===
+[19:35:04Z]   up in 71s, pid 745917, NMT flag present, MALLOC_ARENA_MAX present
+[20:00:30Z]     tput=9.90/s (98.8% of required, gain None) PASS=False L=126.6/250.0 (peak 100%) cpu=18.3% rss=9560MB nmt_thread=132MB gc=0.0/min invol_csw=182.2/s minion_fds=1063 udp_drops=0
+[20:00:30Z] === RUNG threads=300 ===
+[20:02:08Z]   up in 70s, pid 753444, NMT flag present, MALLOC_ARENA_MAX present
+[20:27:33Z]     tput=9.84/s (98.3% of required, gain -0.005) PASS=True L=119.6/300.0 (peak 100%) cpu=18.4% rss=9336MB nmt_thread=132MB gc=0.0/min invol_csw=951.8/s minion_fds=1131 udp_drops=0
+[20:27:33Z]   first completing pool: threads=300
+[20:27:33Z] === RUNG threads=350 ===
+[20:28:57Z]   up in 57s, pid 761225, NMT flag present, MALLOC_ARENA_MAX present
+[20:54:22Z]     tput=9.79/s (97.8% of required, gain -0.006) PASS=True L=124.5/350.0 (peak 100%) cpu=18.0% rss=9362MB nmt_thread=142MB gc=0.0/min invol_csw=2213.0/s minion_fds=1128 udp_drops=0
+[20:54:22Z] cap 350 reached without a stop
+[20:54:22Z] === largest completing pool 350; plan recommends 80% of the largest pool before a stop signal, see the jsonl ===
+[20:54:22Z] === sweep complete ===

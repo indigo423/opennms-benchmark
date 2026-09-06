@@ -112,12 +112,27 @@ fi
 # Deployment selection: the `deployment` Terraform variable is declared only on
 # spec-driven providers (kvm, aws and proxmox). The matching Ansible config overlay
 # (deployments/<slug>/opennms-lab-vars.yml) is layered onto the OpenNMS play.
+#
+# One predicate, not three copies of the same provider list. #268 added proxmox
+# to two of the three sites and missed the third, so `--deployment` applied the
+# spec and the vars overlay but silently kept the SHARED playbook: a kfk-exclusive
+# deploy came up as a stock stack with kfk-exclusive's Kafka tuning, reported
+# success, and had no metric forwarding at all. A deployment is spec-driven or it
+# is not; that fact belongs in one place.
+deployment_aware() {
+  [[ -n "$DEPLOYMENT" ]] || return 1
+  case "$PROVIDER" in
+    kvm | aws | proxmox) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 DEPLOYMENT_VARS=()
-if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" || "$PROVIDER" == "proxmox" ) ]]; then
+if deployment_aware; then
   DEPLOYMENT_VARS=(-var "deployment=$DEPLOYMENT")
 fi
 DEPLOYMENT_VARS_FILE=""
-if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" || "$PROVIDER" == "proxmox" ) && -f "$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml" ]]; then
+if deployment_aware && [[ -f "$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml" ]]; then
   DEPLOYMENT_VARS_FILE="--extra-vars=@$REPO_ROOT/deployments/$DEPLOYMENT/opennms-lab-vars.yml"
 fi
 
@@ -432,13 +447,12 @@ ansible-playbook \
 # first. Every OpenNMS deployment ships no playbook.yml and gets
 # the shared one, which keeps its play order — the stack's dependency graph —
 # in exactly one place.
-# Gated on kvm for the same reason as the vars overlay above: only kvm is
-# spec-driven (kvm and aws), so on other providers --deployment does not shape
-# the infra and
-# a per-deployment playbook would target hosts that were never provisioned.
+# Gated by deployment_aware() for the same reason as the vars overlay above: on a
+# provider that does not consume the spec, --deployment does not shape the infra,
+# so a per-deployment playbook would target hosts that were never provisioned.
 DEPLOYMENT_PLAYBOOK="$REPO_ROOT/opennms-playbook.yml"
 STACK_LABEL="OpenNMS Horizon"
-if [[ -n "$DEPLOYMENT" && ( "$PROVIDER" == "kvm" || "$PROVIDER" == "aws" ) && -f "$REPO_ROOT/deployments/$DEPLOYMENT/playbook.yml" ]]; then
+if deployment_aware && [[ -f "$REPO_ROOT/deployments/$DEPLOYMENT/playbook.yml" ]]; then
   DEPLOYMENT_PLAYBOOK="$REPO_ROOT/deployments/$DEPLOYMENT/playbook.yml"
   STACK_LABEL="$DEPLOYMENT stack"
 fi

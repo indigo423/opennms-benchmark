@@ -1,0 +1,48 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# The independent variable of the #225 performance-management campaign.
+#
+# Collectd's thread count bounds how many collections can be in flight, and a
+# cycle that cannot place every collectable service within its interval simply
+# does not complete. The arithmetic is blunt: with N services on an I-second
+# interval and T threads, each collection must finish within T x I / N seconds.
+# At 2,154 services, a 300 s interval and the stock 50 threads that is under
+# 7 s per node, which a 144-interface CRS-X walk does not meet -- measured
+# 2026-08-27 as a 78.3% completion ratio with 2,104 services pending.
+#
+# Threads block on SNMP round-trips executed by the Minion, not on Core's CPU,
+# so a value well above Core's vCPU count is the point rather than a mistake.
+#
+# 100 is a SAFE setting, not a measured optimum. No optimum has been found,
+# because at the fleet sizes tested nothing was saturated enough to have one.
+#
+# experiments/pm-collectd-threads swept 25/50/100/200 on an 8 vCPU Core against
+# a 2,150-device CRS-X fleet and appeared to show a peak at 100 (16,997/s
+# against ~11,332/s elsewhere). That reading was an artefact. Each rung restarts
+# OpenNMS, and the 100-thread window captured 11,218,216 samples against a
+# steady-state 7,479,300 -- a ratio of exactly 1.5, i.e. one and a half
+# intervals of data, because the window drained backlog accumulated during the
+# restart. The experiment's coverage guard rejects windows that are too SHORT;
+# it cannot see a window carrying extra data whose timestamps are recent.
+#
+# Steady state is deterministic and does not depend on this value. Four runs
+# spanning 25/100/200 threads, 4 and 8 database vCPU, pool 100 and 250, and
+# work_mem 5 MB and 10 MB all landed within 0.03%:
+#
+#   7,479,298   7,477,576   7,479,300   7,479,300
+#
+# With 100 threads and 2,150 devices, sampling the JVM three times 20 s apart
+# found 0 of 100 Collectd threads RUNNABLE. The pool is idle between cycles:
+# collection completes comfortably, and throughput is bounded by what the fleet
+# emits (1,580 samples/device/cycle), not by how many threads collect it.
+#
+# So: 100 gives ample headroom without the contention seen at 200, where Core
+# starved its own rpc-response consumer and Pollerd marked Minion-RPC down.
+# Revisit only once a fleet is large enough to keep this pool busy -- and if a
+# sweep is re-run then, fix the backlog-drain flaw first or it will invent a
+# peak again.
+opennms_collectd_tuning_threads: 100
+
+opennms_collectd_tuning_config: /opt/opennms/etc/collectd-configuration.xml

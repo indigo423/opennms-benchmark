@@ -1,0 +1,25 @@
+745917:
+
+Native Memory Tracking:
+
+(Omitting categories weighting less than 1MB)
+
+Total: reserved=12942MB, committed=9376MB
+
+-                 Java Heap (reserved=10240MB, committed=8400MB)
+-                     Class (reserved=422MB, committed=40MB)
+-                    Thread (reserved=1291MB, committed=132MB)
+-                      Code (reserved=246MB, committed=109MB)
+-                        GC (reserved=338MB, committed=303MB)
+-                 GCCardSet (reserved=3MB, committed=3MB)
+-                  Compiler (reserved=5MB, committed=5MB)
+-                  Internal (reserved=5MB, committed=5MB)
+-                     Other (reserved=28MB, committed=28MB)
+-                    Symbol (reserved=72MB, committed=72MB)
+-    Native Memory Tracking (reserved=16MB, committed=16MB)
+-        Shared class space (reserved=16MB, committed=13MB, readonly=0MB)
+-               Arena Chunk (reserved=0MB, committed=0MB)
+-                    Module (reserved=1MB, committed=1MB)
+-           Synchronization (reserved=1MB, committed=1MB)
+-                 Metaspace (reserved=258MB, committed=250MB)
+-           Object Monitors (reserved=0MB, committed=0MB)

@@ -51,6 +51,32 @@ MAX_DENSE_BUCKETS = 20_000
 # Above this, the sidecar records only the count, not the ids.
 MAX_NODE_IDS = 1_000
 
+# Exit codes.
+#
+# A warning is a finding ABOUT the data: the read completed and something in it
+# is not clean. A transport failure means there is no data at all — the broker
+# is unreachable, or the topic is absent. Collapsing the second into the first
+# is how a dead broker gets tolerated as a merely degraded run: every rung
+# guards with `failed_when: rc > 1` (experiments/*/rung.yml), which already
+# expresses the right intent, but this script never emitted anything above 1.
+# In #231 a broker filled its disk and stopped mid-run, and the rungs carried
+# on as though the run had produced warnings.
+#
+# Keep transport failures strictly above EXIT_WARNINGS, or the rung guards stop
+# discriminating again.
+EXIT_OK = 0
+EXIT_WARNINGS = 1
+EXIT_TRANSPORT = 2
+
+
+class TransportError(RuntimeError):
+    """The topic could not be read at all, as distinct from read imperfectly.
+
+    Raised where a failure means the report has no basis, so that main() can
+    exit with EXIT_TRANSPORT rather than letting it surface as a traceback
+    (also exit 1) or as a plain SystemExit string (also exit 1).
+    """
+
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(
@@ -117,29 +143,42 @@ def bounded_slice(consumer, topic, start_offsets=None, replay_bounds=None):
     reads the same records. Otherwise end offsets are the high watermark
     captured once, up front: anything produced after this point belongs to the
     next report, not this one.
+
+    Returns (bounds, lost). `lost` counts records the caller asked for that the
+    broker had already deleted, because a start offset below the low watermark
+    is silently unsatisfiable: Kafka can only serve from the oldest surviving
+    record. Clamping without saying so answers a different question than the one
+    asked and reports the result as if it were the answer -- measured 2026-09-02,
+    a 1,811 s window came back as 596 s of data with a clean bill of health,
+    because retention.bytes held only about eleven minutes at that fleet size.
     """
     from confluent_kafka import TopicPartition
 
     meta = consumer.list_topics(topic, timeout=10)
     if topic not in meta.topics or meta.topics[topic].error:
-        raise SystemExit(f"topic {topic!r} not found on the broker")
+        raise TransportError(f"topic {topic!r} not found on the broker")
     partitions = sorted(meta.topics[topic].partitions)
     if not partitions:
-        raise SystemExit(f"topic {topic!r} has no partitions")
+        raise TransportError(f"topic {topic!r} has no partitions")
 
-    assignment, bounds = [], {}
+    assignment, bounds, lost = [], {}, Counter()
     for part in partitions:
         low, high = consumer.get_watermark_offsets(TopicPartition(topic, part), timeout=10, cached=False)
         if replay_bounds and str(part) in replay_bounds:
             prev = replay_bounds[str(part)]
-            start, end = max(int(prev["start"]), low), int(prev["end"])
+            requested, end = int(prev["start"]), int(prev["end"])
         else:
-            start = int(start_offsets.get(str(part), low)) if start_offsets else low
-            start, end = max(start, low), high
+            requested = int(start_offsets.get(str(part), low)) if start_offsets else low
+            end = high
+        start = max(requested, low)
+        # Only a caller-supplied start can be aged out. Without one the request
+        # IS the low watermark, so there is nothing to have lost.
+        if (start_offsets or replay_bounds) and requested < low:
+            lost["retention_truncated"] += low - requested
         assignment.append(TopicPartition(topic, part, start))
         bounds[part] = {"start": start, "end": end}
     consumer.assign(assignment)
-    return bounds
+    return bounds, lost
 
 
 def consume(consumer, topic, bounds, timeout):
@@ -151,7 +190,7 @@ def consume(consumer, topic, bounds, timeout):
     the offsets the report prints.
     """
     import collectionset_pb2
-    from confluent_kafka import TIMESTAMP_NOT_AVAILABLE, KafkaException, TopicPartition
+    from confluent_kafka import TIMESTAMP_NOT_AVAILABLE, TopicPartition
 
     remaining = {p for p, b in bounds.items() if b["end"] > b["start"]}
     samples, records, resources_total = [], 0, 0
@@ -166,7 +205,10 @@ def consume(consumer, topic, bounds, timeout):
             errors["poll_timeout"] += 1
             break
         if msg.error():
-            raise KafkaException(msg.error())
+            # Mid-read broker loss. The bound was captured, so the slice is
+            # incomplete by an unknown amount — that is no data, not partial
+            # data, and must not reach the caller as a warning.
+            raise TransportError(f"kafka error while reading {topic!r}: {msg.error()}")
 
         part = msg.partition()
         # Produced after the bound was captured, or on a partition already
@@ -558,6 +600,10 @@ TEMPLATE = """<!DOCTYPE html>
 
 WARNING_TEXT = {
     "poll_timeout": "the read stopped before every partition reached its end offset",
+    "retention_truncated": (
+        "records had already been deleted by topic retention before the read began, so the window "
+        "starts later than requested and the rate describes a shorter period than asked for"
+    ),
     "undecodable": "records could not be parsed as a CollectionSet",
     "no_record_timestamp": "records carried no broker timestamp and were excluded",
     "no_collection_timestamp": "records carried no collection timestamp and were excluded",
@@ -611,7 +657,7 @@ def render_html(report, svg, geom):
 
 
 def main(argv=None):
-    from confluent_kafka import Consumer
+    from confluent_kafka import Consumer, KafkaException
 
     args = parse_args(argv)
     start_offsets = json.loads(args.start_offsets.read_text()) if args.start_offsets else None
@@ -625,8 +671,16 @@ def main(argv=None):
         }
     )
     try:
-        bounds = bounded_slice(consumer, args.topic, start_offsets, replay_bounds)
+        bounds, lost = bounded_slice(consumer, args.topic, start_offsets, replay_bounds)
         samples, records, resources, nodes, errors = consume(consumer, args.topic, bounds, args.timeout)
+        # Merged after the read so a truncated slice is reported alongside
+        # whatever else went wrong, rather than instead of it.
+        errors.update(lost)
+    except (TransportError, KafkaException) as exc:
+        # KafkaException as well as our own: an unreachable broker fails inside
+        # list_topics(), raised by the client library rather than by us.
+        print(f"ERROR     no report: {exc}", file=sys.stderr)
+        return EXIT_TRANSPORT
     finally:
         consumer.close()
 
@@ -644,8 +698,8 @@ def main(argv=None):
     print(f"report    {args.html}")
     if report["warnings"]:
         print(f"WARNING   read is not clean: {report['warnings']}", file=sys.stderr)
-        return 1
-    return 0
+        return EXIT_WARNINGS
+    return EXIT_OK
 
 
 if __name__ == "__main__":

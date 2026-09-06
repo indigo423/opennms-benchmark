@@ -1,0 +1,18 @@
+[10:48:10Z] knee search: netem delay 75ms 25ms, start 2,000, step 500, cap 6,000
+[10:48:11Z]     reconciled: 2,000 nodes, 288,000 interfaces, 0 unscanned
+[10:48:11Z] applying 'netem delay 75ms 25ms' on netsim enp6s19
+[10:48:12Z]   qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[10:53:12Z] === RUNG 2,000 devices ===
+[11:08:12Z]     services=2004 PASS=True drains=True zero=0.672 q_max=16.0 ratio=1.0 L=76.4/100.0 cpu=13.0% done=1.0169
+[11:08:12Z]   2,000 passes. growing to 2,500
+[11:08:18Z]     provision rc=0 at 11:08:18
+[11:19:57Z]     reconciled: 2,500 nodes, 360,000 interfaces, 0 unscanned
+[11:24:57Z] === RUNG 2,500 devices ===
+[11:39:57Z]     services=2504 PASS=True drains=True zero=0.049 q_max=471.0 ratio=0.9998 L=95.1/100.0 cpu=16.6% done=0.9966
+[11:39:57Z]   2,500 passes. growing to 3,000
+[11:40:03Z]     provision rc=0 at 11:40:03
+[11:51:45Z]     reconciled: 3,000 nodes, 432,000 interfaces, 0 unscanned
+[11:56:45Z] === RUNG 3,000 devices ===
+[12:11:45Z]     services=3004 PASS=False drains=False zero=0.0 q_max=2820.0 ratio=0.9991 L=100.0/100.0 cpu=15.9% done=0.8762
+[12:11:45Z] !!! KNEE: 3,000 devices does not complete a cycle under netem delay 75ms 25ms
+[12:11:45Z] === search complete ===

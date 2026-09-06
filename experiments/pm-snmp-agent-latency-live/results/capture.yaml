@@ -1,0 +1,58 @@
+experiment:
+  question: "What are Core and the Minion actually doing over five collection cycles at the 200-thread knee, 5,250 devices with 50-100 ms per SNMP PDU?"
+  independent_variable: workload.parameters.devices
+  variant: 5250-devices-agent-latency-live-5-cycles
+  plan: "Arm every live collector on Core and the Minion, run for five 300 s collection cycles, then finalize. Fleet held at 5,250 devices, the failing rung of the pool-200 knee search (5,000 passed). netem delay 75ms 25ms on netsim enp6s19, so 50-100 ms uniform per PDU. Collectd threads=200, all busy for the whole window. The pool completes ~62,960 services/h against 63,048 required, so the pending queue floor grows ~85/h; at arming it had been growing for 8 h since the knee search ended (floor 13 -> 592). GC logging was enabled at runtime with jcmd VM.log because neither JVM is started with -Xlog, so the GC logs are pulled separately from /var/tmp/gclog."
+workload:
+  axis: snmp-collection
+  generator_scenario: "nl6 cisco_crs_x.json, 5,250 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-20, netem delay 75ms 25ms on the simulator"
+remote_dir: /var/tmp/benchmark-capture
+prometheus:
+  url: http://192.168.10.40:9090/prometheus
+  allow: []
+  step: 15s
+hosts:
+  core-benchmark-01:
+    ssh: core-benchmark-01
+    sudo: true
+    os:
+      procfs_interval: 5s
+      sar: true
+      perf: {freq: 99}
+    pcap:
+      interfaces: [enp6s18, enp6s19, enp6s20]
+      # 12 GB per interface. The busiest (enp6s20, Kafka) runs at ~8 MB/s
+      # rx+tx at this fleet, so 1560 s needs ~12.5 GB; the ring holds the
+      # window without wrapping for the others and nearly so for Kafka.
+      # 185 GB free.
+      ring: {file_mb: 512, files: 24}
+      # Catch-all, NOT the default monitoring-port filter. An empty string here
+      # would be falsy and silently fall back to DEFAULT_BPF.
+      bpf: "greater 0"
+    jvms:
+      opennms:
+        match: "_OPENNMS_LAUNCH"
+        jfr: {settings: profile, max_size: 2g}
+        snapshots: 60s
+        heap_dump: false
+  minion-benchmark-01:
+    ssh: minion-benchmark-01
+    sudo: true
+    os:
+      procfs_interval: 5s
+      sar: true
+      perf: {freq: 99}
+    pcap:
+      interfaces: [enp6s18, enp6s19, enp6s20]
+      # 3 GB per interface, 9 GB total against 14 GB free. enp6s19 (Kafka
+      # out) runs at ~6 MB/s so 3 GB holds ~8 min and WRAPS: the ring keeps
+      # the END of the window. enp6s20 (SNMP to the simulator) runs at
+      # ~1-2 MB/s and holds the whole window.
+      ring: {file_mb: 256, files: 12}
+      bpf: "greater 0"
+    jvms:
+      minion:
+        match: "org.apache.karaf.main.Main"
+        jfr: {settings: profile, max_size: 2g}
+        snapshots: 60s
+        heap_dump: false

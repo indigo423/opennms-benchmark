@@ -17,5 +17,9 @@ pm_foreign_source: nl6-pm
 pm_resource_file: cisco_crs_x.json
 pm_collection_interval: 300
 pm_settle_seconds: 300
-pm_window_seconds: 330
+
+# Integer multiple of the collection interval; see the note in
+# experiments/pm-snmp-target/opennms-lab-vars.yml. Collection arrives in bursts,
+# so a non-integer window lets its phase decide the result.
+pm_window_seconds: 600
 pm_bucket_seconds: 30

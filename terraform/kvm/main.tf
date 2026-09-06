@@ -26,11 +26,24 @@ locals {
     medium = { memory = 8192, vcpu = 2 }
     large  = { memory = 8192, vcpu = 4 }
     xlarge = { memory = 16384, vcpu = 4 }
-    # 8 vCPU at double xlarge's memory. Memory rises with vCPU here on purpose:
-    # this class is for a store that sizes its caches by RAM (VictoriaMetrics
-    # keeps the active-series index in memory), not for a JVM whose heap is
-    # pinned. Appended, never reordered: an existing deployment's class must
-    # keep meaning what it did.
+    # CPU-heavy tiers at xlarge's memory. Memory deliberately does NOT rise with
+    # them: OpenNMS pins JAVA_HEAP_SIZE at 8192, so heap is independent of vCPU
+    # and extra cores add only thread stacks and GC threads. Measured on Core at
+    # 2,150 devices with 200 Collectd threads: 10.3 GB used of 16 GB, 5.7 GB
+    # still available. Raise memory when GC pressure says to, not pre-emptively.
+    #
+    # Same shape as the existing medium/large pair, which are both 8192 MiB and
+    # differ only in vCPU. Appended, never reordered: an existing deployment's
+    # class must keep meaning what it did.
+    xxlarge  = { memory = 16384, vcpu = 8 }
+    xxxlarge = { memory = 16384, vcpu = 16 }
+    # The GC-pressure case the note above defers to. Measured on Core on
+    # 2026-09-05 at 14,250 devices (300 Collectd threads, max-repetitions 5):
+    # heap pinned at 8 to 10 GiB of a 10 GiB ceiling, 36 old-generation
+    # collections per 15 min, 22% of wall time in GC, throughput falling.
+    # Same vCPU as xxlarge, twice the memory, for a 20 GiB heap. Also the
+    # class for a store that sizes its caches by RAM: the standalone
+    # VictoriaMetrics target keeps its active-series index in memory.
     xxlarge-mem = { memory = 32768, vcpu = 8 }
   }
 

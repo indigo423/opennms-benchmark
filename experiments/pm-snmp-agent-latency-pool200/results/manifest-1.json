@@ -1,0 +1,377 @@
+{
+  "experiment": {
+    "question": "With Collectd at 200 threads and 50 to 100 ms of per-PDU latency, where does the collection cycle stop completing, and does the pool still bind before the processor?",
+    "independent_variable": "workload.parameters.devices",
+    "variant": "agent-latency-50-100ms-knee-search-pool200",
+    "plan": "Hold the latency injection from the 100-thread search (netem delay 75ms 25ms on the simulator's SNMP interface) and the 200-thread pool the sweep chose, grow the fleet from 4,000 in steps of 500 to 5,000 and then 250, one 900 s window per rung, and stop at the first rung that fails. The fleet was then left at the failing rung overnight for 7.75 h with nothing else running, which turned a one-window verdict into a measured deficit. Search upward only: nl6 has no selective delete."
+  },
+  "sut": {
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    },
+    "jvm": {
+      "version": "21.0.12+8-1-24.04-Ubuntu (OpenJDK)",
+      "heap": "-Xms8192m -Xmx10240m",
+      "gc": "G1GC",
+      "flags": "JAVA_HEAP_SIZE=10240, JAVA_INITIAL_HEAP_SIZE=8192, -XX:+UseG1GC, -XX:NativeMemoryTracking=summary, MALLOC_ARENA_MAX=4 (systemd drop-in), Prometheus JMX exporter on 9299."
+    },
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "tss_backend": "kafka-exclusive",
+    "config_delta": "Two changes against the 100-thread search, both from the pool sweep that preceded it. Everything else is identical.\n\nOpenNMS Core\n  collectd-configuration.xml: threads 100 -> 200\n  opennms.conf: -XX:NativeMemoryTracking=summary added for the sweep's snapshots\n  /etc/systemd/system/opennms.service.d/malloc-arena.conf: MALLOC_ARENA_MAX=4\n\nsimulator, netsim-benchmark-01, unchanged\n  tc qdisc netem delay 75ms 25ms on enp6s19, uniform 50 to 100 ms per packet, responses only\n\nOpenNMS Core, otherwise unchanged from the cleanroom run\n  thresholding-enabled false on every service\n  opennms.conf: JAVA_HEAP_SIZE 10240, JAVA_INITIAL_HEAP_SIZE 8192, -XX:+UseG1GC\n  opennms.conf: OPENNMS_DATABASE_CONNECTION_MAXPOOL and MAXSIZE 250, MINPOOL 25\n  opennms.conf: 13 daemons disabled (Pollerd, Bsmd, Ticketer, Correlator, Queued,\n                Actiond, Notifd, Scriptd, Rtcd, SnmpPoller, EnhancedLinkd, Statsd,\n                Ackd, PerspectivePoller); Syslogd enabled\n  org.opennms.features.kafka.producer.cfg: forward.metrics true, metricTopic metrics\n  org.opennms.core.ipc.strategy kafka; org.opennms.timeseries.strategy osgi, no store\n  provisiond, snmp-config and datacollection: no file on disk, compiled-in defaults\n\nPostgreSQL, unchanged\n  conf.d/10-benchmark-tuning.conf, pgtune web profile for 16 GiB / 8 vCPU\n  max_connections 400, shared_buffers 3997MB, effective_cache_size 11993MB",
+    "provisioner": "ssh-package"
+  },
+  "host": {
+    "cpu": "2 x Intel Xeon E5-2650 v4 @ 2.20 GHz, 24 physical cores / 48 threads; 28 vCPU running across 6 VMs",
+    "ram_gb": 252,
+    "disk": "ZFS pool scummbar, 808 GiB, SATA SSD",
+    "os": "Proxmox VE 9.2.2, guests Ubuntu 24.04.4 LTS",
+    "generator_colocated": true,
+    "hygiene_notes": "Dell PowerEdge R630, node lechuck. Core 8 vCPU / 16 GiB, Minion 4 / 8, netsim 4 / 8. Unchanged from the cleanroom run."
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 v0.28.0, cisco_crs_x.json, 144 interfaces per device, SNMP v2c, 10.42.0.0/16 one /24 per 250 devices; uniform 50-100 ms per-packet delay injected on the simulator bridge to stand in for a real agent's response time",
+    "generator_version": "ghcr.io/labmonkeys-space/nl6:v0.28.0",
+    "parameters": {
+      "devices": "4,000 then 4,500 then 5,000 then 5,250",
+      "injected_latency_ms": "uniform 50-100 (netem delay 75ms 25ms)",
+      "interval_s": 300,
+      "window_s": 900,
+      "interfaces_per_device": 144,
+      "samples_per_device_per_cycle": 1738,
+      "collectd_threads": 200
+    }
+  },
+  "run": {
+    "id": "pm-snmp-agent-latency-pool200-1",
+    "started_at": "2026-09-03T21:39:00Z",
+    "ended_at": "2026-09-04T07:15:00Z",
+    "trial": 1
+  },
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters"
+  ],
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-03T21:39:00Z",
+      "end": "2026-09-03T23:29:00Z"
+    },
+    "resolution": "15s",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "agent-latency",
+        "50-100ms",
+        "knee-search",
+        "pool-200",
+        "kfk-exclusive"
+      ]
+    },
+    "figures": [
+      {
+        "id": "threads",
+        "title": "Collectd thread pool occupancy across the four fleet sizes",
+        "unit": "threads",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd threads"
+        },
+        "note": "JMX gauge from Collectd itself. Each rung is a 900 s window separated by a provisioning step. The pool ceiling is 200 now; it is reached in bursts from 4,000 and held in every sample at 5,250.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 1
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Collectd pending queue, rolling one-minute peak and floor",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd task queue"
+        },
+        "note": "The floor is the pass test. A floor that returns to zero every cycle is a fleet that completes; a floor that stays up is backlog. At 5,250 it never touches zero.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "completion",
+        "title": "Collectd task completion ratio and collectable services",
+        "unit": "ratio and services / 1000",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Task completion ratio"
+        },
+        "note": "The ratio is a sawtooth that resets at every cycle boundary and its median depends on where the window sits in the cycle, which is why it is no longer part of the pass criterion. Services are divided by 1,000 to share the axis, so 5.0 is 5,004.",
+        "series": [
+          {
+            "label": "completion ratio",
+            "expr": "opennms_collectd_taskcompletionratio{instance=\"core-benchmark-01:9299\"}",
+            "decimals": 4
+          },
+          {
+            "label": "collectable services / 1000",
+            "expr": "opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"} / 1000",
+            "decimals": 3
+          }
+        ]
+      },
+      {
+        "id": "throughput",
+        "title": "Collections completed per second against the rate each fleet requires",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "series": [
+          {
+            "label": "achieved, 5-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 2
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"} / 300",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "metric-rate",
+        "title": "Samples per second delivered against the rate the fleet requires",
+        "unit": "samples/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "The completion counter multiplied by the 1,738 samples every fleet collection carries, decoded from the topic. Required is the collectable service count over the 300 s interval, times the same 1,738. A window integral is the honest rate; the rolling rate is shown for shape.",
+        "series": [
+          {
+            "label": "achieved, 5-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m]) * 1738",
+            "decimals": 0
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"} / 300 * 1738",
+            "decimals": 0
+          }
+        ]
+      },
+      {
+        "id": "cpu",
+        "title": "Core CPU against the thread pool: the control",
+        "unit": "% and threads",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic"
+        },
+        "note": "Node Exporter for CPU, JMX for the pool, on one axis. Threads block on the SNMP round trip, so the pool fills while the processor stays idle. This is what thread-bound looks like.",
+        "series": [
+          {
+            "label": "Core CPU busy, % of 8 vCPU",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "Collectd threads, rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])",
+            "decimals": 1
+          }
+        ]
+      },
+      {
+        "id": "jvm",
+        "title": "Core JVM heap and old-generation collections",
+        "unit": "GiB and per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: Java Virtual Machine",
+          "panel": "Heap"
+        },
+        "note": "Shown so the reader can see it was checked: no old-generation collection occurred in any rung, and the heap cycled between 3 and 9.5 GiB under a 10 GiB ceiling.",
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"} / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"} / 1024 / 1024 / 1024",
+            "decimals": 2
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "minion",
+        "title": "Minion CPU and the SNMP bridge under injected latency",
+        "unit": "% and Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Basic / Network"
+        },
+        "note": "The Minion executes the walks that the Core's threads wait on. Under latency it, too, is waiting rather than working.",
+        "series": [
+          {
+            "label": "Minion CPU busy, % of 4 vCPU",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100",
+            "decimals": 1
+          },
+          {
+            "label": "SNMP on the sim bridge, Mbit/s",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[5m])) * 8 / 1e6",
+            "decimals": 2
+          }
+        ]
+      },
+      {
+        "id": "overnight",
+        "title": "The queue floor over 7.75 hours held at 5,250 devices",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "window": {
+          "start": "2026-09-03T23:30:00Z",
+          "end": "2026-09-04T07:15:00Z"
+        },
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd task queue"
+        },
+        "note": "The fleet was left at the failing rung with nothing else running. The rolling 5-minute floor is the backlog that survives every cycle; it climbs at a steady 80 tasks an hour, which is the pool's measured shortfall.",
+        "series": [
+          {
+            "label": "rolling 5-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 0
+          },
+          {
+            "label": "rolling 5-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[5m])",
+            "decimals": 0
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "id": "q-knee",
+        "question": "With 200 threads, where does Collectd stop completing its cycle at 50 to 100 ms per PDU?",
+        "answer_ref": "#the-knee"
+      },
+      {
+        "id": "q-slow",
+        "question": "What does the failure at 5,250 look like over hours rather than one window?",
+        "answer_ref": "#the-slow-fail"
+      },
+      {
+        "id": "q-rate",
+        "question": "How many metrics does this fleet produce, and at which rung?",
+        "answer_ref": "#metric-rate"
+      },
+      {
+        "id": "q-mechanism",
+        "question": "What runs out at 200 threads, and what does not?",
+        "answer_ref": "#what-runs-out"
+      },
+      {
+        "id": "q-double",
+        "question": "What did doubling the pool buy against the 100-thread search?",
+        "answer_ref": "#against-100"
+      },
+      {
+        "id": "q-setup",
+        "question": "How was each rung measured, and what changed in the pass criterion?",
+        "answer_ref": "#how-it-was-done"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Was the 4,000 rung measured the same way as the others?",
+        "why": "It ran under the earlier criterion, failed on the completion-ratio median (0.9854), and was re-judged a pass on the counter integral (99.2%) after the criterion was replaced. Its window is otherwise identical. The three later rungs ran under the final criterion from the start.",
+        "validity": "internal"
+      },
+      {
+        "question": "Is uniform latency the right shape?",
+        "why": "netem's default is uniform between the bounds. Real agent response time is heavy-tailed. Under Little's law the same mean should give the same pool occupancy, but that was not tested here.",
+        "validity": "external"
+      },
+      {
+        "question": "Does the overnight hold generalise?",
+        "why": "It is one fleet at one size with no provisioning, no traps and no rescans in flight. It measures the pool's shortfall cleanly and nothing else; a production Core would have other work competing for the same threads.",
+        "validity": "external"
+      },
+      {
+        "question": "Do the simulated agents behave like real ones under latency?",
+        "why": "netem delays every packet equally. A real agent that must query line cards delays the first PDU of a table walk more than the rest. The per-PDU cost is right; its distribution across a walk is not.",
+        "validity": "construct"
+      },
+      {
+        "question": "Is 250 the right resolution for the knee?",
+        "why": "The last pass and the first fail are 250 devices apart. The overnight deficit locates capacity at 5,247 services per cycle, but that is one window's arithmetic on the failing side, not a measured pass at 5,200.",
+        "validity": "conclusion"
+      },
+      {
+        "question": "When does a growing backlog become missed collections?",
+        "why": "Over 7.75 h the floor rose 615 tasks while every task that ran completed. At some depth the scheduler starts skipping cycles rather than delaying them; that depth, and the hours it takes to reach, were not measured.",
+        "validity": "conclusion"
+      }
+    ]
+  }
+}

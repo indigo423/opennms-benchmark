@@ -1,0 +1,54 @@
+[11:57:04Z] --- max-repetitions 5 for 10.42.0.0/16 via Config Manager (rest/cm/snmp-config/default); wire: N=0 M=5, responses max 1,143 B, 0 tooBig, 1 fragment/30 s. OpenNMS restarted 11:50Z (file-based snmp-config.xml is ignored on this release; CM is authoritative). Search: 5,250 -> 10,000 by 1,000, then 500 to 15,000. ---
+[11:57:04Z] knee search: netem delay 75ms 25ms, Collectd pool 200, start 5,250, step 1000 then 500 above 10,000, cap 15,000
+[11:57:06Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[11:57:06Z]   fleet now 5,250
+[11:57:08Z]     reconciled: 5,250 nodes, 756,000 interfaces, 0 unscanned
+[12:02:08Z] === RUNG 5,250 devices, pool 200 ===
+[12:17:08Z]     services=5254 PASS=True drains=True zero=0.77 q_max=76.0 ratio=0.9962 L=91.6/200.0 cpu=29.0% done=1.0038
+[12:17:08Z]   5,250 passes. growing to 6,250
+[12:17:29Z]     provision rc=0 at 12:17:29
+[13:34:46Z]     reconciled: 6,250 nodes, 900,000 interfaces, 0 unscanned
+[13:39:46Z] === RUNG 6,250 devices, pool 200 ===
+[13:54:46Z]     services=6254 PASS=True drains=True zero=0.59 q_max=965.0 ratio=0.9989 L=109.9/200.0 cpu=33.5% done=0.9839
+[13:54:46Z]   6,250 passes. growing to 7,250
+[13:55:09Z]     provision rc=0 at 13:55:09
+[14:08:24Z]     reconciled: 7,250 nodes, 1,044,000 interfaces, 0 unscanned
+[14:13:25Z] === RUNG 7,250 devices, pool 200 ===
+[14:28:25Z]     services=7254 PASS=True drains=True zero=0.525 q_max=940.0 ratio=0.9991 L=120.4/200.0 cpu=39.9% done=0.9881
+[14:28:25Z]   7,250 passes. growing to 8,250
+[14:28:55Z]     provision rc=0 at 14:28:55
+[14:42:45Z]     reconciled: 8,250 nodes, 1,188,000 interfaces, 0 unscanned
+[14:47:45Z] === RUNG 8,250 devices, pool 200 ===
+[15:02:46Z]     services=8254 PASS=True drains=True zero=0.508 q_max=934.0 ratio=0.9992 L=129.2/200.0 cpu=46.0% done=1.0085
+[15:02:46Z]   8,250 passes. growing to 9,250
+[15:03:16Z]     provision rc=0 at 15:03:16
+[15:17:37Z]     reconciled: 9,250 nodes, 1,332,000 interfaces, 0 unscanned
+[15:22:37Z] === RUNG 9,250 devices, pool 200 ===
+[15:37:37Z]     services=9254 PASS=True drains=True zero=0.344 q_max=959.0 ratio=0.9983 L=148.9/200.0 cpu=52.7% done=1.0049
+[15:37:37Z]   9,250 passes. growing to 10,250
+[15:38:09Z]     provision rc=0 at 15:38:09
+[15:52:31Z]     reconciled: 10,250 nodes, 1,476,000 interfaces, 0 unscanned
+[15:58:01Z] === RUNG 10,250 devices, pool 200 ===
+[16:13:01Z]     services=10254 PASS=True drains=True zero=0.262 q_max=1716.0 ratio=0.9973 L=167.8/200.0 cpu=59.2% done=1.0093
+[16:13:01Z]   10,250 passes. growing to 10,750
+[16:13:22Z]     provision rc=0 at 16:13:22
+[16:20:50Z]     reconciled: 10,750 nodes, 1,548,000 interfaces, 0 unscanned
+[16:26:20Z] === RUNG 10,750 devices, pool 200 ===
+[16:41:20Z]     services=10754 PASS=True drains=True zero=0.18 q_max=2140.0 ratio=0.9975 L=179.0/200.0 cpu=64.4% done=0.997
+[16:41:20Z]   10,750 passes. growing to 11,250
+[16:41:41Z]     provision rc=0 at 16:41:41
+[16:49:41Z]     reconciled: 11,250 nodes, 1,620,000 interfaces, 0 unscanned
+[16:55:41Z] === RUNG 11,250 devices, pool 200 ===
+[17:10:41Z]     services=11254 PASS=True drains=True zero=0.148 q_max=2146.0 ratio=0.9978 L=187.9/200.0 cpu=69.2% done=0.998
+[17:10:41Z]   11,250 passes. growing to 11,750
+[17:11:07Z]     provision rc=0 at 17:11:07
+[17:19:06Z]     reconciled: 11,750 nodes, 1,692,000 interfaces, 0 unscanned
+[17:25:06Z] === RUNG 11,750 devices, pool 200 ===
+[17:56:21Z]     services=11754 PASS=True drains=True zero=0.04 q_max=2250.0 ratio=0.998 L=195.7/200.0 cpu=73.8% done=0.9993
+[17:56:21Z]   11,750 passes. growing to 12,250
+[17:56:47Z]     provision rc=0 at 17:56:47
+[18:04:47Z]     reconciled: 12,250 nodes, 1,764,000 interfaces, 0 unscanned
+[18:12:17Z] === RUNG 12,250 devices, pool 200 ===
+[18:27:18Z]     services=12254 PASS=False drains=False zero=0.0 q_max=4327.0 ratio=0.9956 L=200.0/200.0 cpu=74.5% done=0.9759
+[18:27:18Z] !!! KNEE: 12,250 devices does not complete a cycle under netem delay 75ms 25ms with pool 200
+[18:27:18Z] === search complete ===

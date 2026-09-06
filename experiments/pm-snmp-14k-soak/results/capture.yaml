@@ -1,0 +1,19 @@
+# benchmark-capture config as used. RETROACTIVE capture: the window had already
+# passed when this ran, so capture.py start/stop was not used. Live collectors
+# (procfs poller, perf, JFR, jcmd snapshots, pcap) cannot be armed in the past
+# and are recorded as disabled in manifest.capture.units, not as failures.
+# Prometheus series were dumped with this skill's own prom.dump_all() over an
+# explicit window; sysstat, inventory and journalctl were pulled from host history.
+experiment:
+  question: "What does a 14,000-device deployment do over a 7.5 hour soak, including provisiond's rolling rescans?"
+  independent_variable: workload.parameters.devices
+  variant: 14000-devices-post-restart-soak
+  plan: "Retroactive capture of 2026-09-02T22:00:00Z to 2026-09-03T05:32:19Z, the period following the 20:02:30Z OpenNMS restart, at a fleet held constant at 14,000 devices with no injected latency."
+workload:
+  axis: snmp-collection
+  generator_scenario: "nl6 cisco_crs_x.json, 14,000 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-55"
+remote_dir: /var/tmp/benchmark-capture
+prometheus:
+  url: http://192.168.10.40:9090/prometheus
+  allow: []          # empty = every metric name in the window
+  step: 15s          # the scrape interval on all three pools

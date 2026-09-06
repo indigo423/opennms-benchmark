@@ -80,10 +80,25 @@ Bindings regenerate whenever that file changes.
 
 The floor is **CPython 3.11** (`datetime.UTC`, matching `ruff.toml`'s `target-version`); wheels are available through 3.13, which spans Debian 12 and 13.
 
+## Exit status
+
+| Code | Meaning | Caller should |
+|---|---|---|
+| 0 | clean read | continue |
+| 1 | the read completed, but something in it is not clean (see the warning table below) | continue, and record the warnings |
+| 2 | **no report** — the broker is unreachable, or the topic is absent or unreadable | fail the run |
+
+The distinction matters because 1 is a finding *about* the data while 2 means there is no data at all.
+Rungs guard with `failed_when: rc > 1`, so a transport failure fails the play and a warning does not.
+
+Before this split, every failure exited 1: warnings by `return`, a missing topic by `SystemExit(str)`, and a mid-read broker loss by an uncaught `KafkaException`.
+A broker that filled its disk and stopped mid-run was therefore tolerated as a merely degraded run (#231).
+Keep transport failures strictly above 1 or that discrimination is lost again.
+
 ## Records the report excludes
 
 A record is counted only if it lands inside the offset bound *and* carries usable timestamps.
-Anything dropped is named in a banner at the top of the report and sets a non-zero exit status, so a partial read is never mistaken for a clean one:
+Anything dropped is named in a banner at the top of the report and sets exit status 1, so a partial read is never mistaken for a clean one:
 
 | Warning | Meaning |
 |---|---|

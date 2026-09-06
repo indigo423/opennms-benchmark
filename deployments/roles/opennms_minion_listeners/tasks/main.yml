@@ -16,5 +16,58 @@
   loop:
     - org.opennms.netmgt.syslog.cfg
     - org.opennms.netmgt.trapd.cfg
+  when: opennms_minion_listeners_enabled | bool
   notify: Restart minion
+  tags: ["minion_listeners"]
+
+# Removing the files is what actually stops the listeners: absent configuration
+# is the state this role was written to correct, so it is also the state that
+# undoes it. See #206 and the comment above.
+#
+# The firewall rules and the published endpoints are deliberately left alone. A
+# disabled listener is a property of this deployment's workload, not of the
+# lab's network wiring, and reverting this variable must not require a
+# re-provision to put the ingress back.
+- name: Remove the Minion's fault-management listeners
+  ansible.builtin.file:
+    path: "{{ opennms_minion_listeners_home }}/etc/{{ item }}"
+    state: absent
+  loop:
+    - org.opennms.netmgt.syslog.cfg
+    - org.opennms.netmgt.trapd.cfg
+  when: not (opennms_minion_listeners_enabled | bool)
+  notify: Restart minion
+  tags: ["minion_listeners"]
+
+- name: Apply the listener state now
+  ansible.builtin.meta: flush_handlers
+  tags: ["minion_listeners"]
+
+# Asserts the outcome rather than the file state: a Minion that kept binding
+# after the config was removed would otherwise keep generating the very
+# workload this variable exists to remove, silently.
+- name: Check which fault-management ports the Minion is bound to
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      ss -lun 2>/dev/null
+      | grep -cE ":({{ lab_syslog_port }}|{{ lab_trap_port }})\s" || true
+    executable: /bin/bash
+  register: opennms_minion_listeners_bound
+  changed_when: false
+  retries: 12
+  delay: 5
+  until: >-
+    (opennms_minion_listeners_bound.stdout | trim | int > 0)
+    if (opennms_minion_listeners_enabled | bool)
+    else (opennms_minion_listeners_bound.stdout | trim | int == 0)
+  tags: ["minion_listeners"]
+
+- name: Report the listener state
+  ansible.builtin.debug:
+    msg: >-
+      Minion fault-management listeners
+      {{ 'ENABLED' if opennms_minion_listeners_enabled | bool else 'DISABLED' }}:
+      {{ opennms_minion_listeners_bound.stdout | trim }} of 2 ports bound
+      ({{ lab_syslog_port }} syslog, {{ lab_trap_port }} traps)
   tags: ["minion_listeners"]

@@ -1,0 +1,54 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Assert the collectd configuration exists
+  ansible.builtin.stat:
+    path: "{{ opennms_collectd_tuning_config }}"
+  register: collectd_tuning_stat
+  failed_when: not collectd_tuning_stat.stat.exists | default(false)
+  changed_when: false
+
+# Anchored on the root element rather than a bare threads=" match: the file
+# also carries per-service parameters, and an unanchored replace would rewrite
+# whichever of them happened to match first.
+- name: Set the Collectd thread count
+  ansible.builtin.replace:
+    path: "{{ opennms_collectd_tuning_config }}"
+    regexp: '(<collectd-configuration[^>]*?)threads="\d+"'
+    replace: '\1threads="{{ opennms_collectd_tuning_threads }}"'
+  notify: Restart opennms
+
+- name: Apply the change now
+  ansible.builtin.meta: flush_handlers
+
+# Proves the value on disk, so a regexp that silently matched nothing is a
+# failure rather than a clean run over an unchanged file.
+#
+# Anchored on the root element, exactly as the replace above is. An unanchored
+# grep reads whichever threads=" comes first in the file, so if the replace had
+# matched nothing it would compare a per-service parameter instead: a false
+# failure normally, and a false PASS whenever that parameter happens to hold the
+# value being asked for. The second grep narrows the matched element back to the
+# attribute, so stdout_lines[0] stays threads="N" for the assertion below.
+- name: Read back the configured thread count
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      grep -oE '<collectd-configuration[^>]*threads="[0-9]+"' {{ opennms_collectd_tuning_config }}
+      | grep -oE 'threads="[0-9]+"'
+  register: collectd_tuning_live
+  changed_when: false
+
+- name: Assert the thread count took effect
+  ansible.builtin.assert:
+    that:
+      - collectd_tuning_live.stdout_lines[0] == 'threads="' ~ opennms_collectd_tuning_threads ~ '"'
+    fail_msg: >-
+      collectd-configuration.xml still reads {{ collectd_tuning_live.stdout_lines[0] | default('nothing') }},
+      not threads="{{ opennms_collectd_tuning_threads }}". The replace matched nothing.
+    quiet: true
+
+- name: Report the configured thread count
+  ansible.builtin.debug:
+    msg: "Collectd threads: {{ collectd_tuning_live.stdout_lines[0] }}"
