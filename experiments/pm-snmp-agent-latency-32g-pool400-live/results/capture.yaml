@@ -1,0 +1,39 @@
+experiment:
+  question: "What are Core and the Minion doing over five collection cycles at 20,250 devices, the first rung the 400-thread search fails on the 32 GiB Core, and what relates the thread count, the eight vCPU and the heap to that knee?"
+  independent_variable: workload.parameters.devices
+  variant: 20250-devices-maxrep5-pool400-32g-live-5-cycles
+  plan: "Arm the collectors and run for five 300 s collection cycles, then finalize. Fleet held at 20,250 devices, the first rung the 400-thread knee search failed: the queue stands at 4,400 to 6,900 thirty minutes after the search's window, pool 400/400, Core CPU 96-99%, achieved rate about 67/s against 67.5 required. The search climbed from 17,250 in steps of 500 (all pass to 19,750 at CPU 94.5%) on a Core restarted at 10:12Z for the aligned-schedule test at 19,250, which passed. Core: procfs 5 s and sysstat only, GC log via jcmd VM.log (running since the 10:12Z restart), one jcmd Thread.print by hand mid-window; no JFR and no jcmd snapshots because both collapsed this Core at 17,250 (pm-snmp-agent-latency-32g-live results-attempt1 and results-attempt2). Minion: JFR profile, jcmd snapshots 60 s, perf 99 Hz, procfs, sysstat, pcap ring on every interface. Collectd threads=400 (was 300 for the earlier searches), G1, 20 GiB heap, max-repetitions 5, netem delay 75ms 25ms on netsim enp6s19."
+workload:
+  axis: snmp-collection
+  generator_scenario: "nl6 cisco_crs_x.json, 20,250 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-80, netem delay 75ms 25ms on the simulator, GETBULK max-repetitions 5"
+remote_dir: /var/tmp/benchmark-capture
+prometheus:
+  url: http://192.168.10.40:9090/prometheus
+  allow: []
+  step: 15s
+hosts:
+  core-benchmark-01:
+    ssh: core-benchmark-01
+    sudo: true
+    os:
+      procfs_interval: 5s
+      sar: true
+  minion-benchmark-01:
+    ssh: minion-benchmark-01
+    sudo: true
+    os:
+      procfs_interval: 5s
+      sar: true
+      perf: {freq: 99}
+    pcap:
+      interfaces: [enp6s18, enp6s19, enp6s20]
+      # 3 GB per interface, 9 GB total against 14 GB free. The Kafka side
+      # (enp6s19) wraps in ~2.5 min and keeps the END of the window.
+      ring: {file_mb: 256, files: 12}
+      bpf: "greater 0"
+    jvms:
+      minion:
+        match: "org.apache.karaf.main.Main"
+        jfr: {settings: profile, max_size: 2g}
+        snapshots: 60s
+        heap_dump: false
