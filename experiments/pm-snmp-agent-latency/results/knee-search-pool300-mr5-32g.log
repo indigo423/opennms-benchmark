@@ -1,0 +1,65 @@
+[09:25:52Z] --- Core resized to 32 GiB (xxlarge-mem), heap -Xms/-Xmx 20480m, restarted 09:15Z; 300 threads, max-repetitions 5, netem on. Search from 14,250 (the rung that failed at 16 GiB) by 500 to 17,000. ---
+[09:25:52Z] knee search: netem delay 75ms 25ms, Collectd pool 300, start 14,250, step 500 then 500 above 17,000, cap 17,000
+[09:25:54Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[09:25:54Z]   fleet now 14,250
+[09:25:56Z]     reconciled: 14,250 nodes, 2,052,000 interfaces, 0 unscanned
+[09:30:56Z] === RUNG 14,250 devices, pool 300 ===
+[09:45:56Z]     services=14254 PASS=True drains=True zero=0.475 q_max=71.0 ratio=0.9954 L=239.6/300.0 cpu=65.9% done=1.0158
+[09:45:56Z]   14,250 passes. growing to 14,750
+[09:46:27Z]     provision rc=0 at 09:46:27
+[11:54:58Z]     RECONCILE TIMEOUT: 14750|1|2123856
+[11:59:58Z] === RUNG 14,750 devices, pool 300 ===
+[12:14:58Z]     services=14754 PASS=True drains=True zero=0.377 q_max=456.0 ratio=0.9991 L=251.7/300.0 cpu=68.7% done=0.9978
+[12:14:58Z]   14,750 passes. growing to 15,250
+[12:15:33Z]     provision rc=0 at 12:15:33
+[14:24:07Z]     RECONCILE TIMEOUT: 15250|1|2195856
+[14:29:07Z] === RUNG 15,250 devices, pool 300 ===
+[14:44:07Z]     services=15254 PASS=True drains=True zero=0.115 q_max=594.0 ratio=0.9994 L=270.0/300.0 cpu=76.2% done=0.9982
+[14:44:07Z]   15,250 passes. growing to 15,750
+[14:44:40Z]     provision rc=0 at 14:44:40
+[16:53:12Z]     RECONCILE TIMEOUT: 15750|1|2267856
+[16:58:12Z] === RUNG 15,750 devices, pool 300 ===
+[17:20:43Z]     services=15754 PASS=True drains=True zero=0.154 q_max=527.0 ratio=0.9996 L=279.5/300.0 cpu=76.4% done=1.0094
+[17:20:43Z]   15,750 passes. growing to 16,250
+[17:21:17Z]     provision rc=0 at 17:21:17
+[21:37:17Z] --- driver restarted after session disconnect (died between 17:21Z and 19:21Z while waiting on the 16,250 reconcile). Node 31505 (10.42.57.77) lost its initial scan; deleted via REST and re-imported with rescanExisting=false, reconciled 16,250/0/2,340,000 at 21:35Z. Resuming from 16,250. ---
+[21:37:43Z] knee search: netem delay 75ms 25ms, Collectd pool 300, start 16,250, step 500 then 500 above 17,000, cap 17,000
+[21:37:45Z]   netem present: qdisc netem 8003: root refcnt 2 limit 1000 delay 75ms  25ms
+[21:37:45Z]   fleet now 16,250
+[21:37:47Z]     reconciled: 16,250 nodes, 2,340,000 interfaces, 0 unscanned
+[21:42:47Z] === RUNG 16,250 devices, pool 300 ===
+[21:57:47Z]     services=16254 PASS=True drains=True zero=0.082 q_max=1039.0 ratio=0.9996 L=289.0/300.0 cpu=78.2% done=0.9993
+[21:57:47Z]   16,250 passes. growing to 16,750
+[21:58:25Z]     provision rc=0 at 21:58:25
+[22:08:04Z]     reconciled: 16,750 nodes, 2,412,000 interfaces, 0 unscanned
+[22:17:04Z] === RUNG 16,750 devices, pool 300 ===
+[22:32:04Z]     services=16754 PASS=True drains=True zero=0.016 q_max=1214.0 ratio=0.9995 L=299.8/300.0 cpu=79.7% done=0.9999
+[22:32:04Z] cap 17,000 reached without failure
+[22:32:04Z] === search complete ===
+[22:48:30Z] --- continuing above the 17,000 cap to find the knee: same controls (pool 300, max-repetitions 5, netem 75/25 ms, 20 GiB heap), step 500, cap 20,000. wait_scans now repairs the import race itself. ---
+[23:25:50Z] --- Proxmox host lechuck went dark 22:33-22:48Z and rebooted; the 22:48Z continuation died on its first query. After reboot: nl6 fleet was 0 and rebuilt to 16,750 (same octets 0-66), netem re-applied, Core back with 20 GiB heap / 300 threads / max-repetitions 5 (CM), all 16,754 services still in the DB. Relaunching from 17,250. ---
+[23:25:51Z] knee search: netem delay 75ms 25ms, Collectd pool 300, start 17,250, step 500, cap 20,000
+[23:25:52Z]   netem present: qdisc netem 8001: root refcnt 2 limit 1000 delay 75ms  25ms
+[23:25:53Z]   fleet now 16,750
+[23:25:53Z]   growing 16,750 -> 17,250 before the first rung
+[23:26:20Z]     sh: 0: cannot open /tmp/prov.sh: No such file
+[23:28:27Z] --- /tmp/prov.sh on mon was lost in the reboot; recreated it and imported 17,250 by hand at 23:28:20Z. Driver restarted with the fleet already at 17,250. ---
+[23:28:27Z] knee search: netem delay 75ms 25ms, Collectd pool 300, start 17,250, step 500, cap 20,000
+[23:28:28Z]   netem present: qdisc netem 8001: root refcnt 2 limit 1000 delay 75ms  25ms
+[23:28:29Z]   fleet now 17,250
+[23:38:44Z]     import race: deleted unscanned node 34026 (HTTP 202)
+[23:38:44Z]     import race: deleted unscanned node 34026 (HTTP 400)
+[23:38:44Z]     import race: deleted unscanned node 34019 (HTTP 202)
+[23:38:44Z]     import race: deleted unscanned node 34019 (HTTP 400)
+[23:38:45Z]     import race: deleted unscanned node 34023 (HTTP 202)
+[23:38:45Z]     import race: deleted unscanned node 34023 (HTTP 400)
+[23:38:52Z]     import race: re-imported without rescan (HTTP 202)
+[23:38:52Z]     import race: re-imported without rescan (HTTP 500)
+[23:39:56Z]     reconciled: 17,250 nodes, 2,484,000 interfaces, 0 unscanned
+[23:39:56Z]     reconciled: 17,250 nodes, 2,484,000 interfaces, 0 unscanned
+[23:44:56Z] === RUNG 17,250 devices, pool 300 ===
+[23:44:56Z] === RUNG 17,250 devices, pool 300 ===
+[23:45:30Z] --- a stray copy of the 23:25Z driver (PID 82331) survived the earlier stop and logged the duplicate 23:39:56Z/23:44:56Z lines above; killed. One driver (PID 85223) remains. ---
+[23:59:56Z]     services=17254 PASS=False drains=False zero=0.0 q_max=4777.0 ratio=0.9734 L=300.0/300.0 cpu=85.2% done=1.0173
+[23:59:56Z] !!! KNEE: 17,250 devices does not complete a cycle under netem delay 75ms 25ms with pool 300
+[23:59:56Z] === search complete ===

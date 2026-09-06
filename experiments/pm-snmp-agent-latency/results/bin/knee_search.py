@@ -29,6 +29,7 @@ P    = "http://192.168.10.40:9090/prometheus"
 CJ   = 'instance="core-benchmark-01:9299"'
 CN   = 'instance="core-benchmark-01:9100"'
 NL6  = "http://192.0.2.216:8080"
+ONMS = "http://192.0.2.200:8980/opennms"
 NETEM = "netem delay 75ms 25ms"          # uniform 50-100 ms per packet
 START, STEP, CAP = 2000, 500, 6000
 INTERVAL, WINDOW, SETTLE = 300, 900, 300  # 3 cycles measured; settle >= 1 cycle after scans finish
@@ -96,6 +97,7 @@ def wait_scans(expected):
     sql = ("select (select count(*) from node where foreignsource='nl6-pm-72m' and nodetype<>'D'),"
            "(select count(*) from node where foreignsource='nl6-pm-72m' and nodetype<>'D' and lastcapsdpoll is null),"
            "(select count(*) from snmpinterface s join node n on n.nodeid=s.nodeid where n.nodetype<>'D')")
+    stuck = 0
     for _ in range(240):
         cmd = f"sudo -u postgres psql -qtA -F'|' -d onms_benchmark -c \"{sql}\""
         row = sh("labuser@db-benchmark-01", cmd, jump=True).strip()
@@ -107,9 +109,30 @@ def wait_scans(expected):
         if active == expected and unscanned == 0 and ifs == expected * 144:
             log(f"    reconciled: {active:,} nodes, {ifs:,} interfaces, 0 unscanned")
             return True
+        # Import race: ~1 node in 1,000 never gets its initial scan (nodeReq
+        # cannot be null). Scans done everywhere else means the state is
+        # final; a forced rescan does nothing. Delete over REST and re-import
+        # without rescanning the rest, which reconciles in a few minutes.
+        stuck = stuck + 1 if (active == expected and unscanned > 0
+                              and ifs == (expected - unscanned) * 144) else 0
+        if stuck == 4:
+            fix_unscanned()
+            stuck = 0
         time.sleep(30)
     log(f"    RECONCILE TIMEOUT: {row}")
     return False
+
+def fix_unscanned():
+    sql = "select nodeid from node where foreignsource='nl6-pm-72m' and nodetype<>'D' and lastcapsdpoll is null"
+    cmd = f"sudo -u postgres psql -qtA -d onms_benchmark -c \"{sql}\""
+    ids = [x for x in sh("labuser@db-benchmark-01", cmd, jump=True).split() if x.isdigit()]
+    for i in ids:
+        rc = sh(MON, f"curl -s -u admin:admin -m 60 -o /dev/null -w '%{{http_code}}' -X DELETE {ONMS}/rest/nodes/{i}")
+        log(f"    import race: deleted unscanned node {i} (HTTP {rc})")
+    time.sleep(5)
+    rc = sh(MON, f"curl -s -u admin:admin -m 120 -o /dev/null -w '%{{http_code}}' "
+                 f"-X PUT '{ONMS}/rest/requisitions/nl6-pm-72m/import?rescanExisting=false'")
+    log(f"    import race: re-imported without rescan (HTTP {rc})")
 
 def wait_quiet():
     """Provisiond idle and the queue seen at zero, so the window measures steady state."""
