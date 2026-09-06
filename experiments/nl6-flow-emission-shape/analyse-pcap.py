@@ -26,9 +26,39 @@ LINK_HEADER_LEN = {
 NETFLOW_V9 = 9
 PROTO_UDP = 17
 
+# A NetFlow v9 Template FlowSet has FlowSet ID 0 (RFC 3954 §5.2). The first
+# FlowSet ID sits at a fixed offset in the datagram, immediately after the
+# 20-byte header.
+V9_FIRST_FLOWSET_ID_OFFSET = 20
+V9_TEMPLATE_FLOWSET_ID = 0
+
 
 def datagrams(path):
-    """Yield (timestamp, version, record_count, payload_len, sequence, source_ip) per datagram."""
+    """Yield one tuple per NetFlow datagram.
+
+    (timestamp, version, data_records, is_template, payload_len, sequence, source_ip)
+
+    Two things this deliberately does NOT report raw.
+
+    `data_records` is the header count MINUS the template. RFC 3954 §5.1 defines
+    the header `count` as the number of FlowSet records, and a Template FlowSet
+    is one of them -- nl6's encoder does `count := len(records); if
+    includeTemplate { count++ }`. Summing the raw field therefore counts one
+    record per template that carries no flow data. The inflation is inversely
+    proportional to rate, because the template cadence is fixed while the record
+    count is not: measured across the captures here it runs 0.23% at rate 8 and
+    3.15% at rate 0.5. That was the largest identified term in nl6#463, where a
+    scenario report appeared to read 3-8% below "the wire" -- the wire figure was
+    over-counted.
+
+    Non-first IP fragments are skipped. Every fragment carries the IP protocol
+    field, so the old filter admitted them, and each one arrived microseconds
+    after its first fragment: they inflated the datagram count, deflated
+    records/datagram, and injected spurious near-zero inter-datagram gaps. Their
+    payload is not a v9 header, so the version check kept them out of the record
+    sum -- which is exactly why this went unnoticed. Captures taken before
+    nl6#485 are heavily affected; s6-rate8-w120.pcap is 41% fragmented.
+    """
     with open(path, "rb") as handle:
         global_header = handle.read(24)
         (magic,) = struct.unpack("<I", global_header[:4])
@@ -50,6 +80,10 @@ def datagrams(path):
             ip = data[offset:]
             if len(ip) < 20 or (ip[0] >> 4) != 4 or ip[9] != PROTO_UDP:
                 continue
+            # Non-first fragment: no UDP header, no v9 header, not a datagram.
+            (flags_frag,) = struct.unpack(">H", ip[6:8])
+            if flags_frag & 0x1FFF:
+                continue
             udp = ip[(ip[0] & 0xF) * 4:]
             if len(udp) < 8:
                 continue
@@ -58,6 +92,18 @@ def datagrams(path):
                 continue
 
             version, count = struct.unpack(">HH", payload[:4])
+
+            # Subtract the Template FlowSet from the record count when present.
+            # Readable even in a fragmented capture: the first FlowSet ID is at
+            # a fixed offset inside the FIRST fragment, so this needs none of
+            # the FlowSet walking that fragmentation actually blocks.
+            is_template = False
+            if version == NETFLOW_V9 and len(payload) >= V9_FIRST_FLOWSET_ID_OFFSET + 2:
+                (first_flowset,) = struct.unpack(
+                    ">H", payload[V9_FIRST_FLOWSET_ID_OFFSET:V9_FIRST_FLOWSET_ID_OFFSET + 2]
+                )
+                is_template = first_flowset == V9_TEMPLATE_FLOWSET_ID
+            data_records = count - 1 if is_template else count
             # NetFlow v9 carries a per-exporter DATAGRAM sequence number at
             # offset 12. It is the instrument that separates "the generator
             # emitted less" from "the capture missed some" -- without it a
@@ -67,7 +113,7 @@ def datagrams(path):
             if len(payload) >= 16:
                 (sequence,) = struct.unpack(">I", payload[12:16])
             src = ".".join(str(b) for b in ip[12:16])
-            yield timestamp, version, count, len(payload), sequence, src
+            yield timestamp, version, data_records, is_template, len(payload), sequence, src
 
 
 def tick_groups(rows, tick):
@@ -83,8 +129,15 @@ def tick_groups(rows, tick):
     current = 0
     previous = None
 
-    for timestamp, version, count, _, _, _ in rows:
+    for timestamp, version, data_records, _is_template, _, _, _ in rows:
         if version != NETFLOW_V9:
+            continue
+        # A template-only datagram carries no flow data. Counting it here would
+        # mark a tick that emitted NOTHING as occupied, so it would not register
+        # as silent -- turning the headline output of a shape experiment into a
+        # wrong answer rather than an imprecise one. Visible in this
+        # experiment's own pre-fix series as the `1`s among ticks of 128.
+        if data_records == 0:
             continue
         if previous is not None and (timestamp - previous) > tick * 0.5:
             series.append(current)
@@ -92,7 +145,7 @@ def tick_groups(rows, tick):
             # A gap spanning more than one tick period means ticks fired with
             # nothing to send. Those are genuinely silent.
             skipped += max(0, int(round((timestamp - previous) / tick)) - 1)
-        current += count
+        current += data_records
         previous = timestamp
 
     series.append(current)
@@ -106,7 +159,8 @@ def report(path, tick):
         return
 
     span = max(rows[-1][0] - rows[0][0], 1e-9)
-    records = sum(count for _, ver, count, _, _, _ in rows if ver == NETFLOW_V9)
+    records = sum(n for _, ver, n, _, _, _, _ in rows if ver == NETFLOW_V9)
+    templates = sum(1 for _, ver, _, t, _, _, _ in rows if ver == NETFLOW_V9 and t)
 
     series, silent = tick_groups(rows, tick)
     steady = series[1:-1] if len(series) > 2 else series
@@ -122,7 +176,7 @@ def report(path, tick):
     # produces a meaningless figure — a multi-device capture reported "-93
     # missing", a negative loss, which is how this was found. Group by source.
     per_source = {}
-    for _, ver, _, _, seq, src in rows:
+    for _, ver, _, _, _, seq, src in rows:
         if ver == NETFLOW_V9 and seq is not None:
             per_source.setdefault(src, []).append(seq)
     lost = 0
@@ -135,7 +189,7 @@ def report(path, tick):
     else:
         verdict = "sequence-continuous, no capture loss"
 
-    print(f"  datagrams={len(rows)}  records={records}  span={span:.1f}s")
+    print(f"  datagrams={len(rows)}  records={records}  templates={templates}  span={span:.1f}s")
     print(
         f"  rate={records / span:.2f} rec/s   datagram rate={len(rows) / span:.2f}/s   "
         f"records/datagram={records / len(rows):.1f}"

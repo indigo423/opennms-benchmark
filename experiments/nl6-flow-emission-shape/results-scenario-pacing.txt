@@ -1,28 +1,28 @@
 === scenario rate=0.5 window=180s (5 devices) ===
-  datagrams=156  records=476  span=186.2s
-  rate=2.56 rec/s   datagram rate=0.84/s   records/datagram=3.1
-  per-tick(5.0s): silent=1/36  peak=33  mean=12.6  peak/mean=2.61
+  datagrams=156  records=461  templates=15  span=186.2s
+  rate=2.48 rec/s   datagram rate=0.84/s   records/datagram=3.0
+  per-tick(5.0s): silent=1/36  peak=33  mean=12.2  peak/mean=2.70
   inter-datagram gap: max=10.00s  median=0.000s
-  shape: [14, 2, 16, 4, 16, 7, 23, 14, 2, 19, 17, 4, 3, 31]
+  shape: [14, 2, 16, 4, 16, 2, 23, 14, 2, 19, 17, 4, 3, 31]
   datagram sequence: 156 seen across 5 exporter(s), 0 missing  -> sequence-continuous, no capture loss
 === scenario rate=2 window=120s (5 devices) ===
-  datagrams=117  records=1144  span=121.2s
-  rate=9.44 rec/s   datagram rate=0.97/s   records/datagram=9.8
-  per-tick(5.0s): silent=1/23  peak=93  mean=47.1  peak/mean=1.97
+  datagrams=117  records=1134  templates=10  span=121.2s
+  rate=9.36 rec/s   datagram rate=0.97/s   records/datagram=9.7
+  per-tick(5.0s): silent=1/23  peak=93  mean=46.6  peak/mean=1.99
   inter-datagram gap: max=11.18s  median=0.000s
-  shape: [44, 54, 50, 46, 50, 52, 10, 93, 48, 5, 45, 53, 56, 13]
+  shape: [44, 54, 50, 46, 50, 52, 5, 93, 48, 5, 45, 53, 56, 13]
   datagram sequence: 117 seen across 5 exporter(s), 0 missing  -> sequence-continuous, no capture loss
 === scenario rate=4 window=120s (5 devices) ===
-  datagrams=151  records=1998  span=121.2s
-  rate=16.48 rec/s   datagram rate=1.25/s   records/datagram=13.2
-  per-tick(5.0s): silent=0/23  peak=241  mean=84.8  peak/mean=2.84
+  datagrams=151  records=1988  templates=10  span=121.2s
+  rate=16.40 rec/s   datagram rate=1.25/s   records/datagram=13.2
+  per-tick(5.0s): silent=0/23  peak=241  mean=84.3  peak/mean=2.86
   inter-datagram gap: max=6.20s  median=0.000s
-  shape: [84, 32, 181, 26, 241, 10, 35, 107, 15, 196, 9, 220, 16, 46]
+  shape: [84, 32, 181, 26, 241, 10, 30, 107, 15, 196, 9, 220, 16, 46]
   datagram sequence: 151 seen across 5 exporter(s), 0 missing  -> sequence-continuous, no capture loss
 === scenario rate=8 window=120s (5 devices) ===
-  datagrams=201  records=4337  span=121.2s
-  rate=35.78 rec/s   datagram rate=1.66/s   records/datagram=21.6
-  per-tick(5.0s): silent=0/23  peak=654  mean=166.0  peak/mean=3.94
+  datagrams=201  records=4327  templates=10  span=121.2s
+  rate=35.70 rec/s   datagram rate=1.66/s   records/datagram=21.5
+  per-tick(5.0s): silent=0/23  peak=649  mean=165.6  peak/mean=3.92
   inter-datagram gap: max=6.20s  median=0.000s
-  shape: [100, 112, 23, 207, 51, 46, 654, 104, 133, 8, 245, 82, 605, 98]
+  shape: [100, 112, 23, 207, 51, 46, 649, 104, 133, 8, 245, 82, 605, 98]
   datagram sequence: 201 seen across 5 exporter(s), 0 missing  -> sequence-continuous, no capture loss
