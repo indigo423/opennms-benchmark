@@ -100,13 +100,15 @@ generators:
     sim_network: "{{ hostvars[netsim].nl6_sim_network | default('10.42.0.0/16') }}"
     image: "{{ hostvars[netsim].nl6_image | default('unknown', true) }}"
 {% endif %}
-{% if mon %}
+{% if lab_pyroscope_url | default('', true) %}
 
-# Where continuous profiles are pushed (#287). The consumers are that issue's
-# follow-ups: the Pyroscope Java agent on Core and Minion, and nl6's push
-# profiler. None of them is wired up by this repository yet, so the address is
-# published here for those changes to read.
+# Where continuous profiles are pushed (#287). Core and Minion push CPU
+# profiles through the Pyroscope Java agent (#291); nl6's push profiler is
+# still a follow-up. Consumed from lab_pyroscope_url so the agents and this
+# manifest cannot disagree about the address, and emitted only when that is
+# non-empty: it is empty on a topology with no monitoring host, and on the
+# providers that publish no in-lab address, where nothing profiles.
 observability:
   pyroscope:
-    url: "http://{{ addr(mon, 'mgmt') }}:{{ hostvars[mon].lab_pyroscope_port }}"
+    url: "{{ lab_pyroscope_url }}"
 {% endif %}

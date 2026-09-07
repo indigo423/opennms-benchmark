@@ -359,6 +359,9 @@ Replace `<monitoring-public-ip>` with the monitoring VM's address from the gener
 | Kibana | `https://<monitoring-public-ip>/kibana` | no login required |
 | SNMP Sim (nl6) | `https://<monitoring-public-ip>/nl6` | no login required |
 
+Core and Minion push CPU profiles to Pyroscope whenever the topology has a monitoring host with an in-lab address.
+Set `lab_profiling_enabled: false` in `group_vars/all/vars.yml` (not in `opennms-lab-vars.yml`, see the [#209](https://github.com/indigo423/opennms-benchmark/issues/209) trap in the development guide) to disable the agents for runs that report absolute numbers; toggling it restarts Core and Minion on the next deploy.
+
 > [!IMPORTANT]
 > The Prometheus JMX exporter currently requires a manual Core restart after deploy, see [ansible-opennms#57](https://github.com/opennms-forge/ansible-opennms/issues/57).
 

@@ -1,0 +1,65 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# Pyroscope Java agent for the Core and Minion JVMs (#291).
+#
+# The current upstream agent, not the 0.13.x jar OpenNMS bundles under agent/:
+# that one predates the async-profiler fixes for JDK 21, and its bin/opennms
+# hook (PYROSCOPE_AGENT_ENABLED) is left unset on purpose so the two never
+# load together.
+#
+# No `# renovate:` annotation, deliberately. The version travels with
+# pyroscope_agent_sha256 below and no update tool can compute that hash, so
+# moving one without the other makes every download fail. Pinning half the
+# pair is the bug, see docs/development-guide.md.
+pyroscope_agent_version: "v2.9.1"
+pyroscope_agent_url: "https://github.com/grafana/pyroscope-java/releases/download/{{ pyroscope_agent_version }}/pyroscope.jar"
+pyroscope_agent_sha256: "4b9aa1ba327a9ce2b1ce062578ad6b876c0d2496f15a00f0fdc4c953638cb76d"
+pyroscope_agent_home: /opt/pyroscope
+pyroscope_agent_jar: "{{ pyroscope_agent_home }}/pyroscope.jar"
+
+# Where the agent pushes. Built in group_vars/all/vars.yml from the first
+# monitoring host's lab_mgmt_ip and lab_pyroscope_port; never a literal
+# address.
+pyroscope_agent_server_address: "{{ lab_pyroscope_url | default('', true) }}"
+
+# The lab-wide profiling switch, restated as false so the role is safe when
+# used standalone: without the lab's group_vars in scope it removes its
+# drop-ins rather than failing on an undefined variable. The lab sets this in
+# group_vars/all/vars.yml.
+lab_profiling_enabled: false
+
+# CPU only, sampled with itimer at the agent's 10 ms default. itimer needs no
+# perf_events sysctl on the host, unlike the `cpu` engine.
+pyroscope_agent_event: itimer
+
+# Allocation and lock profiling, pinned off explicitly rather than left to the
+# upstream defaults: each adds overhead to the system under test, and an agent
+# release that changed its default would change what the benchmark measures
+# with nothing in this repository recording it. Empty is the agent's "off".
+# Enabling either is an Ask First decision.
+pyroscope_agent_alloc: ""
+pyroscope_agent_lock: ""
+
+# JAVA_TOOL_OPTIONS reaches every JVM the unit spawns, including the short
+# helper JVMs bin/opennms runs (runjava version probe, config checks). They
+# load the agent too, and at the default level each one logs its startup to
+# stderr and into the journal. warn keeps that quiet; stdout is untouched.
+#
+# They do not pollute the profile: five short-lived `runjava` probes were run
+# on the lab with a distinct application name and no new service appeared in
+# Pyroscope, so a JVM that exits inside the first upload interval never
+# uploads.
+pyroscope_agent_log_level: warn
+
+# The do-not-restart gate, passed in by the play because the flag name differs
+# per service: skip_startup on Core, skip_minion_startup on Minion. Both are
+# the collection's, and both are strings, not booleans.
+pyroscope_agent_skip_startup: "false"
+
+# Required, per play, no defaults: the systemd unit the drop-in attaches to
+# and the service_name the profiles are stored under.
+#   Core:   pyroscope_agent_unit: opennms.service   pyroscope_agent_app_name: opennms-core
+#   Minion: pyroscope_agent_unit: minion.service    pyroscope_agent_app_name: opennms-minion
+# tasks/main.yml asserts both are set.
