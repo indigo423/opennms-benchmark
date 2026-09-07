@@ -47,15 +47,28 @@ lab_instance_id: OpenNMS
 lab_pyroscope_port: 4040
 
 # Continuous profiling of the Core and Minion JVMs (#291) and the nl6
-# simulator (#293). On by default
-# whenever the topology has a monitoring host that publishes an in-lab address,
-# because that is where the Pyroscope server runs. It is gated on the URL as
-# well as on the group, so azure and vmware simply do not profile rather than
-# pushing profiles to the wrong interface: those providers use
-# terraform/modules/inventory, which emits no lab_mgmt_ip.
-# Set it to false for campaigns that report absolute numbers: the agent samples
-# CPU at 100 Hz and costs a few percent, and a benchmark that profiles its
-# system under test is measuring the profiler too.
+# simulator (#293).
+#
+# ON BY DEFAULT, DELIBERATELY, which in practice means kvm, aws and proxmox: the
+# spec-driven providers whose inventories publish an in-lab address for the
+# monitoring host, because that is where the Pyroscope server runs. It is gated
+# on the URL as well as on the group, so azure and vmware simply do not profile
+# rather than pushing profiles to the wrong interface: those providers use
+# terraform/modules/inventory, which emits no lab_mgmt_ip, and behind a jump
+# host their monitoring address is the public one.
+#
+# The review of #292 argued for the opposite default, that a benchmarking
+# repository should make profiling opt-in, because redeploying mid-campaign
+# silently adds a few percent of CPU to the system under test and moves the
+# knee. That cost is real and it is why the switch exists. On stays the default
+# anyway: a profiler nobody remembers to enable is never on for the run that
+# turns out to be interesting, and the two mistakes are not symmetric. Leaving
+# it on is visible afterwards, in the manifest and in the profiles themselves;
+# leaving it off means the run has to happen again.
+#
+# Set it to false for the trials whose absolute numbers you intend to publish.
+# The agent samples CPU at 100 Hz, and a benchmark that profiles its system
+# under test is measuring the profiler too.
 lab_profiling_enabled: >-
   {{ (groups.get('mon_servers', []) | length > 0)
      and (lab_pyroscope_url | length > 0) }}
