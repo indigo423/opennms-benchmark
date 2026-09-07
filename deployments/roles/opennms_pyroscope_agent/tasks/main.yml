@@ -1,0 +1,129 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Assert the unit, application name and server address are usable
+  # Unit and application name come from the play, not from defaults: a wrong
+  # guess would attach the agent to a unit that does not exist, or file two
+  # hosts' profiles under one service_name.
+  #
+  # The server address is the one input that can legitimately be empty (a
+  # topology without a monitoring host, or a provider that publishes no in-lab
+  # address). That case is meant to turn profiling off, so an empty address
+  # while profiling is on means someone forced the switch: fail loudly instead
+  # of writing PYROSCOPE_SERVER_ADDRESS= and shipping profiles nowhere.
+  ansible.builtin.assert:
+    that:
+      - pyroscope_agent_unit is defined
+      - pyroscope_agent_unit | length > 0
+      - pyroscope_agent_app_name is defined
+      - pyroscope_agent_app_name | length > 0
+      - not (lab_profiling_enabled | bool) or pyroscope_agent_server_address | length > 0
+    fail_msg: >-
+      opennms_pyroscope_agent needs pyroscope_agent_unit (e.g. opennms.service)
+      and pyroscope_agent_app_name (e.g. opennms-core) set by the play, and a
+      non-empty pyroscope_agent_server_address whenever lab_profiling_enabled
+      is true. An empty address means the topology has no monitoring host with
+      an in-lab address; leave lab_profiling_enabled to its computed value.
+    quiet: true
+  tags: ["opennms", "pyroscope"]
+
+- name: Create the agent home
+  # Gated with the download below: a run with profiling off needs no GitHub
+  # egress and leaves no jar behind on a host that will never load it.
+  ansible.builtin.file:
+    path: "{{ pyroscope_agent_home }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: lab_profiling_enabled | bool
+  tags: ["opennms", "pyroscope"]
+
+- name: Download the Pyroscope Java agent
+  # The checksum is what makes the download fail before any drop-in is written,
+  # so a wrong or tampered jar never ends up on a JVM's command line. Root
+  # owned and read-only: the service user runs it but must not replace it.
+  #
+  # Notifies the restart too, not just the drop-in: a version bump replaces the
+  # jar without changing the drop-in, and a JVM that is not restarted keeps the
+  # old agent mapped while the file on disk says otherwise.
+  ansible.builtin.get_url:
+    url: "{{ pyroscope_agent_url }}"
+    dest: "{{ pyroscope_agent_jar }}"
+    checksum: "sha256:{{ pyroscope_agent_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: lab_profiling_enabled | bool
+  notify: pyroscope agent changed
+  tags: ["opennms", "pyroscope"]
+
+- name: Create the systemd drop-in directory
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ pyroscope_agent_unit }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  # Gated like the tasks above: file state=absent below does not need the
+  # directory, so a profiling-off host gets no empty *.service.d/ either.
+  when: lab_profiling_enabled | bool
+  tags: ["opennms", "pyroscope"]
+
+- name: Attach the agent through a systemd drop-in
+  # A drop-in rather than ADDITIONAL_MANAGER_OPTIONS: the collection renders
+  # opennms.conf whole from opennms_jvm_conf, and two deployment overlays
+  # replace that dict in full, so a flag added at the root would be lost on
+  # exactly the lab that runs today. Nothing the collection renders is touched.
+  ansible.builtin.template:
+    src: pyroscope-agent.conf.j2
+    dest: "/etc/systemd/system/{{ pyroscope_agent_unit }}.d/pyroscope-agent.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: lab_profiling_enabled | bool
+  notify: pyroscope agent changed
+  tags: ["opennms", "pyroscope"]
+
+- name: Detach the agent when profiling is off
+  # The jar stays; only the drop-in decides whether the JVM loads it. Removing
+  # the file is what a measured campaign needs, and it restarts the service
+  # exactly once.
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ pyroscope_agent_unit }}.d/pyroscope-agent.conf"
+    state: absent
+  when: not (lab_profiling_enabled | bool)
+  notify: pyroscope agent changed
+  tags: ["opennms", "pyroscope"]
+
+# The restart above happens after the collection has already waited for Core to
+# serve, so nothing between it and the end of the play notices a JVM that dies
+# on the way back up (a Liquibase changelog-lock timeout, a bad drop-in). Flush
+# the handler here and re-run the collection's own readiness check, so the play
+# fails where the cause is instead of reporting success onto a dead Core.
+- name: Apply the restart before checking readiness
+  ansible.builtin.meta: flush_handlers
+  # Tagged, and it has to be: an untagged meta task is filtered out by
+  # --tags pyroscope, the handler then runs at the end of the play, and the
+  # readiness check below would test Core *before* the restart. Verified.
+  tags: ["opennms", "pyroscope"]
+
+- name: Wait for OpenNMS Core to become ready again
+  # Core only: the collection has no Minion readiness endpoint, and inventing
+  # one is out of scope.
+  ansible.builtin.uri:
+    url: "http://localhost:8980/opennms/login.jsp"
+    method: GET
+    status_code: 200
+  register: pyroscope_agent_core_ready
+  until: pyroscope_agent_core_ready.status | default(0) == 200
+  retries: "{{ opennms_startup_retries | default(30) }}"
+  delay: "{{ opennms_startup_delay | default(10) }}"
+  # Deliberately NOT gated on lab_profiling_enabled: the disable path removes
+  # the drop-in, notifies the same handler and restarts Core just as the enable
+  # path does, and that is exactly the restart this check exists to cover.
+  when:
+    - pyroscope_agent_unit == 'opennms.service'
+    - pyroscope_agent_skip_startup | default("false") == "false"
+  tags: ["opennms", "pyroscope"]

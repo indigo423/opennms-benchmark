@@ -48,6 +48,13 @@
   roles:
     - indigo423.opennms.common
     - indigo423.opennms.opennms_core
+    # Last, so the unit the drop-in attaches to and restarts already exists.
+    - role: opennms_pyroscope_agent
+      vars:
+        pyroscope_agent_unit: opennms.service
+        pyroscope_agent_app_name: opennms-core
+        # Each service has its own do-not-start flag in the collection.
+        pyroscope_agent_skip_startup: "{{ skip_startup | default('false') }}"
 
 - name: Manage OpenNMS Horizon Minion
   hosts: minion
@@ -55,6 +62,11 @@
   roles:
     - indigo423.opennms.common
     - indigo423.opennms.opennms_minion
+    - role: opennms_pyroscope_agent
+      vars:
+        pyroscope_agent_unit: minion.service
+        pyroscope_agent_app_name: opennms-minion
+        pyroscope_agent_skip_startup: "{{ skip_minion_startup | default('false') }}"
 
 - name: Manage OpenNMS Horizon Sentinel
   hosts: sentinel
