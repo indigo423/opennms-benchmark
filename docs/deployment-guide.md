@@ -65,8 +65,7 @@ If you have Tailscale available, set it up now (see [Network Access](./developme
 From the project root:
 
 ```bash
-cd bootstrap
-ansible-playbook -i inventory site.yml
+ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/site.yml
 ```
 
 This installs: base packages, Docker Engine, Prometheus Node Exporter, Grafana, Prometheus, Pyroscope, Kafka UI, and Net-SNMP simulator.
@@ -218,18 +217,11 @@ After the stack is deployed, select an experiment and run it:
 
 ```bash
 make experiment PROVIDER=<provider> EXPERIMENT=smoke DEPLOYMENT=<slug>
-
-ansible-playbook -i opennms-lab-inventory.yml experiment.yml \
-  --extra-vars="@../../opennms-lab-vars.yml"
 ```
 
-If the experiment has its own variable overrides (e.g., `c1km1_4c16g_rrd_pm_snmp`):
+`make experiments` lists what is runnable.
 
-```bash
-ansible-playbook -i opennms-lab-inventory.yml experiment.yml \
-  --extra-vars="@../../opennms-lab-vars.yml" \
-  --extra-vars="@opennms-lab-vars.yml"
-```
+The target layers the variable files in order, root then deployment then experiment, and skips any the experiment does not carry. An experiment with its own overrides therefore needs no different command.
 
 ## Loading Test Nodes
 
@@ -249,8 +241,7 @@ Nodes are added to OpenNMS at location `lab-location-01` and assigned ICMP and S
 ### Update OS packages
 
 ```bash
-cd bootstrap
-ansible-playbook -i ../ansible-inventory.<provider>.yml update-playbook.yml
+ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/update-playbook.yml
 ```
 
 ### Switch to a different experiment

@@ -228,6 +228,13 @@ validate-renovate-pins: ## Assert every renovate annotation is bound to the pin 
 	  && { echo "fixture fx-annotation-crossbind did not fail; the check is not detecting mis-binding" >&2; exit 1; } \
 	  || echo "fixture fx-annotation-crossbind fails as expected"
 
+.PHONY: validate-doc-inventories
+validate-doc-inventories: ## Assert every documented ansible-playbook names an inventory that exists
+	@python3 validate-doc-inventories.py --repo-root . || exit 1
+	@python3 validate-doc-inventories.py --repo-root tests/doc-fixtures/fx-missing-inventory >/dev/null 2>&1 \
+	  && { echo "fixture fx-missing-inventory did not fail; the check is not detecting missing inventories" >&2; exit 1; } \
+	  || echo "fixture fx-missing-inventory fails as expected"
+
 .PHONY: validate-collections
 validate-collections: ## Assert installed collections match the declared closure
 	python3 validate-collections.py --path $(COLLECTIONS_PATH)
@@ -243,7 +250,7 @@ clean-collections: ## Remove the installed collection tree, then reinstall the m
 	$(MAKE) install-collections
 
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-renovate-pins validate-collections ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-renovate-pins validate-doc-inventories validate-collections ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 

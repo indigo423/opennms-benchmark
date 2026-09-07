@@ -1,0 +1,5 @@
+# Mirrors the repository's own ignore of the generated per-provider
+# inventories (#277), so the fixture exercises the same distinction the check
+# makes: a path absent because the repository generates it passes, a path
+# absent because nothing produces it fails.
+ansible-inventory.*.yml

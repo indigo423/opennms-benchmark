@@ -62,6 +62,8 @@ opennms-benchmark/
 | `legacy/c1km1_4c16g_kfk_syslog` | Syslog ingestion | Kafka/OSGI |
 | `legacy/c1km1_4c16g_rrd_pm_snmp` | SNMP polling | RRD (jrrd2) |
 
+**These four are reference, not runnable.** They predate the current structure and are kept for the configuration they encode. Their inventories carry pre-`role_block_size` addresses, two use group names no generated inventory produces, and their `ansible.cfg` disagrees with the inventory about the remote user. See [`experiments/README.md`](../experiments/README.md). `make experiments` lists what is runnable.
+
 ## Service URLs
 
 After a full deployment, these services are available on the lab network:

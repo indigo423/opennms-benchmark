@@ -53,10 +53,10 @@ cd terraform/azure && terraform init
 terraform apply -var-file=../lab.tfvars -var-file=azure.tfvars
 
 # 3. Bootstrap
-cd ../../bootstrap && ansible-playbook -i inventory site.yml
+cd ../..
+ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/site.yml
 
 # 4. Deploy OpenNMS stack
-cd ..
 make install-collections
 ansible-playbook --user labuser --become \
   -i ansible-inventory.<provider>.yml opennms-playbook.yml \
@@ -64,8 +64,6 @@ ansible-playbook --user labuser --become \
 
 # 5. Run an experiment
 make experiment PROVIDER=<provider> EXPERIMENT=smoke DEPLOYMENT=<slug>
-ansible-playbook -i opennms-lab-inventory.yml experiment.yml \
-  --extra-vars="@../../opennms-lab-vars.yml"
 ```
 
 See the [Deployment Guide](./deployment-guide.md) for the full step-by-step guide, KVM instructions, and post-reboot checklist.
