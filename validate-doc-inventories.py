@@ -52,49 +52,71 @@ SHELL_LANGS = {"bash", "sh", "shell", "zsh", "console"}
 # check does not carry a second copy of the provider list to drift against.
 PLACEHOLDER_RE = re.compile(r"<[^>]+>")
 
-# Commands that create the repository directory, so the `cd` that follows one
-# enters the clone rather than a subdirectory of the checkout.
-CLONE_RE = re.compile(r"\bgit\s+clone\b")
+# A clone creates the repository directory, so a `cd` into it enters the clone
+# rather than a subdirectory of the checkout. The captured group is the URL, so
+# the directory name can be matched: consuming whatever `cd` came next would
+# erase a `cd <clone>/bootstrap` and resolve its inventory one level too high,
+# which is a false pass on exactly the shape this check exists for.
+CLONE_RE = re.compile(r"\bgit\s+clone\b\s+(?:--\S+\s+)*(?P<url>\S+)")
 
 
-# Fixture trees are inputs to this check, not subjects of it. They contain
-# deliberately broken commands, and their relative paths only resolve against
-# their own root, so scanning them from the repository root reports findings
-# that are the point of the fixture rather than defects in the documentation.
-EXCLUDED_ROOTS = ("tests/",)
+# Trees that are not this repository's documentation. Fixtures are inputs to
+# this check rather than subjects of it: they hold deliberately broken commands
+# whose relative paths only resolve against their own root. `.ansible/` is the
+# vendored collection closure, which documents its own commands and is not ours
+# to fix.
+#
+# Applied to both listings below, not only the git one. The fallback walk sees
+# every markdown file on disk, so without this a checkout with no git metadata
+# scans the vendored closure and its own fixtures and fails with 4,970
+# documents' worth of findings that say nothing about this repository.
+EXCLUDED_ROOTS = ("tests/", ".ansible/")
 
 
 def tracked_markdown(repo_root: Path) -> list[str]:
-    """Markdown files to scan, tracked ones by preference.
+    """Markdown files to scan.
 
     `git ls-files` matches how every other lint target in this repository picks
-    its inputs, so an untracked scratch document is not checked. A fixture is a
-    bare directory rather than a repository, so fall back to walking it: the
-    exclusion below is skipped in that case, because the fixture is then the
-    root and its own documents are exactly what must be read.
+    its inputs, so an untracked scratch document is not checked, and so the
+    gitignored trees are never read.
+
+    A fixture is a bare directory rather than a repository, so a root with no
+    `.git` is walked instead. That also covers a source export or a container
+    build context, neither of which carries git metadata.
+
+    A root that *is* a repository and whose `git ls-files` fails is an error
+    rather than a reason to walk. Walking a real checkout reads every ignored
+    tree in it, which here is around five thousand markdown files belonging to
+    tool caches and the vendored collection closure, and reports findings about
+    documentation this repository does not own.
     """
-    try:
-        out = subprocess.run(
-            ["git", "ls-files", "*.md"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        listed = [
+    if (repo_root / ".git").exists():
+        try:
+            out = subprocess.run(
+                ["git", "ls-files", "*.md"],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError) as error:
+            raise SystemExit(
+                f"error: {repo_root} is a git repository but `git ls-files` "
+                f"failed ({error}). Refusing to fall back to walking it, which "
+                f"would read every ignored tree in the checkout"
+            ) from error
+        return [
             line
             for line in out.stdout.splitlines()
             if line and not line.startswith(EXCLUDED_ROOTS)
         ]
-        if listed:
-            return listed
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-    return sorted(
+
+    walked = (
         str(path.relative_to(repo_root))
         for path in repo_root.rglob("*.md")
-        if path.is_file()
+        if path.is_file() and not any(part.startswith(".") for part in path.parts)
     )
+    return sorted(rel for rel in walked if not rel.startswith(EXCLUDED_ROOTS))
 
 
 def shell_blocks(lines: list[str]) -> list[tuple[int, list[str]]]:
@@ -156,8 +178,13 @@ def inventory_args(command: str) -> list[str]:
     Returns an empty list for anything else, including a command that merely
     mentions ansible-playbook in a comment.
     """
+    # A placeholder may contain spaces (`<your inventory file>`). shlex would
+    # split it into `<your`, which then expands to a glob matching nothing and
+    # reports a false failure with an unreadable message. Spaces inside a
+    # placeholder are hidden from the splitter and restored after it.
+    masked = PLACEHOLDER_RE.sub(lambda m: m.group(0).replace(" ", "\x00"), command)
     try:
-        tokens = shlex.split(command, comments=True)
+        tokens = [token.replace("\x00", " ") for token in shlex.split(masked, comments=True)]
     except ValueError:
         # An unbalanced quote is prose, not a command this check can read.
         return []
@@ -182,27 +209,65 @@ def inventory_args(command: str) -> list[str]:
 
 
 def segments(line: str) -> list[str]:
-    """Split a logical line on `&&`, `;` and `||` into separate commands.
+    """Split a logical line on `&&`, `;` and `||`, outside quotes only.
 
     `cd ../../bootstrap && ansible-playbook -i inventory site.yml` is two
     commands, and the first one changes where the second resolves its path.
+
+    Quote state is tracked because a separator inside a quoted argument is not
+    a separator. Splitting `-e 'note=a;b'` mid-quote leaves both halves
+    unbalanced, `shlex` then raises, and the invocation is dropped with no
+    finding recorded. A missing inventory in such a command would go unreported,
+    which is the silent pass this check exists to prevent.
     """
-    return [part.strip() for part in re.split(r"&&|\|\||;", line) if part.strip()]
+    parts: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    index = 0
+    while index < len(line):
+        char = line[index]
+        if quote:
+            current.append(char)
+            if char == quote:
+                quote = None
+            index += 1
+            continue
+        if char in "'\"":
+            quote = char
+            current.append(char)
+            index += 1
+            continue
+        pair = line[index : index + 2]
+        if pair in ("&&", "||"):
+            parts.append("".join(current))
+            current = []
+            index += 2
+            continue
+        if char == ";":
+            parts.append("".join(current))
+            current = []
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+    parts.append("".join(current))
+    return [part.strip() for part in parts if part.strip()]
 
 
 def generated_patterns(repo_root: Path) -> list[str]:
-    """Basename globs the repository generates, read from `.gitignore`.
+    """Ignore rules from `.gitignore`, kept as written.
 
     The per-provider inventories are generated by Terraform and gitignored
     (#277), so they exist in a deployed checkout and never in continuous
     integration. Requiring them to exist would fail every run on the machine
     that most needs the check.
 
-    Reading `.gitignore` rather than listing them here keeps the two in step,
-    and it distinguishes exactly the right way: `ansible-inventory.*.yml` is
-    ignored because the repository produces it, while `inventory` and
-    `opennms-lab-inventory.yml` are not ignored, are not produced, and are
-    simply names that no longer refer to anything.
+    Reading `.gitignore` rather than listing the names here keeps the two in
+    step. The entries are kept whole rather than reduced to basenames, because
+    git anchors a pattern containing a slash to the directory the file sits in.
+    Collapsing `terraform/kvm/inventory` to `inventory` would whitelist that
+    bare name in every document and silently re-admit the bug this check
+    exists for.
     """
     path = repo_root / ".gitignore"
     if not path.is_file():
@@ -212,8 +277,26 @@ def generated_patterns(repo_root: Path) -> list[str]:
         entry = line.strip()
         if not entry or entry.startswith("#") or entry.startswith("!"):
             continue
-        patterns.append(entry.rstrip("/").rsplit("/", 1)[-1])
+        patterns.append(entry.rstrip("/").lstrip("/"))
     return patterns
+
+
+def is_generated(relative: str, patterns: list[str]) -> bool:
+    """Would git ignore this path, by the rules in `.gitignore`?
+
+    Git's two anchoring cases, and nothing else: a pattern containing a slash
+    matches the path from the repository root, while a pattern without one
+    matches a basename at any depth. An inventory that git ignores is one the
+    repository generates, which is why its absence is not a defect.
+    """
+    name = relative.rsplit("/", 1)[-1]
+    for pattern in patterns:
+        if "/" in pattern:
+            if fnmatch(relative, pattern):
+                return True
+        elif fnmatch(name, pattern):
+            return True
+    return False
 
 
 def resolve(
@@ -242,7 +325,13 @@ def resolve(
             return True, str(target)
 
     # Absent, but generated by the repository rather than missing from it.
-    if any(fnmatch(Path(globbed).name, pattern) for pattern in generated):
+    # Matched on the path relative to the repository root, so an ignore rule
+    # anchored to one directory does not excuse the same bare name elsewhere.
+    try:
+        relative = str(target.relative_to(repo_root))
+    except ValueError:
+        relative = str(target)
+    if is_generated(relative, generated):
         return True, str(target)
 
     try:
@@ -264,23 +353,28 @@ def check_file(
         # continuing the previous one would make findings depend on reading
         # order rather than on the document.
         cwd = repo_root
-        cloned = False
+        cloned: str | None = None
         for offset, logical in join_continuations(body):
             where = f"{rel}:{start + offset}"
             for command in segments(logical):
-                if CLONE_RE.search(command):
-                    cloned = True
+                clone = CLONE_RE.search(command)
+                if clone:
+                    cloned = clone.group("url").rstrip("/").rsplit("/", 1)[-1]
+                    if cloned.endswith(".git"):
+                        cloned = cloned[: -len(".git")]
                     continue
                 tokens_cd = command.split()
                 if tokens_cd and tokens_cd[0] == "cd" and len(tokens_cd) > 1:
-                    if cloned:
+                    destination = tokens_cd[1]
+                    head, _, tail = destination.partition("/")
+                    if cloned and head == cloned:
                         # The reader started outside the repository and has just
                         # entered the fresh clone. That directory is this
-                        # checkout, not a subdirectory of it.
-                        cwd = repo_root
-                        cloned = False
+                        # checkout, so anything below it resolves from here.
+                        cwd = (repo_root / tail).resolve() if tail else repo_root
+                        cloned = None
                     else:
-                        cwd = (cwd / tokens_cd[1]).resolve()
+                        cwd = (cwd / destination).resolve()
                     continue
                 for value in inventory_args(command):
                     seen += 1

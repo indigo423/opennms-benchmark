@@ -1,0 +1,5 @@
+bootstrap/inventory
+opennms-lab-inventory.yml
+docs/other-inventory.yml
+docs/real-inventory.yml
+quoted-missing.yml

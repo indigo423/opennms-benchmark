@@ -130,7 +130,7 @@ With the wrapper out of the way the check found a genuine bug of its own: `conta
 
 ## Working with Ansible
 
-Every command below runs from the project root. That is where Ansible finds this repository's `ansible.cfg`, and it is the only configuration the repository has: Ansible reads `./ansible.cfg` from the working directory and never searches parent directories, so running from a subdirectory silently gets no configuration at all.
+Every Ansible command in this section runs from the project root. That is where Ansible finds this repository's `ansible.cfg`, and it is the only configuration that governs a runnable invocation: Ansible reads `./ansible.cfg` from the working directory and never searches parent directories, so running from a subdirectory silently gets no configuration at all. The four under `experiments/legacy/` belong to experiments that are reference, not runnable.
 
 `make deploy` wraps the whole sequence. The explicit commands here are for rerunning one part of it.
 

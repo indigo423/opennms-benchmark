@@ -231,9 +231,22 @@ validate-renovate-pins: ## Assert every renovate annotation is bound to the pin 
 .PHONY: validate-doc-inventories
 validate-doc-inventories: ## Assert every documented ansible-playbook names an inventory that exists
 	@python3 validate-doc-inventories.py --repo-root . || exit 1
-	@python3 validate-doc-inventories.py --repo-root tests/doc-fixtures/fx-missing-inventory >/dev/null 2>&1 \
-	  && { echo "fixture fx-missing-inventory did not fail; the check is not detecting missing inventories" >&2; exit 1; } \
-	  || echo "fixture fx-missing-inventory fails as expected"
+	@# A non-zero exit is not enough: the script exits 1 for a missing fixture
+	@# and for its own no-invocations guard too, so "it failed" would still be
+	@# reported if the fixture were renamed away and never read. Assert the
+	@# exact cases instead, listed in the fixture's own EXPECTED manifest.
+	@fx=tests/doc-fixtures/fx-missing-inventory; \
+	out=$$(python3 validate-doc-inventories.py --repo-root $$fx 2>&1); rc=$$?; \
+	[ $$rc -eq 1 ] || { echo "fixture exited $$rc, expected 1:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	want=$$(grep -c . $$fx/EXPECTED); \
+	got=$$(printf '%s\n' "$$out" | grep -c 'which does not exist'); \
+	[ "$$got" = "$$want" ] || { echo "fixture reported $$got finding(s), expected $$want:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	while read -r path; do \
+	  [ -n "$$path" ] || continue; \
+	  printf '%s\n' "$$out" | grep -q "resolves to $$path," \
+	    || { echo "fixture did not report the expected case $$path:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	done < $$fx/EXPECTED; \
+	echo "fixture fx-missing-inventory fails as expected: $$got case(s), each the expected path"
 
 .PHONY: validate-collections
 validate-collections: ## Assert installed collections match the declared closure

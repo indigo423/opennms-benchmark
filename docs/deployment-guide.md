@@ -48,6 +48,7 @@ export TF_VAR_ssh_public_key=$(cat ~/.ssh/id_rsa.pub)
 cd terraform/azure
 terraform init
 terraform apply -var-file=../lab.tfvars -var-file=azure.tfvars
+cd ../..
 ```
 
 Terraform creates: resource group, proximity placement group, VNet, 4 subnets, NICs (with static IPs), NSG (SSH from operator CIDR only), public IP for monitoring, 6 Ubuntu 24.04 VMs, and writes `ansible-inventory.<provider>.yml` to the project root.
@@ -71,6 +72,8 @@ ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/site.yml
 This installs: base packages, Docker Engine, Prometheus Node Exporter, Grafana, Prometheus, Pyroscope, Kafka UI, and Net-SNMP simulator.
 
 ### 6. Deploy the OpenNMS stack
+
+From the project root:
 
 ```bash
 make install-collections
@@ -203,6 +206,7 @@ export TF_VAR_ssh_public_key=$(cat ~/.ssh/id_rsa.pub)
 cd terraform/kvm
 terraform init
 terraform apply -var-file=../lab.tfvars -var-file=kvm.tfvars
+cd ../..
 ```
 
 ### 4–7. Follow steps 5–7 from the Azure deployment
