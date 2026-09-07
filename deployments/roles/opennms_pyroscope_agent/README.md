@@ -64,5 +64,5 @@ systemctl show -p Environment opennms.service   # or minion.service
 
 Expect `JAVA_TOOL_OPTIONS=-javaagent:/opt/pyroscope/pyroscope.jar` and `PYROSCOPE_SERVER_ADDRESS=http://<mon>:4040`.
 
-Then read the service list from the Pyroscope datasource, or open the `onms-profiles-services` dashboard: `opennms-core` and `opennms-minion` appear within about a minute of the restart, each labelled with its `hostname`.
+Then read the service list from the Pyroscope datasource, or browse Grafana > Drilldown > Profiles: `opennms-core` and `opennms-minion` appear within about a minute of the restart, each labelled with its `hostname`.
 **Only a rendered flame graph distinguishes "agent attached" from "agent attached and uploading".**

@@ -28,7 +28,6 @@ provider: "{{ lab_provider | default('unknown', true) }}"
 {% set netsim = groups['net_sim'][0] if groups.get('net_sim') else none %}
 {% set db = groups['database'][0] if groups.get('database') else none %}
 {% set core = groups['core'][0] if groups.get('core') else none %}
-{% set mon = groups['mon_servers'][0] if groups.get('mon_servers') else none %}
 {% set bootstrap = kafka_bootstrap_servers | default('', true) %}
 {#- lab_mgmt_ip is emitted only by the spec-driven providers' inventory module,
     so it needs its own fallback or this fails on azure, vmware and proxmox. -#}

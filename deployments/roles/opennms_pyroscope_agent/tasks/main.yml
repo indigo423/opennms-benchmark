@@ -66,6 +66,9 @@
     owner: root
     group: root
     mode: "0755"
+  # Gated like the tasks above: file state=absent below does not need the
+  # directory, so a profiling-off host gets no empty *.service.d/ either.
+  when: lab_profiling_enabled | bool
   tags: ["opennms", "pyroscope"]
 
 - name: Attach the agent through a systemd drop-in
@@ -117,8 +120,10 @@
   until: pyroscope_agent_core_ready.status | default(0) == 200
   retries: "{{ opennms_startup_retries | default(30) }}"
   delay: "{{ opennms_startup_delay | default(10) }}"
+  # Deliberately NOT gated on lab_profiling_enabled: the disable path removes
+  # the drop-in, notifies the same handler and restarts Core just as the enable
+  # path does, and that is exactly the restart this check exists to cover.
   when:
     - pyroscope_agent_unit == 'opennms.service'
-    - lab_profiling_enabled | bool
     - pyroscope_agent_skip_startup | default("false") == "false"
   tags: ["opennms", "pyroscope"]
