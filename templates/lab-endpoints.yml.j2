@@ -28,7 +28,6 @@ provider: "{{ lab_provider | default('unknown', true) }}"
 {% set netsim = groups['net_sim'][0] if groups.get('net_sim') else none %}
 {% set db = groups['database'][0] if groups.get('database') else none %}
 {% set core = groups['core'][0] if groups.get('core') else none %}
-{% set mon = groups['mon_servers'][0] if groups.get('mon_servers') else none %}
 {% set bootstrap = kafka_bootstrap_servers | default('', true) %}
 {#- lab_mgmt_ip is emitted only by the spec-driven providers' inventory module,
     so it needs its own fallback or this fails on azure, vmware and proxmox. -#}
@@ -100,13 +99,15 @@ generators:
     sim_network: "{{ hostvars[netsim].nl6_sim_network | default('10.42.0.0/16') }}"
     image: "{{ hostvars[netsim].nl6_image | default('unknown', true) }}"
 {% endif %}
-{% if mon %}
+{% if lab_pyroscope_url | default('', true) %}
 
-# Where continuous profiles are pushed (#287). The consumers are that issue's
-# follow-ups: the Pyroscope Java agent on Core and Minion, and nl6's push
-# profiler. None of them is wired up by this repository yet, so the address is
-# published here for those changes to read.
+# Where continuous profiles are pushed (#287). Core and Minion push CPU
+# profiles through the Pyroscope Java agent (#291); nl6's push profiler is
+# still a follow-up. Consumed from lab_pyroscope_url so the agents and this
+# manifest cannot disagree about the address, and emitted only when that is
+# non-empty: it is empty on a topology with no monitoring host, and on the
+# providers that publish no in-lab address, where nothing profiles.
 observability:
   pyroscope:
-    url: "http://{{ addr(mon, 'mgmt') }}:{{ hostvars[mon].lab_pyroscope_port }}"
+    url: "{{ lab_pyroscope_url }}"
 {% endif %}

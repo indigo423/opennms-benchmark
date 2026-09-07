@@ -46,6 +46,34 @@ lab_instance_id: OpenNMS
 # the published URL together (#287).
 lab_pyroscope_port: 4040
 
+# Continuous profiling of the Core and Minion JVMs (#291). On by default
+# whenever the topology has a monitoring host that publishes an in-lab address,
+# because that is where the Pyroscope server runs. It is gated on the URL as
+# well as on the group, so azure and vmware simply do not profile rather than
+# pushing profiles to the wrong interface: those providers use
+# terraform/modules/inventory, which emits no lab_mgmt_ip.
+# Set it to false for campaigns that report absolute numbers: the agent samples
+# CPU at 100 Hz and costs a few percent, and a benchmark that profiles its
+# system under test is measuring the profiler too.
+lab_profiling_enabled: >-
+  {{ (groups.get('mon_servers', []) | length > 0)
+     and (lab_pyroscope_url | length > 0) }}
+
+# Where the agents push. The first mon_servers host's lab_mgmt_ip, and nothing
+# else. Deliberately no ansible_host fallback, unlike the db and kafka idiom in
+# opennms-lab-vars.yml: on the legacy inventory template the monitoring host is
+# the jump host, so its ansible_host is the *public* address, and azure opens
+# only 22 and 443. A fallback would silently address profiles out over the
+# public interface and time out. Empty when there is no monitoring host or no
+# in-lab address, which lab_profiling_enabled above reads as "do not profile".
+# Defined here rather than in the agent role's defaults so it sits next to the
+# port it is built from.
+lab_pyroscope_url: >-
+  {{ 'http://' ~ hostvars[groups['mon_servers'][0]].lab_mgmt_ip ~ ':' ~ lab_pyroscope_port
+     if (groups.get('mon_servers', []) | length > 0)
+        and hostvars[groups['mon_servers'][0]].lab_mgmt_ip is defined
+     else '' }}
+
 # The host-metrics instrument. Pinned here rather than inherited.
 #
 # bootstrap/preparation-playbook.yml calls prometheus.prometheus.node_exporter,

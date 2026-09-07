@@ -1,0 +1,26 @@
+---
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: Apache-2.0
+
+# A static name plus `listen`, so the tasks notify a topic instead of a name
+# built from pyroscope_agent_unit. The templated name resolved correctly on the
+# live run, but it couples every notify to the unit variable holding the same
+# value at both sites, which stops being true the moment the role is included
+# twice in one play.
+#
+# daemon_reload lives inside the restart handler on purpose, as in
+# bootstrap/roles/pyroscope (#289): a shared "Reload systemd" handler runs in
+# definition order and can come after this restart, which would start the unit
+# without the new drop-in.
+- name: Restart the profiled service
+  listen: pyroscope agent changed
+  ansible.builtin.systemd_service:
+    name: "{{ pyroscope_agent_unit }}"
+    state: restarted
+    daemon_reload: true
+  # Same gate as the collection's own restart handlers and the sibling roles,
+  # so an image bake or config-only rerun (skip_startup=true) does not get an
+  # unwanted restart from this role alone. The flag name differs per service:
+  # the play passes skip_startup on Core and skip_minion_startup on Minion.
+  when:
+    - pyroscope_agent_skip_startup | default("false") == "false"
