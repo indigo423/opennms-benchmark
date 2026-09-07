@@ -45,7 +45,7 @@ collections:
   # 13.0.0 also dropped support for ansible-core 2.17, which is the floor in
   # constraints.txt. Moving this pin can move that one.
   - name: community.general
-    version: "13.3.0"
+    version: "13.4.0"
 
   # Required by indigo423.opennms (>=6.1.0). No direct call site here.
   # Stock Galaxy release (6.1.0). Works with the Grafana 12.x pin in
