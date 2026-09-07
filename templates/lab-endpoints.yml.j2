@@ -102,8 +102,8 @@ generators:
 {% if lab_pyroscope_url | default('', true) %}
 
 # Where continuous profiles are pushed (#287). Core and Minion push CPU
-# profiles through the Pyroscope Java agent (#291); nl6's push profiler is
-# still a follow-up. Consumed from lab_pyroscope_url so the agents and this
+# profiles through the Pyroscope Java agent (#291), and nl6 through its own
+# built-in profiler (#293). Consumed from lab_pyroscope_url so the agents and this
 # manifest cannot disagree about the address, and emitted only when that is
 # non-empty: it is empty on a topology with no monitoring host, and on the
 # providers that publish no in-lab address, where nothing profiles.

@@ -46,7 +46,8 @@ lab_instance_id: OpenNMS
 # the published URL together (#287).
 lab_pyroscope_port: 4040
 
-# Continuous profiling of the Core and Minion JVMs (#291). On by default
+# Continuous profiling of the Core and Minion JVMs (#291) and the nl6
+# simulator (#293). On by default
 # whenever the topology has a monitoring host that publishes an in-lab address,
 # because that is where the Pyroscope server runs. It is gated on the URL as
 # well as on the group, so azure and vmware simply do not profile rather than

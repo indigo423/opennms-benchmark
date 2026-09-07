@@ -15,12 +15,22 @@
 #
 # It also changed batch address allocation, which is the part that bites: v0.28.0
 # placed 250 devices per /24 (.1 to .250, skipping .0 and .251 upward), v0.29.0
-# uses all 256. One batch of 11,000 therefore ends at 10.42.42.x instead of
-# 10.42.43.250 and 252 addresses move, while the requisition (nl6-pm-72m.xml)
-# still enumerates the sparse layout: 252 requisitioned addresses end up with no
-# device and 252 devices go unmonitored. Rebuild with one batch of 250 per /24 to
-# reproduce the old layout; rebuild-sparse.sh in the snapshot below does exactly
-# that and was verified to restore the addresses identically.
+# uses all 256. Measured on 11,000 devices from 10.42.0.1: the old layout spanned
+# 44 subnets and ended at 10.42.43.250, the new one ends at 10.42.42.248 and
+# includes .0 and .255, and 252 addresses move between the two.
+#
+# This is not an in-repo breakage. experiments/roles/opennms_requisition
+# regenerates the requisition from nl6's own device list, so a fresh campaign is
+# self-consistent under either rule, and the per-rung paths stay at 250 or fewer
+# per /24 where both rules agree. What does not self-correct is a foreign source
+# already imported against the old layout: on the live lab nl6-pm-72m.xml left
+# 252 requisitioned addresses without a device and 252 devices unmonitored until
+# the fleet was rebuilt sparse.
+#
+# Reproducing the old layout takes one batch of 250 per /24, which the shared
+# experiments/roles/nl6_fleet role cannot express (it posts a single batch).
+# experiments/inventory/rebuild-sparse-fleet.sh does it and was verified to
+# restore the addresses identically.
 #
 # Bumping this replaces the container, and nl6 holds its devices in memory only,
 # so every simulated device disappears with it. Rebuild the fleet after a bump;

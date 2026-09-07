@@ -1,8 +1,4 @@
 [Unit]
-# Push mode only, never alongside an Alloy CPU scrape: Go allows one CPU profile
-# at a time, so while the SDK pushes, /debug/pprof/profile answers 500. The flag
-# is emitted only where a monitoring host publishes an in-lab address, which is
-# what lab_profiling_enabled already decides for the JVM agents (#291, #293).
 Description=NL6 SNMP simulator
 After=docker.service
 Requires=docker.service
@@ -18,6 +14,18 @@ ExecStart=/usr/bin/docker run \
   --network host \
   --device /dev/net/tun:/dev/net/tun \
   {{ nl6_image }} \
+{# Continuous profiling (#293). The flag is emitted only where a monitoring
+    host publishes an in-lab address, the same condition lab_profiling_enabled
+    applies to the JVM agents (#291). Push mode only: Go allows one CPU profile
+    at a time, so while the SDK pushes, a puller asking /debug/pprof/profile
+    gets a 500.
+
+    The block tags sit on their own lines and -port is written twice on purpose.
+    Inline tags read better but ansible.builtin.template defaults trim_blocks to
+    true, which ate the newline after the endif and glued ExecStop onto the flag;
+    duplicating one short line is the price of a valid backslash continuation.
+    The opening tag carries no leading dash on purpose: {#- would strip the
+    newline that ends the image line and glue -port onto it. #}
 {% if lab_profiling_enabled | default(false) | bool and lab_pyroscope_url | default('', true) | length > 0 %}
   -port {{ nl6_web_port }} \
   -profiling-pyroscope={{ lab_pyroscope_url }}
