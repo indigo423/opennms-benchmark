@@ -133,3 +133,15 @@ jobs:
       # ubuntu-24.04 image ships.
       - name: make validate-library
         run: make validate-library
+
+      # Handler-name collisions across roles in one play (#289) and update
+      # annotations bound to the wrong pin (#263). Both are invariants their
+      # specs require to fail a pull request, and both assert their own fixture,
+      # so a check that has stopped detecting anything fails here too. Pure
+      # stdlib; validate-handlers was in `make lint` but in no workflow until
+      # now, which meant it only ever failed on the author's machine.
+      - name: make validate-handlers
+        run: make validate-handlers
+
+      - name: make validate-renovate-pins
+        run: make validate-renovate-pins

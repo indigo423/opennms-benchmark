@@ -284,6 +284,24 @@ The rule that separates them: **pin a version here when the version alone determ
 
 The measured-component pins carry no `# renovate:` comment, and that is intentional — they should move when someone chooses to change what is being measured, at a campaign boundary, not when an upstream release lands mid-run. `node_exporter_version` does carry one, because it was already moving automatically via the collection pin; the choice there was never automatic-or-not but automatic-and-invisible versus automatic-and-reviewable.
 
+### Writing an annotated pin
+
+An annotated pin must be written so the annotation cannot be mistaken for someone else's:
+
+```yaml
+# renovate: datasource=github-releases depName=owner/tool
+# why this pin exists, if it needs saying
+tool_version: "1.2.3"
+```
+
+The value goes on the next line, or the next line after an explanatory comment, and it is quoted. `make validate-renovate-pins` fails a pull request that breaks either rule, and asserts a fixture so it keeps working.
+
+The rules are not style. The custom manager binds an annotation to a pin by proximity: it takes the first quoted `*_version:` below the annotation, wherever that is. An unquoted value is skipped, so the annotation lands on the next quoted pin instead, and Renovate raises the wrong variable to a version that has nothing to do with it while the intended one silently stops moving (#263). A deleted or renamed pin does the same thing, and that is the more likely edit.
+
+No stricter pattern fixes this. Renovate's custom managers use RE2, which has no lookarounds, so nothing here can fail loudly when the binding is absent. Requiring the value on the next line was tried and measured: it fixes the unquoted case, captures `1.2.3  # pinned deliberately` as a version when an unquoted value carries a trailing comment, and silently stops managing a pin separated from its annotation by a blank line. The check exists because the regex cannot be made to tell you.
+
+The sharpest case in this repository is `rustfs_boto3_version` and `rustfs_botocore_version`: adjacent annotated pins, both at the same version, and they are pip packages that move together so that stays true. Unquoting either one redirects its annotation onto the other, and the pull request would look like a plausible bump of a variable already at that version.
+
 ### Bumping the collection pin: check what its roles install
 
 The `indigo423.opennms` pin is excluded from update automation, which also excludes from scrutiny everything its roles install. Before merging a bump:

@@ -216,6 +216,18 @@ install-collections: ## Install the pinned collection closure (resolver off)
 	ANSIBLE_COLLECTIONS_ON_ANSIBLE_VERSION_MISMATCH=ignore \
 	  ansible-galaxy collection install -r requirements.yml -p $(COLLECTIONS_PATH) --no-deps --force
 
+# The manager binds an annotation to a pin by proximity, so a single unquoted
+# value silently redirects it onto an unrelated pin (#263). No pattern can fail
+# loudly about that: Renovate uses RE2, which has no lookarounds. Assert the
+# shape the pattern assumes instead, and assert the fixture too, because a check
+# whose failure path is never exercised quietly stops working.
+.PHONY: validate-renovate-pins
+validate-renovate-pins: ## Assert every renovate annotation is bound to the pin it names
+	@python3 validate-renovate-pins.py --repo-root . || exit 1
+	@python3 validate-renovate-pins.py --repo-root tests/renovate-fixtures/fx-annotation-crossbind >/dev/null 2>&1 \
+	  && { echo "fixture fx-annotation-crossbind did not fail; the check is not detecting mis-binding" >&2; exit 1; } \
+	  || echo "fixture fx-annotation-crossbind fails as expected"
+
 .PHONY: validate-collections
 validate-collections: ## Assert installed collections match the declared closure
 	python3 validate-collections.py --path $(COLLECTIONS_PATH)
@@ -231,7 +243,7 @@ clean-collections: ## Remove the installed collection tree, then reinstall the m
 	$(MAKE) install-collections
 
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-collections ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-renovate-pins validate-collections ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 
