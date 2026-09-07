@@ -358,7 +358,7 @@ Replace `<monitoring-public-ip>` with the monitoring VM's address from the gener
 | Kibana | `https://<monitoring-public-ip>/kibana` | no login required |
 | SNMP Sim (nl6) | `https://<monitoring-public-ip>/nl6` | no login required |
 
-Core and Minion push CPU profiles to Pyroscope whenever the topology has a monitoring host with an in-lab address, and so does the nl6 simulator.
+Core and Minion push CPU profiles to Pyroscope whenever the topology has a monitoring host with an in-lab address, and so does the nl6 simulator. That is on by default on `kvm`, `aws` and `proxmox`; `azure` and `vmware` publish no in-lab address for the monitoring host, so they do not profile.
 Set `lab_profiling_enabled: false` in `group_vars/all/vars.yml` (not in `opennms-lab-vars.yml`, see the [#209](https://github.com/indigo423/opennms-benchmark/issues/209) trap in the development guide) to disable profiling for runs that report absolute numbers; toggling it restarts Core and Minion on the next deploy, and rewrites the nl6 unit, which restarts the simulator and **destroys its in-memory fleet**. Flip it between campaigns, not during one, and rebuild the fleet afterwards.
 
 > [!IMPORTANT]
