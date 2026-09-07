@@ -228,6 +228,26 @@ validate-renovate-pins: ## Assert every renovate annotation is bound to the pin 
 	  && { echo "fixture fx-annotation-crossbind did not fail; the check is not detecting mis-binding" >&2; exit 1; } \
 	  || echo "fixture fx-annotation-crossbind fails as expected"
 
+.PHONY: validate-doc-inventories
+validate-doc-inventories: ## Assert every documented ansible-playbook names an inventory that exists
+	@python3 validate-doc-inventories.py --repo-root . || exit 1
+	@# A non-zero exit is not enough: the script exits 1 for a missing fixture
+	@# and for its own no-invocations guard too, so "it failed" would still be
+	@# reported if the fixture were renamed away and never read. Assert the
+	@# exact cases instead, listed in the fixture's own EXPECTED manifest.
+	@fx=tests/doc-fixtures/fx-missing-inventory; \
+	out=$$(python3 validate-doc-inventories.py --repo-root $$fx 2>&1); rc=$$?; \
+	[ $$rc -eq 1 ] || { echo "fixture exited $$rc, expected 1:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	want=$$(grep -c . $$fx/EXPECTED); \
+	got=$$(printf '%s\n' "$$out" | grep -c 'which does not exist'); \
+	[ "$$got" = "$$want" ] || { echo "fixture reported $$got finding(s), expected $$want:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	while read -r path; do \
+	  [ -n "$$path" ] || continue; \
+	  printf '%s\n' "$$out" | grep -q "resolves to $$path," \
+	    || { echo "fixture did not report the expected case $$path:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	done < $$fx/EXPECTED; \
+	echo "fixture fx-missing-inventory fails as expected: $$got case(s), each the expected path"
+
 .PHONY: validate-collections
 validate-collections: ## Assert installed collections match the declared closure
 	python3 validate-collections.py --path $(COLLECTIONS_PATH)
@@ -243,7 +263,7 @@ clean-collections: ## Remove the installed collection tree, then reinstall the m
 	$(MAKE) install-collections
 
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-renovate-pins validate-collections ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-renovate-pins validate-doc-inventories validate-collections ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 

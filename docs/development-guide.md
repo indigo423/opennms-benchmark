@@ -130,32 +130,33 @@ With the wrapper out of the way the check found a genuine bug of its own: `conta
 
 ## Working with Ansible
 
+Every Ansible command in this section runs from the project root. That is where Ansible finds this repository's `ansible.cfg`, and it is the only configuration that governs a runnable invocation: Ansible reads `./ansible.cfg` from the working directory and never searches parent directories, so running from a subdirectory silently gets no configuration at all. The four under `experiments/legacy/` belong to experiments that are reference, not runnable.
+
+`make deploy` wraps the whole sequence. The explicit commands here are for rerunning one part of it.
+
 ### Bootstrap VMs
 
 ```bash
-cd bootstrap
-ansible-playbook -i inventory site.yml
+ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/site.yml
 ```
 
 Run selectively by tag:
 
 ```bash
-ansible-playbook -i inventory site.yml --tags monitoring
-ansible-playbook -i inventory site.yml --tags net-snmp
+ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/site.yml --tags monitoring
+ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/site.yml --tags net-snmp
 ```
 
 ### Update packages
 
 ```bash
-cd bootstrap
-ansible-playbook -i ../ansible-inventory.<provider>.yml update-playbook.yml
+ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/update-playbook.yml
 ```
 
 ### Reboot all VMs
 
 ```bash
-cd bootstrap
-ansible-playbook -i ../ansible-inventory.<provider>.yml reboot-playbook.yml
+ansible-playbook -i ansible-inventory.<provider>.yml bootstrap/reboot-playbook.yml
 ```
 
 ### Deploy the OpenNMS stack
@@ -178,11 +179,10 @@ Edit `opennms-lab-vars.yml` to change the OpenNMS version, JVM heap, Kafka setti
 ## Running an Experiment
 
 ```bash
-cd experiments/<experiment-name>
-ansible-playbook -i opennms-lab-inventory.yml experiment.yml \
-  --extra-vars="@../../opennms-lab-vars.yml" \
-  --extra-vars="@opennms-lab-vars.yml"  # if the experiment has overrides
+make experiment PROVIDER=<provider> EXPERIMENT=<experiment-name> DEPLOYMENT=<slug>
 ```
+
+The target layers `opennms-lab-vars.yml` root first, then the deployment's, then the experiment's, skipping any that do not exist. `make experiments` lists the runnable ones.
 
 ## Provisioning Test Nodes
 

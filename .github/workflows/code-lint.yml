@@ -145,3 +145,6 @@ jobs:
 
       - name: make validate-renovate-pins
         run: make validate-renovate-pins
+
+      - name: make validate-doc-inventories
+        run: make validate-doc-inventories

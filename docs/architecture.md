@@ -147,6 +147,8 @@ Each experiment directory is a self-contained Ansible playbook that reconfigures
 | `legacy/c1km1_4c16g_kfk_syslog` | Kafka | OSGI (default) | Syslog ingestion |
 | `legacy/c1km1_4c16g_rrd_pm_snmp` | Kafka | RRD (jrrd2) | SNMP polling |
 
+**These four are reference, not runnable.** They predate the current structure and are kept for the configuration they encode. Their inventories carry pre-`role_block_size` addresses, two use group names no generated inventory produces, and their `ansible.cfg` disagrees with the inventory about the remote user. See [`experiments/README.md`](../experiments/README.md). `make experiments` lists what is runnable.
+
 **Naming convention:** `c<cores>km<minions>_<cpu>c<ram>g_<broker>_<load-type>`
 
 ## Container service roles carry a contract
