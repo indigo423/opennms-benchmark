@@ -1,0 +1,896 @@
+{
+  "title": "Continuous profiles: Core, Minion, nl6",
+  "uid": "onms-profiles-services",
+  "description": "Audience: engineer. Where do OpenNMS Core, Minion and the nl6 simulator spend CPU and memory during a benchmark run, and are their profiles arriving? Feeds the decision of which code path to tune next and whether profiler overhead is acceptable for the run. Source: Grafana Pyroscope on the monitoring host (push from the pyroscope-java agent and nl6's built-in profiler) plus Pyroscope's own metrics in Prometheus.",
+  "tags": [
+    "opennms",
+    "pyroscope",
+    "profiling",
+    "entity-detail",
+    "audience:engineer"
+  ],
+  "timezone": "utc",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "type": "link",
+      "title": "Profiles Drilldown",
+      "icon": "external link",
+      "url": "/a/grafana-pyroscope-app/explore?explorationType=flame-graph&var-dataSource=${datasource}&var-serviceName=${service}&var-profileMetricId=${profile_type}&${__url_time_range}",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "tooltip": "Grafana's profile explorer for the selected service and profile type"
+    },
+    {
+      "type": "link",
+      "title": "Core internals (Prometheus)",
+      "icon": "dashboard",
+      "url": "/d/42118f3c-3c63-451a-9692-c3dd43b854c0",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "tooltip": "JVM and OpenNMS metrics for the same window"
+    },
+    {
+      "type": "link",
+      "title": "Minion Kafka IPC",
+      "icon": "dashboard",
+      "url": "/d/onms-minion-internal",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "tooltip": "RPC path between Core and Minions"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Profiles data source",
+        "type": "datasource",
+        "query": "grafana-pyroscope-datasource",
+        "current": {},
+        "hide": 0,
+        "refresh": 1,
+        "description": "The Pyroscope server. One is provisioned per lab (uid pyroscope)."
+      },
+      {
+        "name": "prometheus",
+        "label": "Metrics data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0,
+        "refresh": 1,
+        "description": "Prometheus that scrapes the Pyroscope server's own /metrics (job pyroscope)."
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-pyroscope-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "refId": "PyroscopeVariableQuery",
+          "type": "labelValue",
+          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "labelName": "service_name"
+        },
+        "definition": "service_name values with a CPU profile",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "refresh": 2,
+        "sort": 1,
+        "regex": "/^(?!pyroscope$).*/",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "description": "Services pushing profiles: OpenNMS Core and Minion under the application name their agents send, and nl6. Pyroscope's own self-profile is hidden."
+      },
+      {
+        "name": "profile_type",
+        "label": "Profile type",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-pyroscope-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "refId": "PyroscopeVariableQuery",
+          "type": "profileType"
+        },
+        "definition": "profile types present on the server",
+        "multi": false,
+        "includeAll": false,
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "value": "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
+        },
+        "description": "Which sample to look at. CPU is common to Java and Go. Allocation and lock types differ: Java uses memory:alloc_in_new_tlab_* and mutex:*, Go uses memory:alloc_*, memory:inuse_*, goroutines and block:*."
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Verdict: are profiles arriving, and how hot are the services?",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Profiles received by the server, last 5 min",
+      "description": "Count of profile uploads the Pyroscope distributor accepted in the last five minutes, all services combined (pyroscope_distributor_profiles_received_total, scraped by Prometheus). Normal: steadily above zero once at least one agent pushes; Pyroscope's own self-profile alone contributes roughly one upload per 15 s. Zero means nothing is arriving: check the agent's PYROSCOPE_SERVER_ADDRESS (Core, Minion) or the -profiling-pyroscope flag (nl6), and the server's /ready. This number does not split by service; the panels to the right and below do.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheus}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheus}"
+          },
+          "expr": "sum(increase(pyroscope_distributor_profiles_received_total[5m]))",
+          "legendFormat": "profiles received"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#D9414B"
+              },
+              {
+                "value": 1,
+                "color": "#2E9E63"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": null,
+                "to": 0.99,
+                "result": {
+                  "text": "none arriving"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Request error rate at the server",
+      "description": "HTTP and Connect requests per second the Pyroscope server answered with a non-2xx or non-3xx status, all routes except the readiness probe (pyroscope_request_duration_seconds_count by status_code). Normal is zero. A steady non-zero value while profiles are pushed means the server is rejecting uploads: check the server log for the status code (413 payload too large, 429 rate limited, 5xx storage) before blaming the agents. Readiness 503s during start-up are excluded.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheus}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheus}"
+          },
+          "expr": "sum(rate(pyroscope_request_duration_seconds_count{status_code!~\"[23]..\", route!=\"ready\"}[$__rate_interval]))",
+          "legendFormat": "failed requests"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#2E9E63"
+              },
+              {
+                "value": 0.01,
+                "color": "#D9414B"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": null,
+                "to": 0.009,
+                "result": {
+                  "text": "none failing"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Collector saturation: CPU and memory vs container caps",
+      "description": "How much of its docker caps the Pyroscope container uses: CPU as a share of the 1.0-core quota (rate of process_cpu_seconds_total) and resident memory as a share of the 1 GiB limit (process_resident_memory_bytes), scraped by Prometheus under job pyroscope. Normal for three services is well under 30% of either. Above 70% the collector, not the system under test, becomes the thing being measured: reduce profile types or sampling rate, or raise pyroscope_cpus / pyroscope_memory in the role defaults. Values are 0 to 1 shares, shown as percent.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheus}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheus}"
+          },
+          "expr": "sum(rate(process_cpu_seconds_total{job=\"pyroscope\"}[$__rate_interval])) / 1.0",
+          "legendFormat": "CPU of 1 core"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheus}"
+          },
+          "expr": "sum(process_resident_memory_bytes{job=\"pyroscope\"}) / (1024*1024*1024)",
+          "legendFormat": "memory of 1 GiB"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#2E9E63"
+              },
+              {
+                "value": 0.7,
+                "color": "#C08215"
+              },
+              {
+                "value": 0.9,
+                "color": "#D9414B"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "CPU consumed right now, per service",
+      "description": "CPU cores each selected service is burning, from its CPU profile (process_cpu, sampled at 100 Hz by the Java agent's itimer or Go's runtime profiler, converted to a rate by the data source). Normal during a pm-snmp campaign: Core well below its vCPU count, Minion under one core, nl6 proportional to the fleet size. A service at its vCPU count is CPU-bound: open its flame graph below before tuning thread pools. A service missing here is not pushing profiles.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "metrics",
+          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "labelSelector": "{service_name=~\"$service\"}",
+          "groupBy": [
+            "service_name"
+          ],
+          "spanSelector": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#2E9E63"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.service_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Profile data arriving at the server, by profile family",
+      "description": "Decompressed bytes per second the Pyroscope distributor receives, split by profile family (memory, block, goroutines, cpu and so on), from pyroscope_distributor_received_decompressed_bytes_sum. Use it to see whether a service started or stopped pushing, and what a profiling setting costs in ingest: enabling alloc and lock profiling on the Java agent should show up here as new families. A flat zero while agents are configured points at network or address problems, not at the server.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheus}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheus}"
+          },
+          "expr": "sum by (type) (rate(pyroscope_distributor_received_decompressed_bytes_sum[$__rate_interval]))",
+          "legendFormat": "{{type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#2E9E63"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Drivers: which service, which subsystem moved?",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "CPU by service",
+      "description": "CPU cores per selected service over time, from the CPU profile (process_cpu). Compare it with the campaign's load steps: a step in devices or interval should move this line proportionally; a rise without a load change is a regression or a GC storm. Click a series to open that service in Profiles Drilldown with this time range. Series are named by the application name the agent sends (PYROSCOPE_APPLICATION_NAME for Core and Minion, always nl6 for the simulator).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "metrics",
+          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "labelSelector": "{service_name=~\"$service\"}",
+          "groupBy": [
+            "service_name"
+          ],
+          "spanSelector": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "CPU cores"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#2E9E63"
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Open ${__field.labels.service_name} in Profiles Drilldown",
+              "url": "/a/grafana-pyroscope-app/explore?explorationType=flame-graph&var-dataSource=${datasource}&var-serviceName=${__field.labels.service_name}&var-profileMetricId=${profile_type}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.service_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Selected profile type by service",
+      "description": "The profile type chosen in the picker above, totalled per selected service. The unit follows the type: cores for CPU, bytes/s for allocation rate, ns for lock or block delay, a count for goroutines and objects. Java services (Core, Minion) publish memory:alloc_in_new_tlab_* and mutex:*; the Go simulator publishes memory:alloc_*, memory:inuse_*, goroutines and block:*. A service with no line does not emit that type, which is expected across the language boundary and not an error.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "metrics",
+          "profileTypeId": "$profile_type",
+          "labelSelector": "{service_name=~\"$service\"}",
+          "groupBy": [
+            "service_name"
+          ],
+          "spanSelector": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#2E9E63"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.service_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "nl6 CPU by simulator subsystem",
+      "description": "CPU cores inside nl6 split by its subsystem sample label (snmp, trap, syslog, flow, gnmi, gnmi-dialout, scenario), which nl6 v0.29.0 attaches to every profiled loop. This tells you whether the generator itself is the bottleneck of a run and which protocol loop is paying for it; only nl6 carries the label, so the panel is empty when nl6 is not selected. If snmp dominates while the Core reports agent-latency timeouts, the simulator is saturated and the measurement is invalid.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "metrics",
+          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "labelSelector": "{service_name=~\"$service\", subsystem!=\"\"}",
+          "groupBy": [
+            "subsystem"
+          ],
+          "spanSelector": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "CPU cores"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#2E9E63"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.subsystem}"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Evidence: where in the code?",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "panels": []
+    },
+    {
+      "id": 12,
+      "type": "flamegraph",
+      "title": "Flame graph: $profile_type for $service",
+      "description": "Merged flame graph of the selected profile type for one service over the dashboard's time range; one panel per selected service. Width is the share of the total (CPU time, bytes allocated or lock delay); depth is the call stack, callers above callees. Read it top-down to the first frame that is both wide and yours: that is the tuning target. Use the table view for a sorted list of self time, and the search box to find a class or function. For diffing two time ranges use the Profiles Drilldown link in the panel menu.",
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "repeat": "service",
+      "repeatDirection": "v",
+      "maxPerRow": 1,
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "profile",
+          "profileTypeId": "$profile_type",
+          "labelSelector": "{service_name=\"$service\"}",
+          "groupBy": [],
+          "spanSelector": [],
+          "maxNodes": 16384
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "links": [
+        {
+          "title": "Open in Profiles Drilldown (diff, tags, timeline)",
+          "url": "/a/grafana-pyroscope-app/explore?explorationType=flame-graph&var-dataSource=${datasource}&var-serviceName=${service}&var-profileMetricId=${profile_type}&${__url_time_range}"
+        }
+      ]
+    }
+  ]
+}
