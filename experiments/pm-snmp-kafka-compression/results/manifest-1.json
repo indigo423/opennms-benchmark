@@ -1,0 +1,262 @@
+{
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "host.disk",
+    "host.generator_colocated",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters",
+    "workload.fixtures"
+  ],
+  "experiment": {
+    "question": "Is Kafka producer compression a net positive or a net negative for the Core, the Minion and the network at 19,250 devices with 400 collection threads?",
+    "independent_variable": "sut.config_delta (Kafka producer compression.type on the Minion and on the Core's metrics producer)",
+    "variant": "19250-devices-threads400-kafka-compression-none-lz4-zstd",
+    "plan": "One variable at a time on the healthy 19,250 fleet: baseline with no compression, lz4 on the Minion's Kafka producers (RPC responses), zstd on the Minion, lz4 on the Core's metrics producer with the Minion back to none, then the uncompressed baseline again. Each trial is a 15-minute window, three cycles, opened five minutes after the Core finished loading its services following an OpenNMS restart; the restart is part of the procedure because a Minion restart leaves a backlog on the Core that a 2.5 collections/s surplus would take an hour to drain. Judged with bin/kafka_trial.py by the knee search's rule; CPU per collection from CPU busy times cores over collections completed. No host collectors were armed: Prometheus only."
+  },
+  "sut": {
+    "config_delta": "One variable against pm-snmp-agent-latency-32g-pool400-live: Kafka producer compression.type, set per trial and removed after it. Fleet 19,250 (the 1,000 nodes of octets 77-80 deleted over REST; nl6 still holds them). Everything else identical: Collectd threads 400, G1, 20 GiB heap, max-repetitions 5, netem delay 75ms 25ms.\n\nTrial windows (UTC, 2026-09-06), each after an OpenNMS restart on the Core:\n  baseline-none        20:10-20:25  no compression anywhere (Core restarted 19:57)\n  minion-lz4           20:55-21:10  /opt/minion/etc/org.opennms.core.ipc.kafka.cfg: compression.type = lz4 (Minion restarted 20:35, Core 20:42)\n  minion-zstd          21:26-21:41  same file: compression.type = zstd (Minion 21:11, Core 21:13)\n  core-metrics-lz4     21:57-22:12  Minion back to none (21:42); /etc/opennms/org.opennms.features.kafka.producer.client.cfg: compression.type = lz4 (Core 21:44)\n  baseline-none-repeat 22:26-22:41  Core client.cfg restored (Core 22:13)\n\nBroker (kafka_2.13-4.2.0, KRaft): compression.type unset, i.e. producer; the broker stores the producer's codec and the consumer decompresses. Where the key reaches: every key in the Minion's org.opennms.core.ipc.kafka.cfg is passed to its Kafka producers (KafkaRpcServerManager via OsgiKafkaConfigProvider); the Core's metrics producer reads org.opennms.features.kafka.producer.client.cfg.\n\nUnchanged from the 20,250 capture: opennms.conf (JAVA_HEAP_SIZE 20480, -XX:+UseG1GC, NMT, 13 daemons disabled), collectd-configuration.xml threads 400, snmp-config max-repetitions 5 for 10.42.0.0/16 in the Config Manager, log4j2 instrumentation INFO, PostgreSQL pgtune profile with SSL, Minion stock (2 GiB default heap).",
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "jvm": {
+      "flags": "-Xms20480m -Xmx20480m -XX:+UseG1GC -XX:NativeMemoryTracking=summary -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError -XX:+StartAttachListener (from the process command line; no JVM collector ran on the Core; the full VM.flags of this heap and collector are in pm-snmp-agent-latency-32g-live/results-attempt1)",
+      "gc": "G1GC",
+      "heap": "-Xms20480m -Xmx20480m"
+    },
+    "tss_backend": "kafka-exclusive",
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    }
+  },
+  "host": {
+    "cpu": "Intel(R) Xeon(R) CPU E5-2650 v4 @ 2.20GHz, 8 cores",
+    "disk": "sda 200G disk rota=1 QEMU HARDDISK",
+    "os": "Ubuntu 24.04.4 LTS",
+    "ram_gb": 31.34
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 cisco_crs_x.json, 19,250 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-76, netem delay 75ms 25ms on the simulator, GETBULK max-repetitions 5"
+  },
+  "run": {
+    "id": "19250-devices-threads400-kafka-compression-20260906T201000Z",
+    "started_at": "2026-09-06T20:10:00Z",
+    "ended_at": "2026-09-06T22:41:00Z"
+  },
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-06T20:05:00Z",
+      "end": "2026-09-06T22:45:00Z"
+    },
+    "resolution": "15s",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "kafka",
+        "compression",
+        "lz4",
+        "zstd",
+        "pool-400",
+        "32g-core",
+        "kfk-exclusive"
+      ]
+    },
+    "figures": [
+      {
+        "id": "net-kafka",
+        "title": "The Kafka segment through five codec phases: Minion RPC responses, Core producer and the broker's link",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Network Traffic"
+        },
+        "note": "Phases, UTC: none 20:10-20:25, Minion lz4 20:55-21:10, Minion zstd 21:26-21:41, Core metrics lz4 21:57-22:12, none again 22:26-22:41; the gaps between them are the Minion and Core restarts. lz4 and zstd on the Minion take its link from 181 to 23 and 16 Mbit/s; lz4 on the Core's metrics producer takes the Core's link from 257 to 200.",
+        "series": [
+          {
+            "label": "minion enp6s19, RPC to Kafka",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[2m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s19\"}[2m])) * 8 / 1e6"
+          },
+          {
+            "label": "core enp6s20, RPC + metrics",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[2m]) + rate(node_network_transmit_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[2m])) * 8 / 1e6"
+          },
+          {
+            "label": "kafka enp6s19, all",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"kafka-benchmark-01:9100\",device=\"enp6s19\"}[2m]) + rate(node_network_transmit_bytes_total{instance=\"kafka-benchmark-01:9100\",device=\"enp6s19\"}[2m])) * 8 / 1e6"
+          }
+        ]
+      },
+      {
+        "id": "cpu",
+        "title": "CPU busy through the five phases: Core, Minion and broker",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Busy"
+        },
+        "note": "Phases, UTC: none 20:10-20:25, Minion lz4 20:55-21:10, Minion zstd 21:26-21:41, Core metrics lz4 21:57-22:12, none again 22:26-22:41; the gaps between them are the Minion and Core restarts. The Core steps up with every codec and back down without; the broker steps down with the Minion's codecs; the Minion does not move.",
+        "series": [
+          {
+            "label": "core (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          },
+          {
+            "label": "minion (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          },
+          {
+            "label": "kafka (2 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"kafka-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          }
+        ]
+      },
+      {
+        "id": "cpu-per-collection",
+        "title": "CPU cost per collection on the Core and the Minion, five-minute rate",
+        "unit": "core-seconds per collection",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed (derived)"
+        },
+        "note": "CPU busy times cores divided by collections completed; the report's comparison column. Spikes are the restarts, where the rate is low and the loading Core is busy. Inside the windows the Core sits at 0.111 without a codec and 0.117 to 0.121 with one.",
+        "series": [
+          {
+            "label": "core, core-seconds per collection",
+            "expr": "((100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100) * 8 / 100) / sum(rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m]))"
+          },
+          {
+            "label": "minion, core-seconds per collection",
+            "expr": "((100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100) * 4 / 100) / sum(rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m]))"
+          }
+        ]
+      },
+      {
+        "id": "throughput",
+        "title": "Collections completed per second against the rate the fleet requires",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "Every window meets demand; the dips are the restarts. Compression changes what a collection costs, not how many the fleet asks for.",
+        "series": [
+          {
+            "label": "achieved, 5-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])"
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "last_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]) / 300"
+          }
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Collectd pending queue, rolling one-minute peak and floor",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd pending tasks"
+        },
+        "note": "The floor touches zero in every window except zstd's, where it stays above 300 for the whole 15 minutes. The large peaks are the restarts' loading waves.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "gc",
+        "title": "Core young-collection pause time per minute",
+        "unit": "s per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "JVM (JMX exporter)",
+          "panel": "GC"
+        },
+        "note": "2.9 s a minute without a codec, 3.4 to 3.7 with one: the decompressed and re-copied batches show up as allocation before they show up as CPU.",
+        "series": [
+          {
+            "label": "young-gen pause seconds per minute",
+            "expr": "rate(java_lang_g1_young_generation_collectiontime{instance=\"core-benchmark-01:9299\"}[5m]) / 1000 * 60"
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "id": "q-the-impact",
+        "question": "Is compression a net positive or a net negative, and for whom?",
+        "answer_ref": "#the-impact"
+      },
+      {
+        "id": "q-the-network",
+        "question": "How much traffic does each codec remove, and from which link?",
+        "answer_ref": "#the-network"
+      },
+      {
+        "id": "q-the-core",
+        "question": "What does the Core pay, and why more than the codec's speed suggests?",
+        "answer_ref": "#the-core"
+      },
+      {
+        "id": "q-minion-broker",
+        "question": "What do the Minion and the broker gain or lose?",
+        "answer_ref": "#minion-and-broker"
+      },
+      {
+        "id": "q-where-it-helps",
+        "question": "Where is compression worth turning on?",
+        "answer_ref": "#where-it-helps"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Are the windows comparable when each follows a restart?",
+        "why": "Every trial window opened five minutes after the Core finished loading its services after an OpenNMS restart, so all five carry an aligned scheduling wave. The two uncompressed baselines put the Core's CPU per collection at 0.1112 and 0.1110 core-seconds while their queue-at-zero share differed, 44% against 34%, with the wave's phase. CPU per collection is the comparison; the queue columns are pass or fail only.",
+        "validity": "internal"
+      },
+      {
+        "question": "Is one window per codec enough?",
+        "why": "One 15-minute window per codec against two baselines. The codec effects on the Core, 5% to 9% per collection, are ten to twenty times the difference between the two baselines, so the sign and the order are safe; the size of each effect is a single sample.",
+        "validity": "conclusion"
+      },
+      {
+        "question": "Does the compression ratio carry to another deployment?",
+        "why": "The Minion's RPC responses are SNMP results marshalled as formatted XML, which lz4 shrinks eight to one here. A different RPC encoding, a different data collection package or a different device would compress differently; the Core-side cost per byte would not.",
+        "validity": "external"
+      },
+      {
+        "question": "Is CPU per collection the right measure of the Core's cost?",
+        "why": "It is CPU busy from node_exporter times eight cores over the collections the executor completed, and it includes everything else the Core does: provisiond rescans, the JMX exporter, logging. Those did not change between trials; a profiler could apportion the extra cost between decompression, the Kafka client's copies and the resulting garbage, but attaching one to this Core collapses it.",
+        "validity": "construct"
+      }
+    ]
+  }
+}

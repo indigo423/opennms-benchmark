@@ -1,0 +1,386 @@
+{
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "host.disk",
+    "host.generator_colocated",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters",
+    "workload.fixtures"
+  ],
+  "experiment": {
+    "question": "How do agent latency, the Collectd thread count, CPU and RAM relate to each other, and is there a rule for sizing a deployment?",
+    "independent_variable": "workload.parameters.devices, across six knee searches, a latency sweep and a cleanroom edge search",
+    "variant": "sizing-rule-synthesis-2026-09-01-to-06",
+    "plan": "No new measurement. Every knee the campaign recorded between 1 and 6 September 2026 on kfk-exclusive is read back from its own records (knee-search*.jsonl, edge-search.jsonl, latency-sweep.jsonl, fleet-sweep.jsonl, the sealed captures) by bin/model.py, which derives two constants per collection, thread time T = P x R + c0 and CPU cost c, and predicts each knee from them: threads x 300 / T by the pool, cores x utilisation x 300 / c by the processor, whichever is smaller. The figures are the searches' own Prometheus series, re-expressed in the rule's units."
+  },
+  "sut": {
+    "config_delta": "A synthesis across the campaign's configurations rather than one configuration. The Core VM was 16 GiB with a 10 GiB heap (JAVA_HEAP_SIZE 10240) until 2026-09-05 09:15Z and 32 GiB with a 20 GiB heap after (xxlarge-mem, commit f6a9609); 8 vCPU throughout, G1 throughout. Collectd threads 100 (latency sweep, edge search, cleanroom, first knee search), 200, 300 and 400 by search. snmp-config max-repetitions 2 (default) until 2026-09-04 11:57Z and 5 for 10.42.0.0/16 after, set through the Config Manager. netem on the simulator's SNMP interface: none and 0 to 60 ms in the latency sweep, delay 10ms 2ms in the edge search, none in the cleanroom, delay 75ms 25ms in every knee search. The Minion, Kafka, PostgreSQL and nl6 as in the sealed captures; the Kafka compression trials of 2026-09-06 evening are excluded.\n\nPer-window sources: experiments/pm-snmp-latency/results (latency-sweep, fleet-sweep, edge-search), experiments/pm-snmp-14k-cleanroom, experiments/pm-snmp-agent-latency/results (knee-search*.jsonl, pool-sweep.jsonl), and the sealed captures pm-snmp-agent-latency-mr5-live, -32g-live and -32g-pool400-live.",
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "jvm": {
+      "flags": "-Xms20480m -Xmx20480m -XX:+UseG1GC -XX:NativeMemoryTracking=summary -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError -XX:+StartAttachListener (from the process command line; no JVM collector ran on the Core; the full VM.flags of this heap and collector are in pm-snmp-agent-latency-32g-live/results-attempt1)",
+      "gc": "G1GC",
+      "heap": "-Xms20480m -Xmx20480m"
+    },
+    "tss_backend": "kafka-exclusive",
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    }
+  },
+  "host": {
+    "cpu": "Intel(R) Xeon(R) CPU E5-2650 v4 @ 2.20GHz, 8 cores",
+    "disk": "sda 200G disk rota=1 QEMU HARDDISK",
+    "os": "Ubuntu 24.04.4 LTS",
+    "ram_gb": 31.34,
+    "hygiene_notes": "Two Core classes over the campaign: xlarge 8 vCPU / 16 GiB to 2026-09-05 09:15Z, xxlarge-mem 8 vCPU / 32 GiB after. The host block records the latter."
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 cisco_crs_x.json, 144 interfaces per device, SNMP v2c, fleets of 2,000 to 20,250 devices; netem from none to delay 75ms 25ms on the simulator; GETBULK max-repetitions 2 and 5"
+  },
+  "run": {
+    "id": "pm-snmp-sizing-rule-campaign-20260901T150000Z",
+    "started_at": "2026-09-01T15:00:00Z",
+    "ended_at": "2026-09-06T12:15:00Z"
+  },
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-04T12:00:00Z",
+      "end": "2026-09-06T12:15:00Z"
+    },
+    "resolution": "30s",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "sizing",
+        "latency",
+        "threads",
+        "cpu",
+        "heap",
+        "little's-law",
+        "kfk-exclusive",
+        "synthesis"
+      ]
+    },
+    "figures": [
+      {
+        "id": "latency-staircase",
+        "title": "Latency sweep, 3,803 devices, pool 100: thread time per collection as netem steps from 0 to 60 ms",
+        "unit": "seconds per collection",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-01T15:00:00Z",
+          "end": "2026-09-01T20:45:00Z"
+        },
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd active threads (derived)"
+        },
+        "note": "Each plateau is one delay setting, 2, 5, 10, 20, 30, 40, 50, 60 ms; the ceiling is 100 threads x 300 s / 3,803 services = 7.9 s. Thread time climbs in a straight line with the delay until it meets the ceiling at 50 ms.",
+        "series": [
+          {
+            "label": "thread-seconds per collection: busy threads x 300 / services",
+            "expr": "clamp_max(avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[5m]) * 300 / clamp_min(avg_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]), 1000), 30)"
+          },
+          {
+            "label": "the pool's ceiling in the same unit: pool size x 300 / services",
+            "expr": "clamp_max(avg_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[5m]) * 300 / clamp_min(avg_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]), 1000), 30)"
+          }
+        ]
+      },
+      {
+        "id": "edge-threads",
+        "title": "Edge search at 8 to 12 ms per PDU, pool 100: thread time against the pool's ceiling, 10,000 to 14,000 devices",
+        "unit": "seconds per collection",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-02T11:30:00Z",
+          "end": "2026-09-02T13:50:00Z"
+        },
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd active threads (derived)"
+        },
+        "note": "Thread time holds at 2.1 to 2.3 s while the ceiling falls with every 1,000 devices; the two meet between 13,000 and 14,000, which is where the search stopped.",
+        "series": [
+          {
+            "label": "thread-seconds per collection: busy threads x 300 / services",
+            "expr": "clamp_max(avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[5m]) * 300 / clamp_min(avg_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]), 1000), 30)"
+          },
+          {
+            "label": "the pool's ceiling in the same unit: pool size x 300 / services",
+            "expr": "clamp_max(avg_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[5m]) * 300 / clamp_min(avg_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]), 1000), 30)"
+          }
+        ]
+      },
+      {
+        "id": "cleanroom-cpu",
+        "title": "Cleanroom, 14,004 devices at 0.1 ms per PDU, seven hours: Core CPU per collection",
+        "unit": "core-seconds per collection",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-02T22:00:00Z",
+          "end": "2026-09-03T05:00:00Z"
+        },
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Busy (derived)"
+        },
+        "note": "About 0.15 core-seconds with fast agents on the 16 GiB Core, GC included: the same order as 0.115 on the 32 GiB Core at 76 ms. Agent latency does not change what a collection costs the Core.",
+        "series": [
+          {
+            "label": "core, core-seconds per collection",
+            "expr": "clamp_max(((100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100) * 8 / 100) / clamp_min(sum(rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])), 5), 0.5)"
+          }
+        ]
+      },
+      {
+        "id": "mr2-threads",
+        "title": "Pool 100 then pool 200 at 50 to 100 ms per PDU, max-repetitions 2: thread time against the ceiling",
+        "unit": "seconds per collection",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-03T10:45:00Z",
+          "end": "2026-09-03T23:30:00Z"
+        },
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd active threads (derived)"
+        },
+        "note": "Thread time is 11 to 12 s per collection, 149 PDUs at 76 ms plus the Core's own second, at both pool sizes. The ceiling meets it at 2,500 to 3,000 devices with 100 threads and at 5,000 to 5,250 with 200.",
+        "series": [
+          {
+            "label": "thread-seconds per collection: busy threads x 300 / services",
+            "expr": "clamp_max(avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[5m]) * 300 / clamp_min(avg_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]), 1000), 30)"
+          },
+          {
+            "label": "the pool's ceiling in the same unit: pool size x 300 / services",
+            "expr": "clamp_max(avg_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[5m]) * 300 / clamp_min(avg_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]), 1000), 30)"
+          }
+        ],
+        "resolution": "30s"
+      },
+      {
+        "id": "mr5-threads",
+        "title": "The max-repetitions 5 searches, pool 200, 300 and 400, 5,250 to 20,250 devices: thread time against the ceiling",
+        "unit": "seconds per collection",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-04T12:00:00Z",
+          "end": "2026-09-06T12:15:00Z"
+        },
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd active threads (derived)"
+        },
+        "note": "Pool 200 (to 18:27 on the 4th), pool 300 on the 16 GiB Core (to 03:00 on the 5th), pool 300 on the 32 GiB Core (09:30 to 24:00 on the 5th), pool 400 (the 6th). Thread time is 5 to 6 s throughout; 61 PDUs at 76 ms plus the Core's second. The gaps are resizes, a host outage and restarts.",
+        "series": [
+          {
+            "label": "thread-seconds per collection: busy threads x 300 / services",
+            "expr": "clamp_max(avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[5m]) * 300 / clamp_min(avg_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]), 1000), 30)"
+          },
+          {
+            "label": "the pool's ceiling in the same unit: pool size x 300 / services",
+            "expr": "clamp_max(avg_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[5m]) * 300 / clamp_min(avg_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]), 1000), 30)"
+          }
+        ],
+        "resolution": "30s"
+      },
+      {
+        "id": "mr5-cpu",
+        "title": "The same searches: Core CPU per collection",
+        "unit": "core-seconds per collection",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-04T12:00:00Z",
+          "end": "2026-09-06T12:15:00Z"
+        },
+        "resolution": "30s",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Busy (derived)"
+        },
+        "note": "0.115 core-seconds on the 32 GiB Core at every fleet from 14,250 to 20,250; 0.13 to 0.16 on the 16 GiB Core, where old-generation collections add to it. The spikes are restarts and imports, where the rate is low.",
+        "series": [
+          {
+            "label": "core, core-seconds per collection",
+            "expr": "clamp_max(((100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100) * 8 / 100) / clamp_min(sum(rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])), 5), 0.5)"
+          }
+        ]
+      },
+      {
+        "id": "mr5-heap",
+        "title": "The same searches: Core heap against its ceiling",
+        "unit": "GiB",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-04T12:00:00Z",
+          "end": "2026-09-06T12:15:00Z"
+        },
+        "resolution": "30s",
+        "source": {
+          "dashboard": "JVM (JMX exporter)",
+          "panel": "Heap / GC"
+        },
+        "note": "The 10 GiB heap is pinned at 8 to 10 GiB from 12,000 devices. The 20 GiB heap grows with the fleet and the pool, 12 to 17 GiB from 14,250 to 20,250.",
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"}[5m]) / 1024 / 1024 / 1024"
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"}[5m]) / 1024 / 1024 / 1024"
+          }
+        ]
+      },
+      {
+        "id": "mr5-oldgen",
+        "title": "The same searches: old-generation collections per minute",
+        "unit": "per minute",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-04T12:00:00Z",
+          "end": "2026-09-06T12:15:00Z"
+        },
+        "resolution": "30s",
+        "source": {
+          "dashboard": "JVM (JMX exporter)",
+          "panel": "Heap / GC"
+        },
+        "note": "Twice a minute on the 10 GiB heap at 14,250; zero on the 20 GiB heap at every rung to 19,750, and a handful of full collections at 20,250.",
+        "series": [
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60"
+          }
+        ]
+      },
+      {
+        "id": "mr5-fleet",
+        "title": "The same searches: collectable services",
+        "unit": "thousands of services",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-04T12:00:00Z",
+          "end": "2026-09-06T12:15:00Z"
+        },
+        "resolution": "30s",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd collectable services"
+        },
+        "note": "The rungs of the four searches, 5,250 to 20,250, and the imports between them.",
+        "series": [
+          {
+            "label": "collectable services, thousands",
+            "expr": "last_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[5m]) / 1000"
+          }
+        ]
+      },
+      {
+        "id": "mr5-corecpu",
+        "title": "The same searches: Core CPU busy",
+        "unit": "% of 8 vCPU",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-04T12:00:00Z",
+          "end": "2026-09-06T12:15:00Z"
+        },
+        "resolution": "30s",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Busy"
+        },
+        "note": "CPU rises 2.5 to 4 points per 500 devices on the 32 GiB Core, straight to the 96% cliff at 20,250. On the 16 GiB Core it reaches 90% at 14,250 with a third of it garbage collection.",
+        "series": [
+          {
+            "label": "core CPU busy, 5-minute",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[5m])) * 100"
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "id": "q-the-rule",
+        "question": "What is the rule?",
+        "answer_ref": "#the-rule"
+      },
+      {
+        "id": "q-latency-threads",
+        "question": "How do agent latency and PDUs per collection set the thread count?",
+        "answer_ref": "#latency-and-threads"
+      },
+      {
+        "id": "q-cpu",
+        "question": "What does a collection cost the processor, and does latency change it?",
+        "answer_ref": "#cpu"
+      },
+      {
+        "id": "q-ram",
+        "question": "How much heap and RAM does a fleet need?",
+        "answer_ref": "#ram"
+      },
+      {
+        "id": "q-the-test",
+        "question": "Does the rule reproduce every knee the campaign found?",
+        "answer_ref": "#the-test"
+      },
+      {
+        "id": "q-sizing",
+        "question": "How is a deployment sized with it, and in which order are the levers pulled?",
+        "answer_ref": "#sizing"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Are the constants those of one device type?",
+        "why": "Every fleet in the campaign is the same simulated Cisco CRS-X with 144 interfaces and the same data collection package: 1,738 samples per collection, 61 or 149 PDUs by max-repetitions. c0 and c are per-collection costs of that shape. A device with 48 interfaces or a package with fewer tables changes P, c0 and c together; the form of the rule does not change, its constants must be re-read.",
+        "validity": "external"
+      },
+      {
+        "question": "Does a uniform netem delay stand for a real fleet's latency?",
+        "why": "The latency sweep and every knee search delay every response by a fixed or uniform amount. Real agents answer some tables fast and others slowly, and slow ones time out; the rule's R is the mean round trip a collection experiences, which a real fleet needs measured from its own pcap or from the Collectd instrumentation log.",
+        "validity": "external"
+      },
+      {
+        "question": "Is c0 a constant?",
+        "why": "The Core-side second per collection is 0.5 s at low utilisation and rises towards 1 s above 90% CPU as the response handlers queue for cores; the rule uses 0.75 s. That is why thread time reads 5.4 to 5.6 s at the 32 GiB knees against the 5.1 s the constant predicts, and why the pool limit lands 5% high on the last rung before the processor binds.",
+        "validity": "internal"
+      },
+      {
+        "question": "Is CPU per collection the right cost measure?",
+        "why": "It is CPU busy times cores over collections completed and includes everything else the Core does: provisiond rescans, the JMX exporter, logging, garbage collection. On the 16 GiB Core the GC share inflates it from 0.115 to 0.13 to 0.16; the rule uses the 32 GiB value and treats the heap as its own term.",
+        "validity": "construct"
+      },
+      {
+        "question": "Is the heap rule a fit or a measurement?",
+        "why": "Four points: two heap sizes, two thread counts, six fleets. The live set after collection is read from the GC logs at three fleets and from the JMX gauge at the others. The per-device and per-thread coefficients are a fit to those points and are marked as estimates wherever they appear.",
+        "validity": "conclusion"
+      },
+      {
+        "question": "Is every knee one window?",
+        "why": "Each rung of each search is one 15-minute window, three cycles, with no repetition; the two uncompressed baselines of the compression trials agree on CPU per collection to three decimals, which is the only repeat the campaign has. The rule's agreement with eight knees to within one rung is the evidence, not any single window.",
+        "validity": "conclusion"
+      }
+    ]
+  }
+}

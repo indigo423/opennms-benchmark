@@ -1,0 +1,270 @@
+{
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "host.disk",
+    "host.generator_colocated",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters",
+    "workload.fixtures"
+  ],
+  "sut": {
+    "config_delta": "The 16 GiB shape of kfk-exclusive, as re-established on 2026-09-07 for the sizing rule's balanced fleet, with one variable added: agent reachability.\n\nOpenNMS Core, changed against the 20,250 capture\n  VM: 8 vCPU, 16 GiB (was 32 GiB); opennms.conf JAVA_HEAP_SIZE 10240, JAVA_INITIAL_HEAP_SIZE 8192 (was 20480 / 20480)\n  collectd-configuration.xml: threads 250 (was 400)\n  fleet: 11,000 nl6 devices, 11,004 collectable services; nl6 restarted and rebuilt with octets 0-43, the requisition re-imported (8,250 nodes deleted)\n\nThe outages, all silent drops on netsim (bin/level.sh <on|off> <level>)\n  25%: iptables -I FORWARD 1 -o veth-sim-host -d 10.42.0.0/21, 10.42.8.0/23, 10.42.10.0/24 -j DROP (octets 0-10, 2,750 devices)\n  50%: 10.42.0.0/20, 10.42.16.0/22, 10.42.20.0/23 (octets 0-21, 5,500)\n  75%: 10.42.0.0/19, 10.42.32.0/24 (octets 0-32, 8,250)\n  100%: 10.42.0.0/18 (all 44 blocks, 11,000)\n  the healthy baseline window is 11:00-11:15Z of the same day (record baseline-0 in levels.jsonl)\n\nThe earlier full outage (for reference)\n  netsim: iptables -D FORWARD -o veth-sim-host -j ACCEPT at 10:28:02Z (silent drop of every SNMP request into the simulator's namespace; the rule is the one an nl6 container restart needs, see the lab notes); iptables -I FORWARD 1 -o veth-sim-host -j ACCEPT at 10:43:12Z\n  snmp-config (Config Manager): timeout 1800 ms, retry 1, so a failing collection costs 3.6 s of thread time; max-repetitions 5 for 10.42.0.0/16\n  org.opennms.core.ipc.rpc.kafka.ttl: unset, 20,000 ms default; never reached\n\nUnchanged: G1, NMT, 13 daemons disabled, Syslogd enabled, log4j2 instrumentation INFO, Kafka producer forward.metrics, no compression anywhere, PostgreSQL pgtune profile with SSL, Minion stock (2 GiB default heap), netem delay 75ms 25ms on netsim enp6s19.\n\nJudged windows: before 10:00-10:15Z (record class16g-11000-threads250-g1 in pm-snmp-sizing-rule/results/trials.jsonl), after 10:45-11:00Z and 11:00-11:15Z (trials.jsonl here).",
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "jvm": {
+      "heap": "-Xms8192m -Xmx10240m",
+      "gc": "G1GC",
+      "flags": "-Xms8192m -Xmx10240m -XX:+UseG1GC -XX:NativeMemoryTracking=summary -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError (from the process command line)"
+    },
+    "tss_backend": "kafka-exclusive",
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    }
+  },
+  "host": {
+    "cpu": "Intel(R) Xeon(R) CPU E5-2650 v4 @ 2.20GHz, 8 cores",
+    "disk": "sda 200G disk rota=1 QEMU HARDDISK",
+    "os": "Ubuntu 24.04.4 LTS",
+    "ram_gb": 15.62,
+    "hygiene_notes": "Core VM resized to 16 GiB (xlarge class) on 2026-09-07 09:17Z by qm set 108 --memory 16384 and a Proxmox reboot; the deployment spec still says xxlarge-mem."
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 cisco_crs_x.json, 11,000 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-43, netem delay 75ms 25ms on the simulator, GETBULK max-repetitions 5; 25%, 50%, 75% and 100% of the fleet unreachable in turn"
+  },
+  "experiment": {
+    "question": "How does the share of the inventory that is unreachable, 25, 50, 75 and 100%, change what the Core and the Minion do and what the healthy remainder gets?",
+    "independent_variable": "workload.parameters.unreachable_share",
+    "variant": "11000-devices-threads250-16g-partial-outage-25-50-75-100",
+    "plan": "One variable, the share of the fleet dropped silently, in whole /24 blocks of 250 devices: 11 blocks (25%), 22 (50%), 33 (75%), 44 (100%). Each level is applied on netsim's FORWARD chain ahead of the rule that carries SNMP into the simulator's namespace, held three collection cycles, judged over its second and third cycle by bin/judge.py, removed, and followed by two cycles of recovery before the next. Delivered work is read from the Core's metrics stream to Kafka against the healthy baseline, because the completion counter counts failed collections as completed. bin/monitor.py logs one line a minute including the events and alarms tables."
+  },
+  "run": {
+    "id": "11000-devices-threads250-16g-partial-outage-20260907T135047Z",
+    "started_at": "2026-09-07T13:40:00Z",
+    "ended_at": "2026-09-07T15:52:00Z"
+  },
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-07T13:40:00Z",
+      "end": "2026-09-07T15:52:00Z"
+    },
+    "resolution": "15s",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "outage",
+        "partial-outage",
+        "resilience",
+        "16g-core",
+        "pool-250",
+        "kfk-exclusive"
+      ]
+    },
+    "figures": [
+      {
+        "id": "cpu",
+        "title": "CPU busy through the four levels: Core, Minion and database",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Busy"
+        },
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. Every machine steps down with the share of dead devices: a failed collection decodes, stores and looks up nothing. The 97% at 15:36 is the reload after an external restart of OpenNMS at 15:33.",
+        "series": [
+          {
+            "label": "core (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          },
+          {
+            "label": "minion (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          },
+          {
+            "label": "db (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"db-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          }
+        ]
+      },
+      {
+        "id": "threads",
+        "title": "Collectd thread pool occupancy through the four levels, against its 250-thread ceiling",
+        "unit": "threads",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd active threads"
+        },
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. A dead device holds a thread for one timeout and one retry, 3.6 s, against 5.4 s for a live one, so occupancy falls with every level. The pool pegged at 250 from 15:35 is that restart's scheduling wave.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "last_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "throughput",
+        "title": "Collections completed per second against the fleet's demand",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. The counter counts failed collections too, so it never leaves demand; delivered work is the next figure.",
+        "series": [
+          {
+            "label": "achieved, 2-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[2m])"
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "last_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[2m]) / 300"
+          }
+        ]
+      },
+      {
+        "id": "delivered",
+        "title": "Delivered work: the Core's metrics stream to Kafka, and SNMP on the Minion's link",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Network Traffic"
+        },
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. Metrics out of the Core fall with the dead share and return with it; SNMP on the Minion's link falls the same way, with the unanswered requests of the dead blocks as its floor.",
+        "series": [
+          {
+            "label": "core enp6s20 transmit, metrics to Kafka",
+            "expr": "rate(node_network_transmit_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[2m]) * 8 / 1e6"
+          },
+          {
+            "label": "minion enp6s20, SNMP to the fleet",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[2m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[2m])) * 8 / 1e6"
+          }
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Collectd pending queue, rolling one-minute peak and floor",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd pending tasks"
+        },
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. The queue stays empty at every level; a dead device is cheaper to the collector than a live one. The 7,000-task spike at 15:34 is the reload after an Ansible run from outside the experiment restarted OpenNMS, not an outage effect.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "heap-gc",
+        "title": "Core JVM heap against its 10 GiB ceiling, and old-generation collections",
+        "unit": "GiB and per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "JVM (JMX exporter)",
+          "panel": "Heap / GC"
+        },
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. The heap tracks in-flight state: lower with more dead devices, back with the recovery, and no old-generation collection at any level. The drop to 0.3 GiB at 15:34 is the JVM restarted by an external Ansible run.",
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"}[2m]) / 1024 / 1024 / 1024"
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"}[2m]) / 1024 / 1024 / 1024"
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60"
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "id": "q-the-shape",
+        "question": "How do the Core and the Minion scale with the share of the fleet that is dead?",
+        "answer_ref": "#the-shape"
+      },
+      {
+        "id": "q-the-remainder",
+        "question": "Does the healthy remainder still get collected on time at every level?",
+        "answer_ref": "#the-remainder"
+      },
+      {
+        "id": "q-the-event-path",
+        "question": "What does each level cost the event path, and what does recovery cost?",
+        "answer_ref": "#the-event-path"
+      },
+      {
+        "id": "q-where-it-stops",
+        "question": "Which outages are not this one?",
+        "answer_ref": "#where-it-stops"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Is a dead device the right partial outage?",
+        "why": "Every dead device fails on its first PDU after one timeout and one retry. A slow or half-answering device holds a thread through up to 61 timeouts; that is the outage that loads the pool, and it was not run.",
+        "validity": "internal"
+      },
+      {
+        "question": "Are the levels comparable to each other?",
+        "why": "They were run in ascending order with two recovery cycles between them, each judged over its own second and third cycle; the 100% level repeats the earlier full-outage test on the same deployment.",
+        "validity": "internal"
+      },
+      {
+        "question": "Does the 16 GiB Core at 11,000 devices stand for a Core at its knee?",
+        "why": "This fleet leaves 40% of the Core's CPU and a quarter of its pool spare; every level here makes the Core lighter. The recovery burst of a level, one success event and one alarm clear per device, is the part a Core at 96% would feel.",
+        "validity": "external"
+      },
+      {
+        "question": "Is the Core's transmit to Kafka a fair measure of delivered work?",
+        "why": "The Core's link to Kafka carries the metrics topic and the RPC requests; the requests are small and their share does not change with the level, and the RPC responses it receives are not in the transmit direction. Delivered share is that transmit against the healthy baseline, and it lands within 3 points of the expected share at every level; it is a proxy, not a count of samples.",
+        "validity": "construct"
+      },
+      {
+        "question": "One window per level?",
+        "why": "Each level is one ten-minute window over two cycles, once. The steps are large, a quarter of the fleet each, and the response is linear in the dead share, so the shape is not in doubt; the per-level constants are single samples.",
+        "validity": "conclusion"
+      }
+    ]
+  }
+}
