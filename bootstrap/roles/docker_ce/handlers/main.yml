@@ -4,6 +4,12 @@
     name: docker.service
     state: restarted
 
-- name: Reload systemd
+# The one standalone reload in the repository that is not the #289 bug. It
+# serves docker-compose@.service, a template unit this role installs and never
+# starts, so there is nothing to restart and a reload is the whole job. Named
+# for the role rather than "Reload systemd": that string is what collided
+# across the monitoring roles, and a generic name in a role that happens to sit
+# alone in its play today is a trap for whoever adds the second one.
+- name: Reload systemd for docker_ce
   ansible.builtin.systemd:
     daemon_reload: true

@@ -16,7 +16,6 @@
     dest: /etc/systemd/system/traefik.service
     mode: "0644"
   notify:
-    - Reload systemd
     - Restart traefik
   tags: ["traefik"]
 
@@ -67,4 +66,29 @@
     name: traefik.service
     state: started
     enabled: true
+  tags: ["traefik"]
+
+# systemd reports a unit started as soon as docker run is accepted, and
+# Restart=always turns a rejected argument or an unusable config into a restart
+# loop rather than a failure, so `state: started` alone reports a green deploy
+# over a dead service. That is how jaeger ran in a crash loop for days (#295).
+# Ask the service instead.
+#
+# The role generates a self-signed certificate, so validation is off
+- name: Wait for Traefik to answer
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ traefik_https_port }}/"
+    method: GET
+    status_code: [200]
+    validate_certs: false
+  register: traefik_ready
+  until: traefik_ready.status | default(0) in [200]
+  retries: 12
+  delay: 5
+  changed_when: false
+  tags: ["traefik"]
+
+- name: Report the Traefik image that answered
+  ansible.builtin.debug:
+    msg: "Traefik answered from {{ traefik_image }}"
   tags: ["traefik"]

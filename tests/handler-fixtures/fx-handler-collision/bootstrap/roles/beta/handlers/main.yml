@@ -3,7 +3,7 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
-- name: Restart jaeger
+- name: Restart beta
   ansible.builtin.service:
-    name: jaeger.service
+    name: beta.service
     state: restarted

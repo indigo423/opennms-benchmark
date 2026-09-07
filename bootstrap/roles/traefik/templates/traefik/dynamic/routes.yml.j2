@@ -52,12 +52,6 @@ http:
         - websecure
       service: prometheus
       tls: {}
-    jaeger:
-      rule: "PathPrefix(`/jaeger`)"
-      entryPoints:
-        - websecure
-      service: jaeger
-      tls: {}
     pyroscope:
       rule: "PathPrefix(`/pyroscope`)"
       entryPoints:
@@ -138,11 +132,6 @@ http:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:9090"
-
-    jaeger:
-      loadBalancer:
-        servers:
-          - url: "http://host.docker.internal:16686"
 
     pyroscope:
       loadBalancer:

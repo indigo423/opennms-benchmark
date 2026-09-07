@@ -1,5 +1,14 @@
 ---
-prometheus_image: quay.io/prometheus/prometheus:latest
+# Pinned to the version the lab is running and every stored benchmark series
+# was produced against, which is also the current upstream release (2026-08-18).
+# It was ':latest' until #289, where jaeger showed what a moving tag costs: a
+# registry change broke a service with no change in this repository, and the
+# breakage was undiagnosable afterwards because nothing recorded what had run.
+#
+# This is the instrument, not the system under test, but a benchmark whose
+# instrument changes version mid-campaign is comparing two things. Move it
+# deliberately, at a campaign boundary, like the other measured components.
+prometheus_image: quay.io/prometheus/prometheus:v3.14.0
 prometheus_port: "9090"
 prometheus_cpus: "2.0"
 prometheus_memory: 512m

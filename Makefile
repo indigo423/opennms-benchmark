@@ -27,6 +27,7 @@ EXTRA_TF_ROOTS := proxmox/preflight
 # Deployment library — provider-agnostic topology specs under deployments/<slug>/.
 DEPLOYMENTS_DIR := deployments
 DESCRIPTOR := python3 $(DEPLOYMENTS_DIR)/bin/topology-descriptor.py
+HANDLER_CHECK    := python3 bootstrap/bin/validate-handlers.py
 
 # Ansible verbosity passthrough (e.g. V=-vvv).
 V ?=
@@ -230,7 +231,7 @@ clean-collections: ## Remove the installed collection tree, then reinstall the m
 	$(MAKE) install-collections
 
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-collections ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-collections ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 
@@ -289,6 +290,17 @@ endpoints: check-provider ## Publish lab-endpoints.<provider>.yml for a running 
 .PHONY: validate-topology
 validate-topology: ## Assert every deployment spec renders a provisionable topology
 	./validate-topology.sh
+
+# ansible-lint has no rule for this and yamllint sees one file at a time, so
+# nothing else in the pipeline can see a handler-name collision. The fixture is
+# asserted alongside the repository: a check whose failure path is never
+# exercised is a check that quietly stops working.
+.PHONY: validate-handlers
+validate-handlers: ## Assert no two roles in one play define the same handler name
+	@$(HANDLER_CHECK) --repo-root . || exit 1
+	@$(HANDLER_CHECK) --repo-root tests/handler-fixtures/fx-handler-collision >/dev/null 2>&1 \
+	  && { echo "fixture fx-handler-collision did not fail; the check is not detecting collisions" >&2; exit 1; } \
+	  || echo "fixture fx-handler-collision fails as expected"
 
 .PHONY: validate-deployments
 validate-deployments: ## Validate every deployment spec against the schema

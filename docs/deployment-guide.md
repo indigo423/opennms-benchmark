@@ -69,7 +69,7 @@ cd bootstrap
 ansible-playbook -i inventory site.yml
 ```
 
-This installs: base packages, Docker Engine, Prometheus Node Exporter, Grafana, Prometheus, Jaeger, Pyroscope, Kafka UI, and Net-SNMP simulator.
+This installs: base packages, Docker Engine, Prometheus Node Exporter, Grafana, Prometheus, Pyroscope, Kafka UI, and Net-SNMP simulator.
 
 ### 6. Deploy the OpenNMS stack
 
@@ -93,7 +93,6 @@ ansible-playbook --user labuser --become \
 |---|---|
 | OpenNMS UI | `http://192.0.2.200:8980/opennms` |
 | Grafana | `http://192.0.2.200:3000` |
-| Jaeger | `http://192.0.2.200:16686` |
 | Pyroscope | `http://192.0.2.200:4040` (browse profiles in Grafana > Drilldown > Profiles) |
 | Kafka UI | `http://192.0.2.204:8080` |
 | Prometheus | `http://192.0.2.200:9090` |

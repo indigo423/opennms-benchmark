@@ -345,6 +345,31 @@ That failure is **silent**: every play succeeds, the lab collects, and the numbe
 
 Bump deliberately, at a campaign boundary. These carry no `# renovate:` annotation and that is intentional: Renovate's `aws-machine-image` datasource is experimental, has no dedicated manager and needs AWS credentials the hosted app does not have, and Azure marketplace versions have no datasource at all — but more importantly, an automated PR proposes exactly the wrong timing for a value a running comparison depends on.
 
+### Container images on the monitoring host
+
+The bootstrap roles that run a container as a systemd unit pin their images, and none of them is Renovate-managed.
+
+| Role | Pin | Kind |
+|---|---|---|
+| `prometheus` | `v3.14.0` | exact tag |
+| `traefik` | `v3.7.12` | exact tag |
+| `pyroscope` | `2.3.0` | exact tag |
+| `kibana` | `8.18.2` | exact tag |
+| `app_starter` | `0.1.1` | exact tag |
+| `pgadmin` | digest | immutable digest, no version tag upstream tracks |
+| `kafka_ui` | digest | immutable digest |
+| `nl6` | `group_vars/net_sim/vars.yml` | exact tag, see the note there |
+
+Renovate cannot see any of them: its custom manager scans `deployments/roles/*/defaults/main.yml` and `group_vars/*.yml` for a `# renovate:` comment followed by `_version:`, and these are `_image:` values under `bootstrap/roles/`. No Docker manager is enabled either. That is deliberate for the same reason as the substrate pins above: Prometheus is the instrument every stored series was measured with, and an automated PR proposes exactly the wrong timing for it.
+
+Four of these were mutable tags until #289. Jaeger is what that cost: a registry change broke a config this repository never touched, the service crash-looped for days, and nothing recorded which build had worked, so the failure could not be diagnosed after the fact. The role was removed rather than repaired, because `jaeger_mcp` is not a Jaeger extension in any release and nothing in the lab had sent it a span since the tracing wiring moved to `experiments/legacy/`.
+
+Re-pin by reading the digest off a host where the service works:
+
+```bash
+docker image inspect <image> --format '{{ join .RepoDigests "," }}'
+```
+
 ### Two traps worth knowing
 
 **`az vm image list --sku server` matches by substring.** It also returns `server-arm64` and `server-gen1` at the same version, so reading the first row is how an arm64 image gets pinned onto an x64 lab. Use the equality filter above.

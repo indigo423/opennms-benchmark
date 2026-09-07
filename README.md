@@ -92,7 +92,7 @@ Set `libvirt_uri` in `kvm.tfvars`: `qemu:///system` for a local daemon, or `qemu
 make deploy PROVIDER=kvm DEPLOYMENT=baseline
 ```
 
-This provisions the VMs, discovers the monitoring VM's DHCP address, regenerates the Ansible inventory with the correct jump host, bootstraps the base tooling (Docker, Traefik, Prometheus, Grafana, Jaeger, Pyroscope, nl6), deploys the full OpenNMS stack, and publishes the `lab-endpoints.<provider>.yml` manifest that experiments consume.
+This provisions the VMs, discovers the monitoring VM's DHCP address, regenerates the Ansible inventory with the correct jump host, bootstraps the base tooling (Docker, Traefik, Prometheus, Grafana, Pyroscope, nl6), deploys the full OpenNMS stack, and publishes the `lab-endpoints.<provider>.yml` manifest that experiments consume.
 
 Tear down with:
 
@@ -312,7 +312,7 @@ Each role carries a size class in the topology spec; what a class resolves to (v
 | `kafka-benchmark-01` | Apache Kafka + Kafka UI | small | 2 |
 | `minion-benchmark-01` | OpenNMS Minion | small | 3 |
 | `netsim-benchmark-01` | SNMP simulator (nl6) | small | 2 |
-| `mon-benchmark-01` | Monitoring stack (Prometheus, Grafana, Jaeger, Pyroscope, …) | small | 2 |
+| `mon-benchmark-01` | Monitoring stack (Prometheus, Grafana, Pyroscope, …) | small | 2 |
 | `es-benchmark-01` | Elasticsearch | large | 2 |
 
 ## ⛓️ Network
@@ -352,7 +352,6 @@ Replace `<monitoring-public-ip>` with the monitoring VM's address from the gener
 | OpenNMS UI | `https://<monitoring-public-ip>/opennms` | admin / admin |
 | Grafana | `https://<monitoring-public-ip>/grafana` | admin / admin |
 | Prometheus | `https://<monitoring-public-ip>/prometheus` | no login required |
-| Jaeger | `https://<monitoring-public-ip>/jaeger` | no login required |
 | Pyroscope | `https://<monitoring-public-ip>/pyroscope` (browse profiles in Grafana > Drilldown > Profiles) | no login required |
 | Kafka UI | `https://<monitoring-public-ip>/kafka` | no login required |
 | pgAdmin | `https://<monitoring-public-ip>/pgadmin` | admin@benchmark.lab / admin |

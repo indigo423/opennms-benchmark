@@ -21,7 +21,6 @@
     dest: /etc/systemd/system/prometheus.service
     mode: "0644"
   notify:
-    - Reload systemd
     - Restart prometheus
   tags: ["monitoring", "prometheus"]
 
@@ -34,4 +33,28 @@
     name: prometheus.service
     state: started
     enabled: true
+  tags: ["monitoring", "prometheus"]
+
+# systemd reports a unit started as soon as docker run is accepted, and
+# Restart=always turns a rejected argument or an unusable config into a restart
+# loop rather than a failure, so `state: started` alone reports a green deploy
+# over a dead service. That is how jaeger ran in a crash loop for days (#295).
+# Ask the service instead.
+#
+# Native readiness endpoint. It lives under the configured route prefix, so a bare /-/ready is a 404
+- name: Wait for Prometheus to answer
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ prometheus_port }}/prometheus/-/ready"
+    method: GET
+    status_code: [200]
+  register: prometheus_ready
+  until: prometheus_ready.status | default(0) in [200]
+  retries: 24
+  delay: 5
+  changed_when: false
+  tags: ["monitoring", "prometheus"]
+
+- name: Report the Prometheus image that answered
+  ansible.builtin.debug:
+    msg: "Prometheus answered from {{ prometheus_image }}"
   tags: ["monitoring", "prometheus"]

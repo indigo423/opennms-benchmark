@@ -11,7 +11,7 @@ production network or exposed to the internet.** By design the lab ships:
 
 - default credentials (`admin` / `admin` for the OpenNMS UI, Grafana and
   pgAdmin) documented openly in the README
-- unauthenticated Prometheus, Jaeger, Kafka UI and nl6 endpoints
+- unauthenticated Prometheus, Kafka UI and nl6 endpoints
 - a self-signed TLS certificate generated at provisioning time
 - an open management network between all lab VMs, with host key checking
   disabled for Ansible

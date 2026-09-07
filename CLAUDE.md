@@ -31,7 +31,7 @@ Four layers, orchestrated by `deploy.sh` (which `make deploy` wraps):
 
 1. **`terraform/<provider>/`** — provisions VMs and writes `ansible-inventory.<provider>.yml`.
 2. **`bootstrap/`** — base tooling on every VM: Docker, Traefik, Prometheus, Grafana,
-   Jaeger, nl6, Kafka UI, …
+   nl6, Kafka UI, …
 3. **OpenNMS stack** — the `indigo423.opennms` Galaxy collection pinned in
    `requirements.yml`, applied by `opennms-playbook.yml`. Not a submodule.
 4. **`experiments/<name>/`** — self-contained playbooks reconfiguring the stack for one

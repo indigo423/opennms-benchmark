@@ -76,7 +76,7 @@
     group: root
     mode: "0644"
   notify:
-    - Reload systemd
+    - Reload systemd for docker_ce
   tags: ["docker-compose"]
 
 - name: Set Docker Daemon settings
