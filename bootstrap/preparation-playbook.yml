@@ -43,6 +43,7 @@
     - kibana
     - prometheus
     - jaeger
+    - pyroscope
     - traefik
 
 - name: Net-Simulator

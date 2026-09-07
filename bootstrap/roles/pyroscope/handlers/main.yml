@@ -1,0 +1,11 @@
+---
+# daemon_reload lives inside the restart handler on purpose. Every role in the
+# Monitoring services play defines a "Reload systemd" handler; Ansible keeps
+# one handler per name and runs handlers in definition order, so a role's
+# restart can run before the shared reload and start the old unit. Observed
+# with this role on 2026-09-07: the container came up without the new flags.
+- name: Restart pyroscope
+  ansible.builtin.systemd_service:
+    name: pyroscope.service
+    state: restarted
+    daemon_reload: true

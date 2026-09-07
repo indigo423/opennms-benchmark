@@ -58,6 +58,14 @@ http:
         - websecure
       service: jaeger
       tls: {}
+    pyroscope:
+      rule: "PathPrefix(`/pyroscope`)"
+      entryPoints:
+        - websecure
+      service: pyroscope
+      middlewares:
+        - pyroscope-strip
+      tls: {}
 {% if have_core %}
     opennms:
       rule: "PathPrefix(`/opennms`)"
@@ -109,6 +117,10 @@ http:
       stripPrefix:
         prefixes:
           - /kibana
+    pyroscope-strip:
+      stripPrefix:
+        prefixes:
+          - /pyroscope
 {% if have_net_sim %}
     opensim-strip:
       stripPrefix:
@@ -131,6 +143,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:16686"
+
+    pyroscope:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:{{ lab_pyroscope_port }}"
 {% if have_core %}
 
     opennms:

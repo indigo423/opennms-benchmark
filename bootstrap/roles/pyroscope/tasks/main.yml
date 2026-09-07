@@ -1,0 +1,32 @@
+---
+- name: Create Pyroscope data directories
+  ansible.builtin.file:
+    path: "{{ pyroscope_data_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ pyroscope_uid }}"
+    group: "{{ pyroscope_uid }}"
+    mode: "0750"
+  loop:
+    - data
+    - data-compactor
+    - data-metastore
+  tags: ["monitoring", "pyroscope"]
+
+- name: Deploy Pyroscope systemd unit
+  ansible.builtin.template:
+    src: pyroscope.service.j2
+    dest: /etc/systemd/system/pyroscope.service
+    mode: "0644"
+  notify: Restart pyroscope
+  tags: ["monitoring", "pyroscope"]
+
+- name: Flush handlers before enabling Pyroscope service
+  ansible.builtin.meta: flush_handlers
+  tags: ["monitoring", "pyroscope"]
+
+- name: Enable Pyroscope as a service
+  ansible.builtin.service:
+    name: pyroscope.service
+    state: started
+    enabled: true
+  tags: ["monitoring", "pyroscope"]
