@@ -1,4 +1,8 @@
 [Unit]
+# Push mode only, never alongside an Alloy CPU scrape: Go allows one CPU profile
+# at a time, so while the SDK pushes, /debug/pprof/profile answers 500. The flag
+# is emitted only where a monitoring host publishes an in-lab address, which is
+# what lab_profiling_enabled already decides for the JVM agents (#291, #293).
 Description=NL6 SNMP simulator
 After=docker.service
 Requires=docker.service
@@ -14,7 +18,12 @@ ExecStart=/usr/bin/docker run \
   --network host \
   --device /dev/net/tun:/dev/net/tun \
   {{ nl6_image }} \
+{% if lab_profiling_enabled | default(false) | bool and lab_pyroscope_url | default('', true) | length > 0 %}
+  -port {{ nl6_web_port }} \
+  -profiling-pyroscope={{ lab_pyroscope_url }}
+{% else %}
   -port {{ nl6_web_port }}
+{% endif %}
 ExecStop=/usr/bin/docker stop nl6
 
 [Install]

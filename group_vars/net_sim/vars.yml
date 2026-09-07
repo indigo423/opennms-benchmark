@@ -9,4 +9,21 @@
 # group_vars sits beside ansible-inventory.yml, so Ansible loads it for every
 # play that uses the inventory, bootstrap included. It also stays below
 # extra_vars in precedence, which leaves roles free to merge against it.
-nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.28.0"
+# v0.29.0 for the built-in Pyroscope push (#293). It also removed the ad-hoc
+# /api/v1/debug/pprof-memory and /api/v1/debug/cpu-profile routes in favour of
+# the standard /debug/pprof/ layout, and nothing in this repository called them.
+#
+# It also changed batch address allocation, which is the part that bites: v0.28.0
+# placed 250 devices per /24 (.1 to .250, skipping .0 and .251 upward), v0.29.0
+# uses all 256. One batch of 11,000 therefore ends at 10.42.42.x instead of
+# 10.42.43.250 and 252 addresses move, while the requisition (nl6-pm-72m.xml)
+# still enumerates the sparse layout: 252 requisitioned addresses end up with no
+# device and 252 devices go unmonitored. Rebuild with one batch of 250 per /24 to
+# reproduce the old layout; rebuild-sparse.sh in the snapshot below does exactly
+# that and was verified to restore the addresses identically.
+#
+# Bumping this replaces the container, and nl6 holds its devices in memory only,
+# so every simulated device disappears with it. Rebuild the fleet after a bump;
+# the last snapshot and its one-batch recipe are in
+# ~/.config/ansible-opennms/backups/nl6-fleet-proxmox-*/RESTORE.md.
+nl6_image: "ghcr.io/labmonkeys-space/nl6:v0.29.0"
