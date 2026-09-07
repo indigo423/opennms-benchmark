@@ -5,7 +5,6 @@
     dest: /etc/systemd/system/pgadmin.service
     mode: "0644"
   notify:
-    - Reload systemd
     - Restart pgadmin
   tags: ["monitoring", "pgadmin"]
 
@@ -18,4 +17,28 @@
     name: pgadmin.service
     state: started
     enabled: true
+  tags: ["monitoring", "pgadmin"]
+
+# systemd reports a unit started as soon as docker run is accepted, and
+# Restart=always turns a rejected argument or an unusable config into a restart
+# loop rather than a failure, so `state: started` alone reports a green deploy
+# over a dead service. That is how jaeger ran in a crash loop for days (#295).
+# Ask the service instead.
+#
+# pgAdmin rejects any path outside its SCRIPT_NAME with a 500 that reads like an application fault
+- name: Wait for pgAdmin to answer
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ pgadmin_port }}/pgadmin/misc/ping"
+    method: GET
+    status_code: [200]
+  register: pgadmin_ready
+  until: pgadmin_ready.status | default(0) in [200]
+  retries: 36
+  delay: 5
+  changed_when: false
+  tags: ["monitoring", "pgadmin"]
+
+- name: Report the pgAdmin image that answered
+  ansible.builtin.debug:
+    msg: "pgAdmin answered from {{ pgadmin_image }}"
   tags: ["monitoring", "pgadmin"]

@@ -1,0 +1,9 @@
+---
+# Fixture for bootstrap/bin/validate-handlers.py. Two roles in one play define
+# the same handler name, which is the #289 condition. The check must fail and
+# name both roles.
+- name: Colliding play
+  hosts: all
+  roles:
+    - alpha
+    - beta

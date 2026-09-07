@@ -1,5 +1,8 @@
 ---
-kafka_ui_image: ghcr.io/kafbat/kafka-ui:latest
+# Pinned by digest, read from the broker host that runs it. Same reasoning as
+# pgadmin: it inspects the broker rather than measuring it, so the immutable
+# reference matters more than which release it names.
+kafka_ui_image: ghcr.io/kafbat/kafka-ui@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1
 kafka_ui_port: "8080"
 kafka_ui_cpus: "0.5"
 kafka_ui_memory: 512m

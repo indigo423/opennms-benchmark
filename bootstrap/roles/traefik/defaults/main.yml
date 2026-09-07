@@ -1,5 +1,9 @@
 ---
-traefik_image: traefik:v3
+# Exact version rather than the floating v3 major, for the reason in #289.
+# v3.7.12 is what the lab runs today and the current upstream release
+# (2026-08-26). Traefik only fronts the lab UIs, so it measures nothing, but a
+# major that moves under a rendered dynamic config is the same class of trap.
+traefik_image: traefik:v3.7.12
 traefik_http_port: "80"
 traefik_https_port: "443"
 traefik_cpus: "0.5"

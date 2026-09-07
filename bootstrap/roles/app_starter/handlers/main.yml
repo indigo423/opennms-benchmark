@@ -1,9 +1,12 @@
 ---
-- name: Reload systemd
-  ansible.builtin.systemd:
-    daemon_reload: true
-
+# The reload lives inside the restart on purpose. Several roles in the
+# Monitoring services play used to define a handler named "Reload systemd";
+# Ansible keeps one handler per name, the last definition wins, and notified
+# handlers run in definition order, so a notify landed on another role's
+# reload and the restart ran first. systemd then restarted the service from
+# the definition it still had loaded, and reported success (#289).
 - name: Restart app-starter
-  ansible.builtin.service:
+  ansible.builtin.systemd_service:
     name: app-starter.service
     state: restarted
+    daemon_reload: true

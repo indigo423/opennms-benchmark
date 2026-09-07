@@ -34,7 +34,7 @@ Six VMs, each dedicated to one component:
 | kafka | 192.0.2.198 | Apache Kafka (KRaft mode) + Kafka UI |
 | minion | 192.0.2.199 | OpenNMS Minion (distributed collector) |
 | netsim | 192.0.2.134 | Net-SNMP simulator (10.42.0.0/16 loopback) |
-| monitoring | 192.0.2.200 | Prometheus · Grafana · Jaeger · Pyroscope (jump host) |
+| monitoring | 192.0.2.200 | Prometheus · Grafana · Pyroscope (jump host) |
 
 All VMs run Ubuntu 24.04 LTS. The monitoring VM is the only VM with a public IP address.
 
@@ -98,10 +98,9 @@ ip route add 10.42.0.0/16 via 192.0.2.134
 | Database | PostgreSQL | 15+ | Configured via `indigo423.opennms` Galaxy collection |
 | Observability | Prometheus | latest | Scrapes node (9100) + Core JMX (9299) |
 | Dashboards | Grafana OSS | latest | Pre-provisioned dashboards + OpenNMS plugin |
-| Tracing | Jaeger | latest | All-in-one; traces OpenNMS internals |
 | Profiling | Grafana Pyroscope | 2.3.0 | Monolith on port 4040; receives CPU profiles from the Core and Minion JVMs and the nl6 simulator wherever the topology has a monitoring host with an in-lab address (not azure or vmware), browsed via Grafana > Drilldown > Profiles |
 | SNMP simulation | Net-SNMP (`snmpd`) | any | Loopback routing for 10.42.0.0/16 |
-| Container runtime | Docker Engine CE | any | Used for Prometheus, Grafana, Jaeger, Pyroscope, Kafka UI |
+| Container runtime | Docker Engine CE | any | Used for Prometheus, Grafana, Pyroscope, Kafka UI |
 | CI/CD | GitHub Actions | — | Terraform fmt, validate, TFLint on PR |
 
 ## Dual Provider Design
@@ -150,9 +149,23 @@ Each experiment directory is a self-contained Ansible playbook that reconfigures
 
 **Naming convention:** `c<cores>km<minions>_<cpu>c<ram>g_<broker>_<load-type>`
 
+## Container service roles carry a contract
+
+Every repository-local role that runs a container as a systemd unit guarantees four things, so the next one added starts from the rule rather than from a later incident (#289).
+
+**A changed unit reaches the running process.** The restart handler performs its own `daemon_reload`. Roles used to share a handler named `Reload systemd`; Ansible keeps one handler per name, the last definition wins, and notified handlers run in definition order, so a notify landed on another role's handler and the restart ran first. systemd then restarted the service from the definition it still had loaded and reported success. `make validate-handlers` fails a pull request that reintroduces a shared name.
+
+**A restarted service is confirmed to be serving.** `state: started` is satisfied by a unit in `activating`, and `Restart=always` turns a rejected argument into a restart loop rather than a failure, so each role probes its own service and reports which image answered. The probe asserts the container serves its own surface and never that its dependencies are healthy: Kibana answers 503 where a deployment has no Elasticsearch, and a probe that fails a normal deployment gets deleted.
+
+**Images are immutable references.** Exact tags or digests, listed with their reasoning in the development guide. None is Renovate-managed, deliberately.
+
+**Removal reaches the host.** A deleted role cannot stop the unit it left behind, so a removal ships a one-time cleanup.
+
+Jaeger is what motivated all four. Its config asserted an extension no Jaeger release registers, a mutable tag moved under it, and it crash-looped for days while deploys reported success and nothing sent it a span. It was removed rather than repaired.
+
 ## Observability Stack
 
-All three observability services run as Docker Compose services on the monitoring VM:
+The observability services run as Docker containers wrapped in systemd units on the monitoring VM:
 
 ```mermaid
 flowchart LR
@@ -160,14 +173,12 @@ flowchart LR
     JMX[JMX Prometheus Exporter\nCore VM — port 9299]
     PROM[Prometheus\nport 9090]
     GRAFANA[Grafana\nport 3000]
-    JAEGER[Jaeger\nport 16686]
     PYROSCOPE[Pyroscope\nport 4040]
     OPENNMS[OpenNMS Core\nport 8980]
 
     NODE --> PROM
     JMX --> PROM
     PROM --> GRAFANA
-    OPENNMS --> JAEGER
     OPENNMS --> PYROSCOPE
     PYROSCOPE --> GRAFANA
     OPENNMS --> GRAFANA

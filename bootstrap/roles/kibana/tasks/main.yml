@@ -5,7 +5,6 @@
     dest: /etc/systemd/system/kibana.service
     mode: "0644"
   notify:
-    - Reload systemd
     - Restart kibana
   tags: ["monitoring", "kibana"]
 
@@ -18,4 +17,28 @@
     name: kibana.service
     state: started
     enabled: true
+  tags: ["monitoring", "kibana"]
+
+# systemd reports a unit started as soon as docker run is accepted, and
+# Restart=always turns a rejected argument or an unusable config into a restart
+# loop rather than a failure, so `state: started` alone reports a green deploy
+# over a dead service. That is how jaeger ran in a crash loop for days (#295).
+# Ask the service instead.
+#
+# 503 means Kibana is serving but its Elasticsearch is absent, which is normal in deployments without one. Demanding 200 would fail every such deploy, and a probe that cries wolf gets deleted
+- name: Wait for Kibana to answer
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ kibana_port }}/api/status"
+    method: GET
+    status_code: [200, 503]
+  register: kibana_ready
+  until: kibana_ready.status | default(0) in [200, 503]
+  retries: 60
+  delay: 5
+  changed_when: false
+  tags: ["monitoring", "kibana"]
+
+- name: Report the Kibana image that answered
+  ansible.builtin.debug:
+    msg: "Kibana answered from {{ kibana_image }}"
   tags: ["monitoring", "kibana"]

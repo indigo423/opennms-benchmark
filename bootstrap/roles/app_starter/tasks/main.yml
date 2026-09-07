@@ -5,7 +5,6 @@
     dest: /etc/systemd/system/app-starter.service
     mode: "0644"
   notify:
-    - Reload systemd
     - Restart app-starter
   tags: ["monitoring", "app-starter"]
 
@@ -18,4 +17,28 @@
     name: app-starter.service
     state: started
     enabled: true
+  tags: ["monitoring", "app-starter"]
+
+# systemd reports a unit started as soon as docker run is accepted, and
+# Restart=always turns a rejected argument or an unusable config into a restart
+# loop rather than a failure, so `state: started` alone reports a green deploy
+# over a dead service. That is how jaeger ran in a crash loop for days (#295).
+# Ask the service instead.
+#
+# Static site, so the root is the whole surface
+- name: Wait for app starter to answer
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ app_starter_port }}/"
+    method: GET
+    status_code: [200]
+  register: app_starter_ready
+  until: app_starter_ready.status | default(0) in [200]
+  retries: 12
+  delay: 5
+  changed_when: false
+  tags: ["monitoring", "app-starter"]
+
+- name: Report the app starter image that answered
+  ansible.builtin.debug:
+    msg: "app starter answered from {{ app_starter_image }}"
   tags: ["monitoring", "app-starter"]

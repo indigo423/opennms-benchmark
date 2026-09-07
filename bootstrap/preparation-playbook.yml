@@ -35,6 +35,52 @@
 - name: Monitoring services
   hosts: mon_servers
   become: true
+  # Jaeger was removed in #289. A deleted role cannot stop the unit it left
+  # behind, and that unit restarts every five seconds forever, so the removal
+  # has to reach the host once. Same shape as the legacy-unit cleanup the nl6
+  # role carries. Delete this block once every lab has run it.
+  pre_tasks:
+    - name: Stop and disable the removed jaeger service
+      ansible.builtin.systemd:
+        name: jaeger.service
+        state: stopped
+        enabled: false
+      failed_when: false
+      tags: ["monitoring", "jaeger-cleanup"]
+
+    - name: Remove the jaeger unit, config and container
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/jaeger.service
+        - /etc/jaeger
+      notify: Reload systemd after removing jaeger
+      tags: ["monitoring", "jaeger-cleanup"]
+
+    # docker rm -f exits 0 whether or not the container was there, so asking
+    # first is what keeps this idempotent. Same shape as the legacy-container
+    # check in the nl6 role.
+    - name: Check whether the jaeger container still exists
+      ansible.builtin.command:
+        cmd: docker inspect jaeger
+      register: jaeger_inspect
+      changed_when: false
+      failed_when: false
+      tags: ["monitoring", "jaeger-cleanup"]
+
+    - name: Remove the jaeger container
+      ansible.builtin.command:
+        cmd: docker rm -f jaeger
+      when: jaeger_inspect.rc == 0
+      changed_when: true
+      tags: ["monitoring", "jaeger-cleanup"]
+
+  handlers:
+    - name: Reload systemd after removing jaeger
+      ansible.builtin.systemd:
+        daemon_reload: true
+
   roles:
     - ip_forwarding
     - grafana
@@ -42,7 +88,6 @@
     - app_starter
     - kibana
     - prometheus
-    - jaeger
     - pyroscope
     - traefik
 

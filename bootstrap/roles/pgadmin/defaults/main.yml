@@ -1,5 +1,9 @@
 ---
-pgadmin_image: dpage/pgadmin4:latest
+# Pinned by digest: pgAdmin publishes no version tag this lab tracks, and the
+# digest is what makes the reference immutable. A developer convenience that
+# measures nothing, so the running image is pin enough; re-pin by reading the
+# digest off a host that works.
+pgadmin_image: dpage/pgadmin4@sha256:2f4ce946ddf8360680d7eff4eaba1d91859eb6b4003e6623bad5c63a322c2f4d
 pgadmin_port: "5050"
 pgadmin_cpus: "1.0"
 pgadmin_memory: 512m

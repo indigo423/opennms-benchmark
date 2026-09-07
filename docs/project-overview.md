@@ -26,7 +26,7 @@ This is a lab and benchmarking tool, **not a production deployment template.**
 | OpenNMS | Horizon 34.1.0 (default) |
 | Message broker | Apache Kafka (KRaft) |
 | Database | PostgreSQL |
-| Observability | Prometheus · Grafana · Jaeger · Pyroscope |
+| Observability | Prometheus · Grafana · Pyroscope |
 | Container runtime | Docker Engine CE |
 | CI | GitHub Actions |
 
@@ -35,7 +35,7 @@ This is a lab and benchmarking tool, **not a production deployment template.**
 Single-project Infrastructure-as-Code repository with a four-layer pipeline:
 
 1. **Provision** — Terraform creates 6 VMs, 4 subnets, NICs, and cloud-init payloads
-2. **Bootstrap** — Ansible installs OS tooling, monitoring services (Prometheus, Grafana, Jaeger, Pyroscope), SNMP simulator, and Docker
+2. **Bootstrap** — Ansible installs OS tooling, monitoring services (Prometheus, Grafana, Pyroscope), SNMP simulator, and Docker
 3. **Deploy OpenNMS stack** — Ansible (`indigo423.opennms` Galaxy collection, pinned by git SHA in `requirements.yml`) deploys PostgreSQL, Kafka, OpenNMS Core, and OpenNMS Minion
 4. **Run experiments** — per-scenario Ansible playbooks reconfigure the OpenNMS stack and load simulated nodes
 
@@ -70,7 +70,6 @@ After a full deployment, these services are available on the lab network:
 |---|---|---|
 | OpenNMS UI | `http://192.0.2.200:8980/opennms` | admin / admin |
 | Grafana | `http://192.0.2.200:3000` | admin / admin |
-| Jaeger | `http://192.0.2.200:16686` | — |
 | Kafka UI | `http://192.0.2.204:8080` | — |
 | Prometheus | `http://192.0.2.200:9090` | — |
 
