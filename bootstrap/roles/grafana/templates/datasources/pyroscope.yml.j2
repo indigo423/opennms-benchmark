@@ -1,0 +1,16 @@
+---
+# Managed by Ansible. Grafana runs on the same host as Pyroscope, so localhost
+# is correct here. The uid is fixed so the datasource is addressable by uid
+# across redeploys.
+apiVersion: 1
+
+datasources:
+  - name: Pyroscope
+    type: grafana-pyroscope-datasource
+    uid: pyroscope
+    orgId: 1
+    access: proxy
+    url: http://localhost:{{ lab_pyroscope_port }}
+    jsonData:
+      minStep: "15s"
+    editable: true

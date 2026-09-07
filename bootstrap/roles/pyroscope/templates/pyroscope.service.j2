@@ -1,0 +1,36 @@
+[Unit]
+Description=Grafana Pyroscope
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+# Pyroscope flushes in-memory segments on shutdown. The docker default of 10 s
+# can cut that short and drop the newest profiles, so give it a minute.
+TimeoutStopSec=90
+ExecStartPre=-/usr/bin/docker stop -t 60 pyroscope
+ExecStartPre=-/usr/bin/docker rm pyroscope
+# The image's CMD is -config.file=/etc/pyroscope/config.yaml. Arguments after
+# the image replace that CMD, so the config file is passed explicitly. The
+# bundled file is all defaults (monolith, port 4040, filesystem storage,
+# multi-tenancy off), which is what the lab wants; the flags below are the only
+# deviations. -api.base-url makes the UI resolve its assets under the Traefik
+# /pyroscope prefix while the API stays at the root.
+ExecStart=/usr/bin/docker run \
+  --name pyroscope \
+  -p {{ pyroscope_port }}:4040 \
+  --cpus={{ pyroscope_cpus }} \
+  --memory={{ pyroscope_memory }} \
+  -e TZ={{ pyroscope_tz }} \
+  -v {{ pyroscope_data_dir }}/data:/data \
+  -v {{ pyroscope_data_dir }}/data-compactor:/data-compactor \
+  -v {{ pyroscope_data_dir }}/data-metastore:/data-metastore \
+  {{ pyroscope_image }} \
+  -config.file=/etc/pyroscope/config.yaml \
+  -usage-stats.enabled=false \
+  -api.base-url=/pyroscope
+ExecStop=/usr/bin/docker stop -t 60 pyroscope
+
+[Install]
+WantedBy=multi-user.target

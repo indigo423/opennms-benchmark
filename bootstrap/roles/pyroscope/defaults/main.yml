@@ -1,0 +1,15 @@
+---
+pyroscope_image: grafana/pyroscope:2.3.0
+# Read from group_vars/all/vars.yml so the endpoints manifest, Traefik,
+# Prometheus and Grafana publish the same number this container listens on.
+pyroscope_port: "{{ lab_pyroscope_port }}"
+pyroscope_cpus: "1.0"
+pyroscope_memory: 1g
+pyroscope_data_dir: /var/lib/pyroscope
+# The image runs as the `pyroscope` user; uid and gid are both 10001. The
+# bind-mounted data directories must be owned by it or the container cannot
+# write.
+pyroscope_uid: 10001
+pyroscope_tz: UTC
+# Retention is the image default of 31d (`-retention-period`), deliberately not
+# overridden. Add the flag to the unit if a campaign needs something else.

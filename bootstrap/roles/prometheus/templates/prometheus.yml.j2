@@ -55,3 +55,11 @@ scrape_configs:
         labels:
           app: "sentinel"
 {% endfor %}
+
+  - job_name: "pyroscope"
+    static_configs:
+{% for host in groups['mon_servers'] | default([]) %}
+      - targets: ["{{ host }}:{{ lab_pyroscope_port }}"]
+        labels:
+          app: "pyroscope"
+{% endfor %}

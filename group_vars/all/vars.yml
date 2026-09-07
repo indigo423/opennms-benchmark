@@ -37,6 +37,15 @@ lab_kafka_topics:
 # as a run where nothing arrived.
 lab_instance_id: OpenNMS
 
+# The Pyroscope listen port. Defined here for the same reason as the topic
+# names above: the localhost play that renders lab-endpoints.yml does not see
+# role defaults, so a value in bootstrap/roles/pyroscope/defaults would force
+# the manifest to carry its own copy. The pyroscope, traefik, prometheus and
+# grafana roles all read this one. Changing it moves the container port
+# mapping, the Traefik service, the scrape target, the Grafana datasource and
+# the published URL together (#287).
+lab_pyroscope_port: 4040
+
 # The host-metrics instrument. Pinned here rather than inherited.
 #
 # bootstrap/preparation-playbook.yml calls prometheus.prometheus.node_exporter,

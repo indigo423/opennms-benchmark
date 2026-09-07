@@ -28,3 +28,11 @@
     mode: "0644"
   notify: Restart grafana
   tags: ["monitoring", "grafana"]
+
+- name: Deploy Pyroscope datasource
+  ansible.builtin.template:
+    src: datasources/pyroscope.yml.j2
+    dest: "{{ grafana_provisioning_datasources_dir }}/pyroscope.yml"
+    mode: "0644"
+  notify: Restart grafana
+  tags: ["monitoring", "grafana"]

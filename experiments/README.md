@@ -24,6 +24,8 @@ measurement:
   kafka: {bootstrap: …, topics: {metrics: …}}
 generators:
   nl6: {url: …, sim_network: …}
+observability:
+  pyroscope: {url: …}
 ```
 
 The tools installed on the monitoring node already read it from `/etc/lab-endpoints.json`, so `kafka-metrics-report` and `nl6-loadtest` need no endpoint arguments.

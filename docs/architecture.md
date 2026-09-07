@@ -34,7 +34,7 @@ Six VMs, each dedicated to one component:
 | kafka | 192.0.2.198 | Apache Kafka (KRaft mode) + Kafka UI |
 | minion | 192.0.2.199 | OpenNMS Minion (distributed collector) |
 | netsim | 192.0.2.134 | Net-SNMP simulator (10.42.0.0/16 loopback) |
-| monitoring | 192.0.2.200 | Prometheus · Grafana · Jaeger (jump host) |
+| monitoring | 192.0.2.200 | Prometheus · Grafana · Jaeger · Pyroscope (jump host) |
 
 All VMs run Ubuntu 24.04 LTS. The monitoring VM is the only VM with a public IP address.
 
@@ -99,8 +99,9 @@ ip route add 10.42.0.0/16 via 192.0.2.134
 | Observability | Prometheus | latest | Scrapes node (9100) + Core JMX (9299) |
 | Dashboards | Grafana OSS | latest | Pre-provisioned dashboards + OpenNMS plugin |
 | Tracing | Jaeger | latest | All-in-one; traces OpenNMS internals |
+| Profiling | Grafana Pyroscope | 2.3.0 | Monolith on port 4040; ready to receive continuous profiles, browsed via Grafana > Drilldown > Profiles |
 | SNMP simulation | Net-SNMP (`snmpd`) | any | Loopback routing for 10.42.0.0/16 |
-| Container runtime | Docker Engine CE | any | Used for Prometheus, Grafana, Jaeger, Kafka UI |
+| Container runtime | Docker Engine CE | any | Used for Prometheus, Grafana, Jaeger, Pyroscope, Kafka UI |
 | CI/CD | GitHub Actions | — | Terraform fmt, validate, TFLint on PR |
 
 ## Dual Provider Design
@@ -160,12 +161,15 @@ flowchart LR
     PROM[Prometheus\nport 9090]
     GRAFANA[Grafana\nport 3000]
     JAEGER[Jaeger\nport 16686]
+    PYROSCOPE[Pyroscope\nport 4040]
     OPENNMS[OpenNMS Core\nport 8980]
 
     NODE --> PROM
     JMX --> PROM
     PROM --> GRAFANA
     OPENNMS --> JAEGER
+    OPENNMS -.->|planned| PYROSCOPE
+    PYROSCOPE --> GRAFANA
     OPENNMS --> GRAFANA
 ```
 
