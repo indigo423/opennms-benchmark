@@ -88,6 +88,34 @@ shellcheck, ruff, yamllint, actionlint + zizmor, the deployment specs, and DCO.
 - **Deployment specs** live in `deployments/<slug>/topology.yml`; the directory
   slug and the `name:` field must match. `make validate-deployments` checks it.
 - **New source files** need an SPDX licence header.
+- **Flow-engine material does not belong on `main`.** Akvorado, Riptide and
+  ClickHouse were removed in #224 because `main` is the branch synchronised to
+  `opennms-forge/opennms-benchmark`, and that work is not part of that project.
+  It is preserved at the `flow-engines-pre-scrub` tag, described below.
+
+### The flow-engine snapshot
+
+The Akvorado, Riptide and ClickHouse material left `main` in #224 (2026-08-24).
+It is not lost: it lives in `main`'s own history, at the commit the
+`flow-engines-pre-scrub` tag names, which holds all 91 files.
+
+The tag exists because the branch that used to mark that commit,
+`private/flow-engines`, is indistinguishable from a stale branch. It carries no
+commits of its own, so it is an ancestor of `main`, and every "delete merged
+branches" tool and `git branch -d` will happily remove it without a warning. The
+commit survives that, because `main` descends from it, but the only signpost
+saying *where the material is* does not. A tag says snapshot rather than branch,
+and branch-cleanup tooling leaves tags alone.
+
+Two things to know before reviving any of it:
+
+- The snapshot is frozen at 2026-08-04 and `main` has moved a long way since, so
+  reviving means merging that distance into a tree `main` deliberately scrubbed.
+  The cost grows with every commit.
+- #224's message says the branch was cut from "the commit before this one". It
+  was not; it sits six commits earlier. No flow-engine change happened in that
+  gap, so the material is identical, but the six commits of unrelated work are
+  missing from the snapshot.
 
 `CLAUDE.md` documents the architecture and the gotchas an automated agent — or a
 new contributor — would otherwise get wrong. It is worth reading first.
