@@ -1,0 +1,8 @@
+---
+# Fixture for validate-renovate-pins.py, reproducing #263. tool_a's value is
+# unquoted, so the manager's pattern skips past it and binds this annotation to
+# tool_b's pin instead: Renovate would raise tool_b to whatever owner/tool_a
+# released, while tool_a itself silently stopped moving.
+# renovate: datasource=github-releases depName=owner/tool_a
+example_tool_a_version: 1.2.3
+example_tool_b_version: "9.9.9"

@@ -20,7 +20,7 @@
   },
   "customManagers": [
     {
-      "description": "Activates the '# renovate: datasource=... depName=...' comments in role defaults (rustfs_version, rustfs_boto3_version, rustfs_botocore_version, victorialogs_version) and in group_vars (node_exporter_version). group_vars is included because a pin for a bootstrap-invoked role must live there rather than in opennms-lab-vars.yml, which no bootstrap play reads -- an exact pin outside this pattern would trade silent drift for silent staleness. The [\\s\\S]*? between the annotation and the pin is deliberately permissive: rustfs_version carries an explanation between the two, and a next-line-only pattern would not match it. It is safe because make validate-renovate-pins asserts the shape this relies on, that the next non-comment line after an annotation is a quoted *_version assignment. Without that check the wildcard binds an annotation to whatever quoted pin comes next (#263), and no stricter pattern fixes it: RE2 has no lookarounds, so every variant fails silently in some other shape.",
+      "description": "Activates the '# renovate: datasource=... depName=...' comments in role defaults (rustfs_version, rustfs_boto3_version, rustfs_botocore_version) and in group_vars (node_exporter_version). group_vars is included because a pin for a bootstrap-invoked role must live there rather than in opennms-lab-vars.yml, which no bootstrap play reads -- an exact pin outside this pattern would trade silent drift for silent staleness.",
       "customType": "regex",
       "managerFilePatterns": [
         "/^deployments/roles/.*/defaults/main\\.yml$/",
