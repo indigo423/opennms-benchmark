@@ -17,7 +17,7 @@
     "workload.fixtures"
   ],
   "sut": {
-    "config_delta": "The 16 GiB shape of kfk-exclusive, as re-established on 2026-09-07 for the sizing rule's balanced fleet, with one variable added: agent reachability.\n\nOpenNMS Core, changed against the 20,250 capture\n  VM: 8 vCPU, 16 GiB (was 32 GiB); opennms.conf JAVA_HEAP_SIZE 10240, JAVA_INITIAL_HEAP_SIZE 8192 (was 20480 / 20480)\n  collectd-configuration.xml: threads 250 (was 400)\n  fleet: 11,000 nl6 devices, 11,004 collectable services; nl6 restarted and rebuilt with octets 0-43, the requisition re-imported (8,250 nodes deleted)\n\nThe outages, all silent drops on netsim (bin/level.sh <on|off> <level>)\n  25%: iptables -I FORWARD 1 -o veth-sim-host -d 10.42.0.0/21, 10.42.8.0/23, 10.42.10.0/24 -j DROP (octets 0-10, 2,750 devices)\n  50%: 10.42.0.0/20, 10.42.16.0/22, 10.42.20.0/23 (octets 0-21, 5,500)\n  75%: 10.42.0.0/19, 10.42.32.0/24 (octets 0-32, 8,250)\n  100%: 10.42.0.0/18 (all 44 blocks, 11,000)\n  the healthy baseline window is 11:00-11:15Z of the same day (record baseline-0 in levels.jsonl)\n\nThe earlier full outage (for reference)\n  netsim: iptables -D FORWARD -o veth-sim-host -j ACCEPT at 10:28:02Z (silent drop of every SNMP request into the simulator's namespace; the rule is the one an nl6 container restart needs, see the lab notes); iptables -I FORWARD 1 -o veth-sim-host -j ACCEPT at 10:43:12Z\n  snmp-config (Config Manager): timeout 1800 ms, retry 1, so a failing collection costs 3.6 s of thread time; max-repetitions 5 for 10.42.0.0/16\n  org.opennms.core.ipc.rpc.kafka.ttl: unset, 20,000 ms default; never reached\n\nUnchanged: G1, NMT, 13 daemons disabled, Syslogd enabled, log4j2 instrumentation INFO, Kafka producer forward.metrics, no compression anywhere, PostgreSQL pgtune profile with SSL, Minion stock (2 GiB default heap), netem delay 75ms 25ms on netsim enp6s19.\n\nJudged windows: before 10:00-10:15Z (record class16g-11000-threads250-g1 in pm-snmp-sizing-rule/results/trials.jsonl), after 10:45-11:00Z and 11:00-11:15Z (trials.jsonl here).",
+    "config_delta": "The 16 GiB shape of kfk-exclusive, as re-established on 2026-09-07 for the sizing rule's balanced fleet, with one variable added: agent reachability.\n\nOpenNMS Core, changed against the 20,250 capture\n  VM: 8 vCPU, 16 GiB (was 32 GiB); opennms.conf JAVA_HEAP_SIZE 10240, JAVA_INITIAL_HEAP_SIZE 8192 (was 20480 / 20480)\n  collectd-configuration.xml: threads 250 (was 400)\n  fleet: 11,000 nl6 devices, 11,004 collectable services; nl6 restarted and rebuilt with octets 0-43, the requisition re-imported (8,250 nodes deleted)\n\nThe outages, all silent drops on netsim (bin/level.sh <on|off> <level>)\n  25%: iptables -I FORWARD 1 -o veth-sim-host -d 10.42.0.0/21, 10.42.8.0/23, 10.42.10.0/24 -j DROP (octets 0-10, 2,750 devices)\n  50%: 10.42.0.0/20, 10.42.16.0/22, 10.42.20.0/23 (octets 0-21, 5,500)\n  75%: 10.42.0.0/19, 10.42.32.0/24 (octets 0-32, 8,250)\n  100%: 10.42.0.0/18 (all 44 blocks, 11,000)\n  the healthy baseline window is 11:00-11:15Z of the same day (record baseline-0 in levels.jsonl)\n\nThe pulse: 100% on 16:07:28Z, off 16:13:14Z (one cycle), run to clear the 4,404 alarms orphaned by the external restart of 15:33Z\n\nThe earlier full outage (for reference)\n  netsim: iptables -D FORWARD -o veth-sim-host -j ACCEPT at 10:28:02Z (silent drop of every SNMP request into the simulator's namespace; the rule is the one an nl6 container restart needs, see the lab notes); iptables -I FORWARD 1 -o veth-sim-host -j ACCEPT at 10:43:12Z\n  snmp-config (Config Manager): timeout 1800 ms, retry 1, so a failing collection costs 3.6 s of thread time; max-repetitions 5 for 10.42.0.0/16\n  org.opennms.core.ipc.rpc.kafka.ttl: unset, 20,000 ms default; never reached\n\nUnchanged: G1, NMT, 13 daemons disabled, Syslogd enabled, log4j2 instrumentation INFO, Kafka producer forward.metrics, no compression anywhere, PostgreSQL pgtune profile with SSL, Minion stock (2 GiB default heap), netem delay 75ms 25ms on netsim enp6s19.\n\nJudged windows: before 10:00-10:15Z (record class16g-11000-threads250-g1 in pm-snmp-sizing-rule/results/trials.jsonl), after 10:45-11:00Z and 11:00-11:15Z (trials.jsonl here).",
     "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
     "jvm": {
       "heap": "-Xms8192m -Xmx10240m",
@@ -50,7 +50,7 @@
   "run": {
     "id": "11000-devices-threads250-16g-partial-outage-20260907T135047Z",
     "started_at": "2026-09-07T13:40:00Z",
-    "ended_at": "2026-09-07T15:52:00Z"
+    "ended_at": "2026-09-07T16:32:00Z"
   },
   "measurements": {
     "tsdb": {
@@ -60,7 +60,7 @@
     },
     "window": {
       "start": "2026-09-07T13:40:00Z",
-      "end": "2026-09-07T15:52:00Z"
+      "end": "2026-09-07T16:32:00Z"
     },
     "resolution": "15s",
     "timezone": "Europe/Berlin",
@@ -85,7 +85,7 @@
           "dashboard": "Node Exporter Full",
           "panel": "CPU Busy"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. Every machine steps down with the share of dead devices: a failed collection decodes, stores and looks up nothing. The 97% at 15:36 is the reload after an external restart of OpenNMS at 15:33.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. Every machine steps down with the share of dead devices: a failed collection decodes, stores and looks up nothing. The 97% at 15:36 is the reload after an external restart of OpenNMS at 15:33.",
         "series": [
           {
             "label": "core (8 vCPU)",
@@ -110,7 +110,7 @@
           "dashboard": "Prometheus: OpenNMS Core Internals",
           "panel": "Collectd active threads"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. A dead device holds a thread for one timeout and one retry, 3.6 s, against 5.4 s for a live one, so occupancy falls with every level. The pool pegged at 250 from 15:35 is that restart's scheduling wave.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. A dead device holds a thread for one timeout and one retry, 3.6 s, against 5.4 s for a live one, so occupancy falls with every level. The pool pegged at 250 from 15:35 is that restart's scheduling wave.",
         "series": [
           {
             "label": "rolling 1-minute peak",
@@ -135,7 +135,7 @@
           "dashboard": "Prometheus: OpenNMS Core Internals",
           "panel": "Collectd tasks completed"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. The counter counts failed collections too, so it never leaves demand; delivered work is the next figure.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. The counter counts failed collections too, so it never leaves demand; delivered work is the next figure.",
         "series": [
           {
             "label": "achieved, 2-minute rate",
@@ -156,7 +156,7 @@
           "dashboard": "Node Exporter Full",
           "panel": "Network Traffic"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. Metrics out of the Core fall with the dead share and return with it; SNMP on the Minion's link falls the same way, with the unanswered requests of the dead blocks as its floor.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. Metrics out of the Core fall with the dead share and return with it; SNMP on the Minion's link falls the same way, with the unanswered requests of the dead blocks as its floor.",
         "series": [
           {
             "label": "core enp6s20 transmit, metrics to Kafka",
@@ -177,7 +177,7 @@
           "dashboard": "Prometheus: OpenNMS Core Internals",
           "panel": "Collectd pending tasks"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. The queue stays empty at every level; a dead device is cheaper to the collector than a live one. The 7,000-task spike at 15:34 is the reload after an Ansible run from outside the experiment restarted OpenNMS, not an outage effect.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. The queue stays empty at every level; a dead device is cheaper to the collector than a live one. The 7,000-task spike at 15:34 is the reload after an Ansible run from outside the experiment restarted OpenNMS, not an outage effect; the 10,000 peak at 16:07 is that restart's wave grown over the following half hour, which the pulse's outage cycle emptied because failed collections are short.",
         "series": [
           {
             "label": "rolling 1-minute peak",
@@ -191,14 +191,14 @@
       },
       {
         "id": "heap-gc",
-        "title": "Core JVM heap against its 10 GiB ceiling, and old-generation collections",
-        "unit": "GiB and per minute",
+        "title": "Core JVM heap against its 10 GiB ceiling",
+        "unit": "GiB",
         "kind": "line",
         "source": {
           "dashboard": "JVM (JMX exporter)",
           "panel": "Heap / GC"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after. The heap tracks in-flight state: lower with more dead devices, back with the recovery, and no old-generation collection at any level. The drop to 0.3 GiB at 15:34 is the JVM restarted by an external Ansible run.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. The heap tracks in-flight state: lower with more dead devices, back with the recovery, and no old-generation collection at any level. The drop to 0.3 GiB at 15:34 is the JVM restarted by an external Ansible run.",
         "series": [
           {
             "label": "heap used",
@@ -207,7 +207,20 @@
           {
             "label": "heap ceiling",
             "expr": "last_over_time(java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"}[2m]) / 1024 / 1024 / 1024"
-          },
+          }
+        ]
+      },
+      {
+        "id": "oldgen",
+        "title": "Core old-generation collections per minute",
+        "unit": "per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "JVM (JMX exporter)",
+          "panel": "Heap / GC"
+        },
+        "note": "None at any level; the only non-zero minutes are the reload after the external restart at 15:34.",
+        "series": [
           {
             "label": "old-gen collections per minute",
             "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60"
@@ -232,6 +245,11 @@
         "id": "q-the-event-path",
         "question": "What does each level cost the event path, and what does recovery cost?",
         "answer_ref": "#the-event-path"
+      },
+      {
+        "id": "q-the-pulse",
+        "question": "What does a clean recovery from a total outage look like on this deployment?",
+        "answer_ref": "#the-pulse"
       },
       {
         "id": "q-where-it-stops",

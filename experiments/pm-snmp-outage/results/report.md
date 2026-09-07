@@ -25,7 +25,7 @@ method: |
 
 **It survives, and it comes back on its own within one collection cycle.** Three cycles without an agent cost the deployment three cycles of samples and nothing else: no queue, no backlog, no growth in heap, no lingering alarm, and the two windows after the restore read like the window before it.
 
-| Window | Coll./s | Completion | Queue at zero | Queue peak | Threads busy | Core CPU | Old-gen GC | Verdict |
+| Window | Coll./s | Completion | Queue empty | Queue peak | Threads | Core | Old GC | Verdict |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
 | Before, 10:00 to 10:15 | 36.65 | 99.9% | 93% | 33 | 191 | 61.1% | 0 | pass |
 | After, 10:45 to 11:00 | 36.67 | 100.0% | 93% | 32 | 190 | 59.8% | 0 | pass |
@@ -43,16 +43,25 @@ The completion counter never leaves the fleet's demand, and that is the first th
 
 **A failing collection is cheaper than a working one on every resource but one: the thread, and only for 3.6 s.**
 
-| Phase | Minutes | Coll./s | Queue peak | Threads busy | Core CPU | DB CPU | Heap | SNMP Mbit/s | dataCollectionFailed | dataCollectionSucceeded | Open major alarms, peak |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| before the outage | 2 | 38.9 | 0 | 206 | 66.1% | 36.1% | 8.4 GiB | 21.8 | 0 | 0 | 0 |
-| outage | 15 | 36.1 | 0 | 143 | 12.0% | 3.9% | 5.8 GiB | 2.1 | 11000 | 0 | 11000 |
-| first 5 min after restore | 5 | 35.9 | 1 | 205 | 56.0% | 29.8% | 6.4 GiB | 18.3 | 0 | 10080 | 10286 |
-| 5 to 15 min after restore | 10 | 35.9 | 7 | 209 | 62.9% | 29.0% | 8.5 GiB | 20.2 | 0 | 858 | 0 |
-| 15 to 30 min after restore | 15 | 36.1 | 56 | 202 | 60.8% | 27.5% | 8.4 GiB | 20.3 | 0 | 0 | 0 |
+| Phase | Min | Coll./s | Queue peak | Threads | Core | DB | Heap | SNMP |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| before | 2 | 38.9 | 0 | 206 | 66.1% | 36.1% | 8.4 | 21.8 |
+| outage | 15 | 36.1 | 0 | 143 | 12.0% | 3.9% | 5.8 | 2.1 |
+| restore +0 to 5 min | 5 | 35.9 | 1 | 205 | 56.0% | 29.8% | 6.4 | 18.3 |
+| restore +5 to 15 min | 10 | 35.9 | 7 | 209 | 62.9% | 29.0% | 8.5 | 20.2 |
+| restore +15 to 30 min | 15 | 36.1 | 56 | 202 | 60.8% | 27.5% | 8.4 | 20.3 |
 
+Table: the collector side, `bin/render_phases.py` over `outage-timeline.log`; Heap in GiB, SNMP in Mbit/s on the Minion's link. The two minutes before the outage are the monitor's; the window before it in the table above is the fuller measurement.
 
-Table: `bin/render_phases.py` over `outage-timeline.log`; the two minutes before the outage are the monitor's, the window before it in the table above is the fuller measurement.
+| Phase | Failed | Succeeded | Open alarms, peak |
+|---|---:|---:|---:|
+| before | 0 | 0 | 0 |
+| outage | 11,000 | 0 | 11,000 |
+| restore +0 to 5 min | 0 | 10,080 | 10,286 |
+| restore +5 to 15 min | 0 | 858 | 0 |
+| restore +15 to 30 min | 0 | 0 | 0 |
+
+Table: the event path, same log; failed and succeeded are `dataCollectionFailed` and `dataCollectionSucceeded` events summed over the phase, open alarms the peak of major alarms open.
 
 {{figure threads}}
 
