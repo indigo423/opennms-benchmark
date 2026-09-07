@@ -1,0 +1,270 @@
+{
+  "comparability_key": [
+    "sut.version_identity",
+    "sut.jvm.heap",
+    "sut.jvm.gc",
+    "sut.db_version",
+    "sut.tss_backend",
+    "sut.config_delta",
+    "host.cpu",
+    "host.ram_gb",
+    "host.disk",
+    "host.generator_colocated",
+    "workload.axis",
+    "workload.generator_scenario",
+    "workload.generator_version",
+    "workload.parameters",
+    "workload.fixtures"
+  ],
+  "experiment": {
+    "question": "Does the deployment survive a full network outage in which no SNMP agent is reachable, and how does it recover?",
+    "independent_variable": "workload.parameters.agent_reachability",
+    "variant": "11000-devices-threads250-16g-full-outage-3-cycles",
+    "plan": "One variable, agent reachability, on the healthy 16 GiB deployment: 11,000 devices, 250 threads, 10 GiB heap. The outage is a silent drop: the FORWARD rule that carries SNMP into the simulator's namespace on netsim is removed at T0 so every request from the Minion is dropped with no ICMP and runs to its timeout; it is restored at T1 after three collection cycles. bin/monitor.py logs one line a minute from Prometheus and from the events and alarms tables on the database. Windows before and after are judged by the knee search's rule with trial.py."
+  },
+  "sut": {
+    "config_delta": "The 16 GiB shape of kfk-exclusive, as re-established on 2026-09-07 for the sizing rule's balanced fleet, with one variable added: agent reachability.\n\nOpenNMS Core, changed against the 20,250 capture\n  VM: 8 vCPU, 16 GiB (was 32 GiB); opennms.conf JAVA_HEAP_SIZE 10240, JAVA_INITIAL_HEAP_SIZE 8192 (was 20480 / 20480)\n  collectd-configuration.xml: threads 250 (was 400)\n  fleet: 11,000 nl6 devices, 11,004 collectable services; nl6 restarted and rebuilt with octets 0-43, the requisition re-imported (8,250 nodes deleted)\n\nThe outage\n  netsim: iptables -D FORWARD -o veth-sim-host -j ACCEPT at 10:28:02Z (silent drop of every SNMP request into the simulator's namespace; the rule is the one an nl6 container restart needs, see the lab notes); iptables -I FORWARD 1 -o veth-sim-host -j ACCEPT at 10:43:12Z\n  snmp-config (Config Manager): timeout 1800 ms, retry 1, so a failing collection costs 3.6 s of thread time; max-repetitions 5 for 10.42.0.0/16\n  org.opennms.core.ipc.rpc.kafka.ttl: unset, 20,000 ms default; never reached\n\nUnchanged: G1, NMT, 13 daemons disabled, Syslogd enabled, log4j2 instrumentation INFO, Kafka producer forward.metrics, no compression anywhere, PostgreSQL pgtune profile with SSL, Minion stock (2 GiB default heap), netem delay 75ms 25ms on netsim enp6s19.\n\nJudged windows: before 10:00-10:15Z (record class16g-11000-threads250-g1 in pm-snmp-sizing-rule/results/trials.jsonl), after 10:45-11:00Z and 11:00-11:15Z (trials.jsonl here).",
+    "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
+    "jvm": {
+      "heap": "-Xms8192m -Xmx10240m",
+      "gc": "G1GC",
+      "flags": "-Xms8192m -Xmx10240m -XX:+UseG1GC -XX:NativeMemoryTracking=summary -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError (from the process command line)"
+    },
+    "tss_backend": "kafka-exclusive",
+    "version_identity": {
+      "version": "36.0.3",
+      "package_version": "PoweredBy 2026 (same codebase as OpenNMS Horizon 36.0.3)"
+    }
+  },
+  "host": {
+    "cpu": "Intel(R) Xeon(R) CPU E5-2650 v4 @ 2.20GHz, 8 cores",
+    "disk": "sda 200G disk rota=1 QEMU HARDDISK",
+    "os": "Ubuntu 24.04.4 LTS",
+    "ram_gb": 15.62,
+    "hygiene_notes": "Core VM resized to 16 GiB (xlarge class) on 2026-09-07 09:17Z by qm set 108 --memory 16384 and a Proxmox reboot; the deployment spec still says xxlarge-mem."
+  },
+  "workload": {
+    "axis": "snmp-collection",
+    "generator_scenario": "nl6 cisco_crs_x.json, 11,000 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-43, netem delay 75ms 25ms on the simulator, GETBULK max-repetitions 5; all agents unreachable 10:28:02 to 10:43:12 UTC"
+  },
+  "run": {
+    "id": "11000-devices-threads250-16g-full-outage-20260907T102802Z",
+    "started_at": "2026-09-07T10:00:00Z",
+    "ended_at": "2026-09-07T11:15:00Z"
+  },
+  "measurements": {
+    "tsdb": {
+      "kind": "prometheus",
+      "url": "http://192.168.10.40:9090/prometheus",
+      "version": "3.14.0"
+    },
+    "window": {
+      "start": "2026-09-07T10:00:00Z",
+      "end": "2026-09-07T11:15:00Z"
+    },
+    "resolution": "15s",
+    "timezone": "Europe/Berlin",
+    "annotations": {
+      "tags": [
+        "pm-snmp",
+        "outage",
+        "resilience",
+        "recovery",
+        "16g-core",
+        "pool-250",
+        "kfk-exclusive"
+      ]
+    },
+    "figures": [
+      {
+        "id": "throughput",
+        "title": "Collections completed per second against the rate the fleet requires, through the outage",
+        "unit": "collections/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd tasks completed"
+        },
+        "note": "T0 10:28:02 UTC removes the forwarding rule into the simulator's namespace, T1 10:43:12 restores it. The counter counts failed collections too: a collection that times out after 3.6 s is a completed task, so the rate never leaves the fleet's demand.",
+        "series": [
+          {
+            "label": "achieved, 2-minute rate",
+            "expr": "rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[2m])"
+          },
+          {
+            "label": "required by the fleet",
+            "expr": "last_over_time(opennms_collectd_collectableservicecount{instance=\"core-benchmark-01:9299\"}[2m]) / 300"
+          }
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Collectd pending queue, rolling one-minute peak and floor",
+        "unit": "tasks",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd pending tasks"
+        },
+        "note": "T0 10:28:02 UTC removes the forwarding rule into the simulator's namespace, T1 10:43:12 restores it. Nothing queues during the outage and the recovery cycle peaks at two tasks.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "rolling 1-minute floor",
+            "expr": "min_over_time(opennms_collectd_taskqueuependingcount{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "threads",
+        "title": "Collectd thread pool occupancy against its 250-thread ceiling",
+        "unit": "threads",
+        "kind": "peak-line",
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "Collectd active threads"
+        },
+        "note": "T0 10:28:02 UTC removes the forwarding rule into the simulator's namespace, T1 10:43:12 restores it. A failing collection holds a thread for one timeout and one retry, 3.6 s, against 5.4 s for a successful one: the pool runs lighter during the outage, not fuller.",
+        "series": [
+          {
+            "label": "rolling 1-minute peak",
+            "expr": "max_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "rolling 1-minute mean",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          },
+          {
+            "label": "pool ceiling",
+            "expr": "last_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[1m])"
+          }
+        ]
+      },
+      {
+        "id": "cpu",
+        "title": "CPU busy through the outage: Core, Minion and database",
+        "unit": "% of all vCPU",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "CPU Busy"
+        },
+        "note": "T0 10:28:02 UTC removes the forwarding rule into the simulator's namespace, T1 10:43:12 restores it. The Core falls to about 12% with nothing to decode and the database to 4% with nothing to look up; both are back within the first cycle after the restore.",
+        "series": [
+          {
+            "label": "core (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"core-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          },
+          {
+            "label": "minion (4 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"minion-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          },
+          {
+            "label": "db (8 vCPU)",
+            "expr": "100 - avg(rate(node_cpu_seconds_total{instance=\"db-benchmark-01:9100\",mode=\"idle\"}[2m])) * 100"
+          }
+        ]
+      },
+      {
+        "id": "heap-gc",
+        "title": "Core JVM heap against its 10 GiB ceiling, and old-generation collections",
+        "unit": "GiB and per minute",
+        "kind": "line",
+        "source": {
+          "dashboard": "JVM (JMX exporter)",
+          "panel": "Heap / GC"
+        },
+        "note": "T0 10:28:02 UTC removes the forwarding rule into the simulator's namespace, T1 10:43:12 restores it. The heap drifts down through the outage as in-flight state shrinks and climbs back afterwards; no old-generation collection at any point.",
+        "series": [
+          {
+            "label": "heap used",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_used{instance=\"core-benchmark-01:9299\"}[2m]) / 1024 / 1024 / 1024"
+          },
+          {
+            "label": "heap ceiling",
+            "expr": "last_over_time(java_lang_memory_heapmemoryusage_max{instance=\"core-benchmark-01:9299\"}[2m]) / 1024 / 1024 / 1024"
+          },
+          {
+            "label": "old-gen collections per minute",
+            "expr": "rate(java_lang_g1_old_generation_collectioncount{instance=\"core-benchmark-01:9299\"}[5m]) * 60"
+          }
+        ]
+      },
+      {
+        "id": "net",
+        "title": "SNMP on the Minion's simulator link and the Core's Kafka link",
+        "unit": "Mbit/s",
+        "kind": "line",
+        "source": {
+          "dashboard": "Node Exporter Full",
+          "panel": "Network Traffic"
+        },
+        "note": "T0 10:28:02 UTC removes the forwarding rule into the simulator's namespace, T1 10:43:12 restores it. SNMP requests keep leaving the Minion, about 3 Mbit/s of unanswered GETBULKs against 27 Mbit/s of traffic when the fleet answers; the Core's metrics stream to Kafka stops because failed collections persist nothing.",
+        "series": [
+          {
+            "label": "minion enp6s20, SNMP to the fleet",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[2m]) + rate(node_network_transmit_bytes_total{instance=\"minion-benchmark-01:9100\",device=\"enp6s20\"}[2m])) * 8 / 1e6"
+          },
+          {
+            "label": "core enp6s20, RPC + metrics",
+            "expr": "(rate(node_network_receive_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[2m]) + rate(node_network_transmit_bytes_total{instance=\"core-benchmark-01:9100\",device=\"enp6s20\"}[2m])) * 8 / 1e6"
+          }
+        ]
+      }
+    ]
+  },
+  "questions": {
+    "answers": [
+      {
+        "id": "q-the-verdict",
+        "question": "Does the deployment survive a complete loss of the fleet, and does it come back on its own?",
+        "answer_ref": "#the-verdict"
+      },
+      {
+        "id": "q-during",
+        "question": "What does the collector do while every collection fails?",
+        "answer_ref": "#during-the-outage"
+      },
+      {
+        "id": "q-events",
+        "question": "What does the event path do with 11,000 failing services?",
+        "answer_ref": "#the-event-path"
+      },
+      {
+        "id": "q-recovery",
+        "question": "How long does recovery take, and is anything left behind?",
+        "answer_ref": "#recovery"
+      },
+      {
+        "id": "q-limits",
+        "question": "Which outages would look different?",
+        "answer_ref": "#where-it-stops"
+      }
+    ],
+    "gaps": [
+      {
+        "question": "Is a silent drop the right outage?",
+        "why": "The forwarding rule drops requests without ICMP, so every PDU runs to its 1,800 ms timeout and retry. A link that returns unreachable fails faster; a partial outage, in which some agents answer and others do not, fails slower and holds threads longer. Only the silent total case was run.",
+        "validity": "internal"
+      },
+      {
+        "question": "Does the 16 GiB Core at 11,000 devices stand for the deployment at its knee?",
+        "why": "This fleet leaves the Core 40% of its CPU and the pool a quarter of its threads, and the recovery burst, 11,000 successes and 11,000 alarm clears in one cycle, landed on that headroom. The 32 GiB Core at 20,250 has 4% to give.",
+        "validity": "external"
+      },
+      {
+        "question": "Are the event counts complete?",
+        "why": "They are read from the events and alarms tables once a minute over SSH, because eventd and alarmd publish no counters to the JMX exporter; a burst inside one minute is counted, but its shape inside the minute is not seen. The database had 14.7 million events from earlier syslog experiments and an empty alarms table; alarm reduction over a populated table was not exercised.",
+        "validity": "construct"
+      },
+      {
+        "question": "Does one outage of one length say enough?",
+        "why": "One outage, 15 minutes, one fleet. The one-cycle recovery follows from how Collectd reschedules a failed service and should hold for a longer outage; it was not measured.",
+        "validity": "conclusion"
+      }
+    ]
+  }
+}
