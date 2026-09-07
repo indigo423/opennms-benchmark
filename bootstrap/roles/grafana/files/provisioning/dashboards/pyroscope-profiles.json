@@ -23,7 +23,7 @@
       "type": "link",
       "title": "Profiles Drilldown",
       "icon": "external link",
-      "url": "/a/grafana-pyroscope-app/explore?explorationType=flame-graph&var-dataSource=${datasource}&var-serviceName=${service}&var-profileMetricId=${profile_type}&${__url_time_range}",
+      "url": "/a/grafana-pyroscope-app/explore?explorationType=flame-graph&var-dataSource=${datasource}&var-profileMetricId=${profile_type}&${__url_time_range}",
       "keepTime": true,
       "includeVars": false,
       "targetBlank": false,
@@ -95,7 +95,6 @@
         "allValue": ".*",
         "refresh": 2,
         "sort": 1,
-        "regex": "/^(?!pyroscope$).*/",
         "current": {
           "selected": true,
           "text": [
@@ -105,7 +104,7 @@
             "$__all"
           ]
         },
-        "description": "Services pushing profiles: OpenNMS Core and Minion under the application name their agents send, and nl6. Pyroscope's own self-profile is hidden."
+        "description": "Services pushing profiles: OpenNMS Core and Minion under the application name their agents send, nl6, and the Pyroscope server's own self-profile, which doubles as proof that the pipeline works."
       },
       {
         "name": "profile_type",
@@ -849,7 +848,7 @@
       "id": 12,
       "type": "flamegraph",
       "title": "Flame graph: $profile_type for $service",
-      "description": "Merged flame graph of the selected profile type for one service over the dashboard's time range; one panel per selected service. Width is the share of the total (CPU time, bytes allocated or lock delay); depth is the call stack, callers above callees. Read it top-down to the first frame that is both wide and yours: that is the tuning target. Use the table view for a sorted list of self time, and the search box to find a class or function. For diffing two time ranges use the Profiles Drilldown link in the panel menu.",
+      "description": "Merged flame graph of the selected profile type for one service over the dashboard's time range; one panel per selected service (with All and no other services it merges them). Width is the share of the total (CPU time, bytes allocated or lock delay); depth is the call stack, callers above callees. Read it top-down to the first frame that is both wide and yours: that is the tuning target. Use the table view for a sorted list of self time, and the search box to find a class or function. For diffing two time ranges use the Profiles Drilldown link in the panel menu.",
       "gridPos": {
         "h": 14,
         "w": 24,
@@ -872,7 +871,7 @@
           },
           "queryType": "profile",
           "profileTypeId": "$profile_type",
-          "labelSelector": "{service_name=\"$service\"}",
+          "labelSelector": "{service_name=~\"$service\"}",
           "groupBy": [],
           "spanSelector": [],
           "maxNodes": 16384
