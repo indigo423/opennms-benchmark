@@ -52,6 +52,23 @@
   changed_when: true
   tags: ["nl6"]
 
+# The sibling opennms_pyroscope_agent role fails loudly when the switch is forced
+# on with no address, rather than shipping profiles nowhere. Without the same
+# check here a forced -e lab_profiling_enabled=true on a provider that emits no
+# lab_mgmt_ip aborts the Core play and silently starts an unprofiled simulator.
+- name: Assert a forced profiling switch has somewhere to push
+  ansible.builtin.assert:
+    that:
+      - not (lab_profiling_enabled | default(false) | bool)
+        or (lab_pyroscope_url | default('', true) | length > 0)
+    fail_msg: >-
+      lab_profiling_enabled is true but lab_pyroscope_url is empty, so nl6 would
+      start without its profiler while the JVM agents fail. Leave the switch to
+      its computed value, which is false unless a monitoring host publishes an
+      in-lab address.
+    quiet: true
+  tags: ["nl6"]
+
 - name: Deploy nl6 systemd unit
   ansible.builtin.template:
     src: nl6.service.j2
@@ -88,6 +105,33 @@
     name: nl6.service
     enabled: true
     state: started
+  tags: ["nl6"]
+
+# systemd reports a unit started as soon as docker run is accepted, and
+# Restart=always turns a rejected argument into a restart loop rather than a
+# failure, so `state: started` alone would report a green deploy over a
+# crash-looping simulator. Ask the simulator itself. This also answers which
+# binary replied, which is what the pin exists to control.
+- name: Wait for the simulator to answer on its API
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ nl6_web_port }}/api/v1/version"
+    method: GET
+    status_code: 200
+  register: nl6_version_check
+  until: nl6_version_check.status | default(0) == 200
+  retries: 12
+  delay: 5
+  changed_when: false
+  tags: ["nl6"]
+
+- name: Report the simulator version that answered
+  ansible.builtin.debug:
+    msg: >-
+      nl6 answered from {{ nl6_image }}
+      {{ '(profiling to ' ~ lab_pyroscope_url ~ ')'
+         if (lab_profiling_enabled | default(false) | bool
+             and lab_pyroscope_url | default('', true) | length > 0)
+         else '(profiling off)' }}
   tags: ["nl6"]
 
 - name: Enable and start opensim-forward service

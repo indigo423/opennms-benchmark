@@ -99,7 +99,7 @@ ip route add 10.42.0.0/16 via 192.0.2.134
 | Observability | Prometheus | latest | Scrapes node (9100) + Core JMX (9299) |
 | Dashboards | Grafana OSS | latest | Pre-provisioned dashboards + OpenNMS plugin |
 | Tracing | Jaeger | latest | All-in-one; traces OpenNMS internals |
-| Profiling | Grafana Pyroscope | 2.3.0 | Monolith on port 4040; receives CPU profiles from the Core and Minion JVMs wherever the topology has a monitoring host with an in-lab address (not azure or vmware), browsed via Grafana > Drilldown > Profiles |
+| Profiling | Grafana Pyroscope | 2.3.0 | Monolith on port 4040; receives CPU profiles from the Core and Minion JVMs and the nl6 simulator wherever the topology has a monitoring host with an in-lab address (not azure or vmware), browsed via Grafana > Drilldown > Profiles |
 | SNMP simulation | Net-SNMP (`snmpd`) | any | Loopback routing for 10.42.0.0/16 |
 | Container runtime | Docker Engine CE | any | Used for Prometheus, Grafana, Jaeger, Pyroscope, Kafka UI |
 | CI/CD | GitHub Actions | — | Terraform fmt, validate, TFLint on PR |
