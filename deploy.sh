@@ -321,6 +321,42 @@ tf_output() {
   terraform -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || true
 }
 
+# Refuse a base image pin bump while this host still holds a lab built on the
+# old one. Bumping the pin replaces libvirt_volume.ubuntu_base, and on libvirt
+# 0.9.9 that destroys the running VMs' backing file before failing on the
+# provider's Update stub, leaving a lab no further apply can recover (#261).
+#
+# This cannot be a lifecycle.precondition: the comparison needs the tag recorded
+# in prior state, and no Terraform expression can read it. See the header of
+# check-base-image-pin.py.
+#
+# Not applied on the destroy path. Tearing the lab down is the remedy this very
+# guard tells the operator to use.
+check_base_image_pin() {
+  [[ "$PROVIDER" == "kvm" ]] || return 0
+
+  # console resolves the variable through every var file and -var flag, so the
+  # guard sees the value Terraform would actually use rather than re-parsing
+  # kvm.tfvars and missing an override. It contacts no provider.
+  local pin
+  pin=$(echo 'var.ubuntu_cloud_image' \
+    | terraform -chdir="$TF_DIR" console \
+        "${COMMON_VAR_FILES[@]}" \
+        -var-file="${PROVIDER}.tfvars" \
+        "${DEPLOYMENT_VARS[@]+"${DEPLOYMENT_VARS[@]}"}" \
+        "${PROVIDER_VARS[@]+"${PROVIDER_VARS[@]}"}" 2>/dev/null \
+    | tr -d '"' | tail -n1 || true)
+
+  if [[ -z "$pin" ]]; then
+    warn "could not resolve ubuntu_cloud_image; skipping the base image pin check"
+    return 0
+  fi
+
+  python3 "$REPO_ROOT/check-base-image-pin.py" \
+    --state "$TF_DIR/terraform.tfstate" \
+    --pin "$pin"
+}
+
 # ── destroy path ──────────────────────────────────────────────────────────────
 
 if $DESTROY; then
@@ -340,6 +376,7 @@ step "[1/5] Provisioning infrastructure ($PROVIDER)..."
 ensure_aws_credentials
 tf_init
 set_provider_vars
+check_base_image_pin
 
 # aws bills by the hour, so cost_profile defaults to the cheap tier and spend is
 # opted into. The trade is that a smoke lab looks exactly like a benchmark bed

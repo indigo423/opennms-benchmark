@@ -400,7 +400,20 @@ docker image inspect <image> --format '{{ join .RepoDigests "," }}'
 
 Before this, the KVM substrate was a function of *when a given host first ran apply*: two hosts running identical code held different Ubuntu builds and nothing reported it.
 
-Expect the first apply after a bump to create a new volume and leave the old one orphaned in the pool. It is unreferenced and safe to remove by hand.
+**A bump on a host that already holds a lab is a rebuild, and `make deploy` refuses it.**
+
+The apply after a bump *replaces* `libvirt_volume.ubuntu_base`, and Terraform destroys the old volume itself. It is not orphaned and it is not unreferenced: at the moment of replacement it is the backing file of every VM's OS disk, so nothing is left in the pool to remove by hand.
+
+Left to run, that apply destroys the backing file of the running VMs and then aborts. libvirt 0.9.9 declares no `RequiresReplace` on `libvirt_volume.backing_store`, so each OS disk plans an in-place update to its backing path and lands in the provider's `Update`, which errors unconditionally. Terraform reaches that error only after the destroy has already happened. The domains survive on an open file descriptor, die at their next reboot, and no further apply can converge. Measured in #261; upstream at dmacvicar/terraform-provider-libvirt#1374.
+
+Two things prevent that:
+
+- `deploy.sh` compares the tag recorded in the state's OS volumes against the tag the configured pin would produce, and refuses before Terraform runs, naming both tags and telling you to tear the lab down first. It cannot be a Terraform `precondition`. The comparison needs prior state, which no HCL expression can read.
+- `libvirt_volume.ubuntu_base` sets `create_before_destroy`, so an apply that reaches the provider error anyway destroys nothing.
+
+To bump the pin: `make destroy PROVIDER=kvm`, then edit `terraform/kvm/kvm.tfvars`, then `make deploy PROVIDER=kvm`.
+
+This description is specific to libvirt 0.9.9. If dmacvicar/terraform-provider-libvirt#1374 lands, `backing_store` becomes force-new, the OS disks start being *replaced* rather than updated. They are created from a backing store and nothing else, so they come back blank. The refusal above still holds; `create_before_destroy` no longer helps.
 
 ### Proxmox and vmware are not pinnable here
 
