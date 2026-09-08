@@ -228,6 +228,32 @@ validate-renovate-pins: ## Assert every renovate annotation is bound to the pin 
 	  && { echo "fixture fx-annotation-crossbind did not fail; the check is not detecting mis-binding" >&2; exit 1; } \
 	  || echo "fixture fx-annotation-crossbind fails as expected"
 
+# The deploy-time guard derives the base image tag independently of the module,
+# because the comparison it makes needs prior state and no HCL expression can
+# read it (#261). Two derivations of one rule drift silently, so assert the
+# module still matches -- and assert both fixtures, because a guard that has
+# never refused anything is indistinguishable from one that cannot.
+.PHONY: validate-base-image-pin
+validate-base-image-pin: ## Assert the base image pin guard still mirrors the Terraform rule
+	@python3 check-base-image-pin.py \
+	  --assert-derivation terraform/kvm/modules/compute/main.tf || exit 1
+	@fx=tests/base-image-pin-fixtures; \
+	dated="https://cloud-images.ubuntu.com/releases/noble/release-20260814/ubuntu-24.04-server-cloudimg-amd64.img"; \
+	out=$$(python3 check-base-image-pin.py --state $$fx/fx-stale-lab.json --pin "$$dated" 2>&1); rc=$$?; \
+	[ $$rc -eq 1 ] || { echo "fixture fx-stale-lab exited $$rc, expected 1:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	printf '%s\n' "$$out" | grep -q 'f4d6c0a4a56d' \
+	  || { echo "fixture fx-stale-lab did not name the recorded tag:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	printf '%s\n' "$$out" | grep -q '20260814' \
+	  || { echo "fixture fx-stale-lab did not name the new tag:" >&2; printf '%s\n' "$$out" >&2; exit 1; }; \
+	echo "fixture fx-stale-lab refuses as expected, naming both tags"
+	@fx=tests/base-image-pin-fixtures; \
+	dated="https://cloud-images.ubuntu.com/releases/noble/release-20260814/ubuntu-24.04-server-cloudimg-amd64.img"; \
+	python3 check-base-image-pin.py --state $$fx/fx-empty.json --pin "$$dated" \
+	  || { echo "fixture fx-empty was obstructed; a first deploy must not be" >&2; exit 1; }; \
+	python3 check-base-image-pin.py --state $$fx/does-not-exist.json --pin "$$dated" \
+	  || { echo "a missing state file was treated as an error; it means no lab" >&2; exit 1; }; \
+	echo "fixture fx-empty and a missing state proceed as expected"
+
 .PHONY: validate-doc-inventories
 validate-doc-inventories: ## Assert every documented ansible-playbook names an inventory that exists
 	@python3 validate-doc-inventories.py --repo-root . || exit 1
@@ -263,7 +289,7 @@ clean-collections: ## Remove the installed collection tree, then reinstall the m
 	$(MAKE) install-collections
 
 .PHONY: lint
-lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-renovate-pins validate-doc-inventories validate-collections ## Run all lint checks
+lint: fmt validate tflint lint-ansible lint-shell lint-python lint-yaml lint-actions validate-deployments validate-library validate-topology validate-handlers validate-renovate-pins validate-doc-inventories validate-base-image-pin validate-collections ## Run all lint checks
 
 # ── utility ─────────────────────────────────────────────────────────────────────
 

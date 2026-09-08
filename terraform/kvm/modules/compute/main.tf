@@ -45,9 +45,15 @@ locals {
 # track and the repository cannot see. Two hosts running identical code held
 # different Ubuntu builds and nothing reported it.
 #
-# Consequence worth expecting: the first apply after the pin changes creates a
-# new volume and leaves the old one orphaned in the pool. It is unreferenced and
-# safe to remove by hand; it is not an unexplained recreation.
+# Consequence worth expecting: the first apply after the pin changes REPLACES
+# this volume, and Terraform destroys the old one itself. It is not orphaned and
+# it is not unreferenced. At the moment of replacement it is the backing file of
+# every libvirt_volume.os in the lab. Nothing is left in the pool to remove.
+#
+# On a host that already holds a lab, a bump is therefore a rebuild. deploy.sh
+# refuses it before Terraform runs (see check_base_image_pin there) and tells you
+# to tear the lab down first. Measured against dmacvicar/libvirt 0.9.9; see #261
+# and the version note on create_before_destroy below.
 resource "libvirt_volume" "ubuntu_base" {
   name = "ubuntu-24.04-base-${local.ubuntu_image_tag}"
   pool = var.storage_pool
@@ -63,6 +69,25 @@ resource "libvirt_volume" "ubuntu_base" {
   }
 
   lifecycle {
+    # Ordering, not optimisation. libvirt 0.9.9 declares no RequiresReplace on
+    # libvirt_volume.backing_store, so a changed base name plans as an in-place
+    # update on every OS disk and lands in the provider's Update, which errors
+    # unconditionally (dmacvicar/terraform-provider-libvirt#1374). Destroy-first
+    # deletes this volume BEFORE reaching that error, leaving every OS disk with
+    # a qcow2 header naming a file that no longer exists: the domains keep
+    # running on an open fd and die at their next reboot. Create-first sequences
+    # the destroy after the failing update, so it never runs. The apply still
+    # fails, but nothing is lost and every backing chain still resolves.
+    #
+    # This works only because the name carries the image identity: the old and
+    # new volumes have different names and can coexist. Under a constant name
+    # Terraform rejects create_before_destroy as a name collision.
+    #
+    # If #1374 lands, backing_store becomes force-new, libvirt_volume.os starts
+    # being REPLACED. It is created from a backing store and nothing else, so it
+    # comes back blank. This line does not help there; the deploy.sh guard does.
+    create_before_destroy = true
+
     precondition {
       condition     = can(regex("^https?://", var.ubuntu_cloud_image)) || fileexists(var.ubuntu_cloud_image)
       error_message = "Ubuntu 24.04 cloud image must be either an existing local qcow2 path or an http(s) URL. Got '${var.ubuntu_cloud_image}'."
