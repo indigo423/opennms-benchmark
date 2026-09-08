@@ -43,14 +43,17 @@ Single-project Infrastructure-as-Code repository with a four-layer pipeline:
 
 ```text
 opennms-benchmark/
-├── terraform/            # VM provisioning (Azure + KVM)
+├── Makefile              # The front door: every deploy, lint and check target
+├── deploy.sh             # Provision + configure, wrapped by `make deploy`
+├── terraform/            # VM provisioning, one root per provider
 ├── bootstrap/            # OS + monitoring stack setup
+├── deployments/          # Topology specs and their Ansible overlays
+├── experiments/          # Per-scenario benchmark configurations
 ├── opennms-playbook.yml  # OpenNMS stack deployment entry point
 ├── requirements.yml      # Galaxy collection pins (indigo423.opennms + transitives)
-├── experiments/          # Per-scenario benchmark configurations
-├── azcli/                # Legacy Azure CLI script (reference only)
 ├── opennms-lab-vars.yml  # Global OpenNMS variables
-└── ansible-inventory.<provider>.yml # Static Ansible inventory
+├── group_vars/           # Inventory-scoped variables for the root playbooks
+└── ansible-inventory.<provider>.yml # Generated per provider, gitignored
 ```
 
 ## Available Experiments
