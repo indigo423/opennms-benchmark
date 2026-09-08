@@ -69,6 +69,10 @@ terraform/
 ├── kvm/                      # KVM/libvirt provider root; consumes a deployment topology
 ├── proxmox/                  # Proxmox provider root; consumes a deployment topology
 ├── vmware/                   # VMware provider root; deploys the fixed baseline
+│                             #   each provider root also has modules/network and
+│                             #   modules/compute of its own
+├── proxmox/preflight/        # A separate root, not a provider: checks a Proxmox
+│                             #   host before the lab is provisioned
 └── modules/                  # Shared modules
     ├── cloud-init/           # cloud-init user-data and network-config per VM
     ├── topology/             # Turns a deployments/<slug>/topology.yml spec into resources
@@ -77,10 +81,11 @@ terraform/
     └── diagram/              # Emits the data render-diagrams.sh draws
 ```
 
-Each provider root carries its own `providers.tf`, `variables.tf`, `<provider>.tfvars` and `.tflint.hcl`.
-Read those for the current version constraints rather than trusting a copy here.
+Every provider root carries `providers.tf` and `variables.tf`. Read those for the current version constraints rather than trusting a copy here.
 
-**Addresses are provider-dependent.** `kvm` derives them from per-role blocks; `azure` uses fixed values in `lab.tfvars`. They disagree for every role except `database`. Read the generated inventory, never a literal.
+The rest is not uniform. `aws` has no `.tflint.hcl`, though `make tflint` still runs there. Only `azure` ships a committed `azure.tfvars`; `aws`, `kvm`, `proxmox` and `vmware` ship `<provider>.tfvars.example`, because the real file carries host-specific values and is gitignored. Copy the example before a first deploy.
+
+**Addresses are provider-dependent.** `kvm` derives them from per-role blocks; `azure` uses the fixed `ip_*` values in `lab-addresses.tfvars`, not `lab.tfvars`, which holds only CIDRs and the admin user. They disagree for every role except `database`. Read the generated inventory, never a literal.
 
 ## bootstrap/
 
@@ -129,17 +134,24 @@ deployments/
 ├── README.md                 # What a topology spec is and how providers consume it
 ├── <slug>/
 │   ├── topology.yml          # Which components, how many, which subnets
-│   └── opennms-lab-vars.yml  # Optional variable overlay, layered after the root file
+│   ├── opennms-lab-vars.yml  # Optional variable overlay, layered after the root file
+│   └── playbook.yml          # Optional: replaces opennms-playbook.yml outright for
+│                             #   this slug (deploy.sh). Four slugs use it
 ├── bin/
 │   ├── topology-descriptor.py # Canonical descriptor for a spec
 │   └── validate-library.py    # Invariants spanning the whole deployment library
 └── roles/                    # Roles the deployment overlay applies
-    ├── opennms_kafka_producer/    ├── opennms_collectd_tuning/
-    ├── opennms_minion_listeners/  ├── opennms_thresholding_off/
-    ├── opennms_pyroscope_agent/   ├── opennms_tarball_prereqs/
-    ├── postgres_tuning/           ├── nl6_loadtest/
-    ├── kafka_metrics_report/      ├── kafka_trap_report/
-    ├── victorialogs/              └── rustfs/
+    ├── kafka_metrics_report/
+    ├── nl6_loadtest/
+    ├── opennms_collectd_tuning/
+    ├── opennms_kafka_producer/
+    ├── opennms_minion_listeners/
+    ├── opennms_pyroscope_agent/
+    ├── opennms_tarball_prereqs/
+    ├── opennms_thresholding_off/
+    ├── postgres_tuning/
+    ├── rustfs/
+    └── victorialogs/
 ```
 
 `terraform/aws`, `terraform/kvm` and `terraform/proxmox` consume a spec directly. `azure` and `vmware` do not yet.
@@ -172,7 +184,7 @@ experiments/
 
 The naming scheme encodes the scenario: `c<cores>km<minions>_<cpu>c<ram>g_<broker>_<load-type>`.
 
-**`legacy/` is reference, not runnable.** Those four predate the current structure and are kept for the configuration they encode. All four carry their own `ansible.cfg`, and three carry an inventory of some kind, which the current layout does not: `c1km1_4c16g_kfk_pm_snmp` and `c1km1_4c16g_rrd_pm_snmp` have both an `inventory` and an `opennms-lab-inventory.yml`, `c1km1_4c16g_kfk_snmptraps` has only the latter, and `c1km1_4c16g_kfk_syslog` has neither. Those inventories hold pre-`role_block_size` addresses, two use group names no generated inventory produces, and their `ansible.cfg` disagrees with their inventory about the remote user. They also still configure Jaeger, whose role was removed from the lab. Running one targets hosts that do not exist.
+**`legacy/` is reference, not runnable.** Those four predate the current structure and are kept for the configuration they encode. All four carry their own `ansible.cfg`, and three carry an inventory of some kind, which the current layout does not: `c1km1_4c16g_kfk_pm_snmp` and `c1km1_4c16g_rrd_pm_snmp` have both an `inventory` and an `opennms-lab-inventory.yml`, `c1km1_4c16g_kfk_snmptraps` has only the latter, and `c1km1_4c16g_kfk_syslog` has neither. Those inventories hold pre-`role_block_size` addresses. All three `opennms-lab-inventory.yml` files group hosts under the hyphenated `opennms-stack` while both templates emit `opennms_stack`, and the two ini `inventory` files use `onms_core` and `onms_minion`, so every one of them names a group nothing produces. Their `ansible.cfg` sets `remote_user = labuser`, which matches no lab the repository provisions; their own inventories set no user at all. They also still configure Jaeger, whose role was removed from the lab. Running one targets hosts that do not exist.
 
 ## Variables
 
@@ -217,7 +229,7 @@ tests/
 
 | Target | Asserts |
 |---|---|
-| `fmt`, `validate`, `tflint` | Terraform formatting, validity and lint, per provider root |
+| `fmt`, `validate`, `tflint` | Terraform formatting, validity and lint, per provider root, plus `validate-extra-roots` for `proxmox/preflight` |
 | `lint-ansible` | ansible-lint at the production profile |
 | `lint-shell`, `lint-python`, `lint-yaml` | shellcheck, ruff, yamllint |
 | `lint-actions` | actionlint and zizmor on the workflows |

@@ -65,7 +65,8 @@ The four `c1km1_*` directories predate this structure and are kept for the confi
 
 - Their inventories carry addresses from before the `role_block_size` refactor. `c1km1_4c16g_kfk_pm_snmp/inventory` names `192.0.2.197` and `192.0.2.199`; the lab now uses `192.0.2.200` and `192.0.2.208`. Running one targets two hosts that do not exist.
 - Two of them use `onms_core` and `onms_minion`, group names no generated inventory has ever produced.
-- Their `ansible.cfg` sets `remote_user = labuser` while the inventory sets `ansible_user: ubuntu`.
+- Their `ansible.cfg` sets `remote_user = labuser`, which matches no lab the repository provisions: the generated inventory sets `ansible_user` from the provider's admin user, `ubuntu` on kvm and `azureuser` elsewhere. Their own inventories set no user at all, so the stale `labuser` is what a run would use.
+- All three `opennms-lab-inventory.yml` files group hosts under `opennms-stack`, hyphenated, while both inventory templates emit `opennms_stack`. So every one of them names at least one group nothing produces, not only the two ini inventories above.
 - They mix system-under-test configuration with workload, which is what `deployments/` now owns.
 
 Read them for what they configure. Do not point them at a lab.
