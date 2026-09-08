@@ -357,7 +357,7 @@ That failure is **silent**: every play succeeds, the lab collects, and the numbe
 |---|---|---|
 | `aws` | `var.ami_id` in `terraform/aws/variables.tf` | `aws ssm get-parameter --region <region> --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id --query Parameter.Value --output text` |
 | `azure` | `locals.image.version` in `terraform/azure/modules/compute/main.tf` | `az vm image list --publisher Canonical --offer ubuntu-24_04-lts --sku server --all --query "[?sku=='server'].{urn:urn,ver:version}" -o tsv` |
-| `kvm` | `ubuntu_cloud_image` in your `kvm.tfvars` | pick a dated build from `https://cloud-images.ubuntu.com/releases/noble/` |
+| `kvm` | `var.ubuntu_cloud_image` in `terraform/kvm/variables.tf` | pick a dated build from `https://cloud-images.ubuntu.com/releases/noble/` |
 | `proxmox` | **not pinned** — clones a hypervisor template | n/a, see below |
 | `vmware` | **not pinned** — clones a hypervisor template | n/a, see below |
 
@@ -399,6 +399,15 @@ docker image inspect <image> --format '{{ join .RepoDigests "," }}'
 `libvirt_volume.ubuntu_base` is named `ubuntu-24.04-base-<release-date>`, derived from the image URL. That is load-bearing. With a constant name, Terraform compares the name and the URL *string* — never the downloaded bytes — so on a host that already holds the volume, changing the URL produces no diff and the new image is never fetched. The pin would land in the repo and never on the machine.
 
 Before this, the KVM substrate was a function of *when a given host first ran apply*: two hosts running identical code held different Ubuntu builds and nothing reported it.
+
+The pin must name immutable content, and anything else is rejected before a plan runs. Two forms are accepted:
+
+- a dated release URL, where the directory is a distinct build, so the date names the bytes
+- a path to a file that exists on the machine running Terraform, where the tag is `sha256` of the file's contents
+
+There is deliberately no fallback. Hashing the URL *string* used to serve as one, and it is what let the `noble/current/` alias present as a pin: the string never changed, so the name never changed, so nothing was ever re-fetched across every Ubuntu build published in six months (#304). A value that cannot be tied to specific content is not a pin, and is now refused rather than named.
+
+Rejecting a pin does not strand a lab built before the rule existed. Terraform skips condition checks for resources being destroyed, so `make destroy PROVIDER=kvm` still works. The recovery is: destroy, correct the pin, deploy.
 
 **A bump on a host that already holds a lab is a rebuild, and `make deploy` refuses it.**
 

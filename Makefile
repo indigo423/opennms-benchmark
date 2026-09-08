@@ -253,6 +253,28 @@ validate-base-image-pin: ## Assert the base image pin guard still mirrors the Te
 	python3 check-base-image-pin.py --state $$fx/does-not-exist.json --pin "$$dated" \
 	  || { echo "a missing state file was treated as an error; it means no lab" >&2; exit 1; }; \
 	echo "fixture fx-empty and a missing state proceed as expected"
+	@# A local-file pin is identified by the file's bytes, not its path (#304).
+	@# Copy the fixture, prove the tag matches, rewrite the copy WITHOUT renaming
+	@# it, and prove the guard now refuses. A path-derived tag passes step one and
+	@# fails step two, which is exactly the regression this exists to catch.
+	@fx=tests/base-image-pin-fixtures; \
+	tmp=$$(mktemp -d); cp $$fx/fx-local-image.img $$tmp/image.img; \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	sed "s|/storage/ubuntu-24.04-base-[0-9a-f]*|/storage/ubuntu-24.04-base-$$(python3 -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest()[:12])" $$tmp/image.img)|" \
+	  $$fx/fx-local-lab.json > $$tmp/lab.json; \
+	python3 check-base-image-pin.py --state $$tmp/lab.json --pin $$tmp/image.img \
+	  || { echo "a matching local-file pin was refused" >&2; exit 1; }; \
+	printf 'fixture image bytes v2\n' > $$tmp/image.img; \
+	python3 check-base-image-pin.py --state $$tmp/lab.json --pin $$tmp/image.img >/dev/null 2>&1 \
+	  && { echo "rewriting the local image did not change its tag; the tag follows the path, not the contents" >&2; exit 1; } \
+	  || echo "fixture fx-local-image: the tag follows file contents, not the path"
+	@# A pin the module's precondition rejects yields no tag, so the guard stays
+	@# silent and lets Terraform give the better message.
+	@fx=tests/base-image-pin-fixtures; \
+	alias_url="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"; \
+	python3 check-base-image-pin.py --state $$fx/fx-stale-lab.json --pin "$$alias_url" \
+	  || { echo "the guard spoke over a pin the precondition rejects" >&2; exit 1; }; \
+	echo "fixture fx-stale-lab: a rejected pin is left to Terraform"
 
 .PHONY: validate-doc-inventories
 validate-doc-inventories: ## Assert every documented ansible-playbook names an inventory that exists

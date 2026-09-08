@@ -1,0 +1,27 @@
+{
+  "version": 4,
+  "terraform_version": "1.12.0",
+  "serial": 1,
+  "resources": [
+    {
+      "module": "module.compute",
+      "mode": "managed",
+      "type": "libvirt_volume",
+      "name": "os",
+      "instances": [
+        {
+          "index_key": "core",
+          "attributes": {
+            "name": "core-benchmark-01.qcow2",
+            "backing_store": {
+              "path": "/storage/ubuntu-24.04-base-e5eb758fe14a",
+              "format": {
+                "type": "qcow2"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -49,7 +49,28 @@ variable "deployment" {
 # KVM-specific (from kvm.tfvars)
 variable "libvirt_uri" { type = string }
 variable "storage_pool" { type = string }
-variable "ubuntu_cloud_image" { type = string }
+variable "ubuntu_cloud_image" {
+  type        = string
+  default     = "https://cloud-images.ubuntu.com/releases/noble/release-20260814/ubuntu-24.04-server-cloudimg-amd64.img"
+  description = <<-EOT
+    Ubuntu 24.04 cloud image, pinned so the benchmark substrate does not move
+    between campaigns. Resolve a new value by picking a dated build from
+    https://cloud-images.ubuntu.com/releases/noble/ - each dated directory is a
+    distinct build, so the date identifies the contents.
+
+    The default lives here rather than in kvm.tfvars because the substrate is
+    not host-specific, and a pin that lives only in an operator's untracked
+    file cannot be delivered. That is not hypothetical: the example file
+    carried the noble/current/ alias until #254 corrected it, and the
+    correction could not reach any host that had already copied the example
+    (#304). Set this in kvm.tfvars only to override, typically to a local file.
+
+    Deliberately NOT Renovate-managed, like every other substrate pin here. An
+    automated pull request proposes exactly the wrong timing for a value a
+    running comparison depends on; bump it at a campaign boundary instead. See
+    "The substrate: VM base images" in docs/development-guide.md.
+  EOT
+}
 variable "ssh_key_path" { type = string }
 variable "bridge_name" { type = string }
 # CIDR of the physical LAN behind bridge_name, used by the 'lab' subnet type

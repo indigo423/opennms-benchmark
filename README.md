@@ -74,8 +74,12 @@ virsh pool-list --all
 virsh pool-start default   # if inactive
 ```
 
-Terraform fetches the Ubuntu 24.04 cloud image from `cloud-images.ubuntu.com` by default.
-To use a local copy, download it onto the KVM host and point `ubuntu_cloud_image` in `kvm.tfvars` at the file.
+Terraform fetches the Ubuntu 24.04 cloud image from `cloud-images.ubuntu.com`.
+The pin lives in `terraform/kvm/variables.tf`, so you do not choose an image during setup.
+
+To serve it from local storage instead, put the file where **Terraform runs**, not on the KVM host, and point `ubuntu_cloud_image` in `kvm.tfvars` at it.
+The provider uploads the image from the client, and the validation that checks the file exists runs there too, so a path that resolves only on the KVM host is rejected.
+A local file is identified by its contents, so replacing it changes the base volume name.
 
 **3. Configure.**
 

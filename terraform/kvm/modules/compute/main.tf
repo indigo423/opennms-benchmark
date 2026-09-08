@@ -22,13 +22,37 @@ locals {
   # changes whenever the pin does. See the comment on libvirt_volume.ubuntu_base
   # for why the name has to carry this.
   #
-  # A dated release URL yields its date; anything else (a local qcow2 path, or
-  # the old floating alias) yields a hash of the string. Both change when the
-  # input changes, though only the dated form ties the name to actual content —
-  # which is the alias's fundamental problem, not a shortcoming of the hash.
+  # Two branches, and both name actual content:
+  #
+  #   dated release URL -> its date. Each dated directory is a distinct build.
+  #   existing local file -> a hash of its BYTES, via filesha256.
+  #
+  # Nothing else is reachable: the precondition on libvirt_volume.ubuntu_base
+  # rejects it. That is the point. This used to fall back to sha256 of the URL
+  # *string*, which changes when the input changes rather than when the image
+  # does, so the noble/current/ alias produced one stable name across every
+  # Ubuntu build published in six months and nothing ever reported it (#304).
+  #
+  # filesha256 evaluates where Terraform runs, which is also where the provider
+  # uploads the file from, so the two agree about which file this is.
+  #
+  # The third branch is a sentinel and never names a volume: the precondition on
+  # libvirt_volume.ubuntu_base rejects anything that reaches it. It exists
+  # because locals are evaluated BEFORE resource preconditions, so without it a
+  # rejected pin dies here instead, with "filesha256 failed: open
+  # https:/cloud-images... no such file or directory" - which describes the
+  # fallback rather than the mistake, and buries the message that explains what
+  # to do. Keep it, and keep it obviously not a build identifier.
+  #
+  # The rule is NOT a variable validation, which would be the natural home and
+  # reads better. Variable validation is evaluated on destroy too, so it would
+  # strand a host that already holds a lab built on a pin the rule now rejects:
+  # the operator could neither apply nor tear down. Resource preconditions are
+  # skipped for resources being destroyed. Both behaviours verified. See #304.
   ubuntu_image_tag = try(
     regex("release-([0-9]+)", var.ubuntu_cloud_image)[0],
-    substr(sha256(var.ubuntu_cloud_image), 0, 12),
+    substr(filesha256(var.ubuntu_cloud_image), 0, 12),
+    "unpinnable",
   )
 }
 
@@ -88,9 +112,39 @@ resource "libvirt_volume" "ubuntu_base" {
     # comes back blank. This line does not help there; the deploy.sh guard does.
     create_before_destroy = true
 
+    # The pin must name immutable content, because a benchmark substrate that
+    # can change under a stable name is the whole defect (#304). A dated
+    # release qualifies: the directory is a distinct build. A remote URL that
+    # is not dated does not, however plausible it looks, so it is refused here
+    # rather than given a stable-looking name by the tag derivation above.
+    #
+    # A rejected pin does NOT lock an operator out of a lab built before this
+    # rule existed: Terraform skips condition checks for resources being
+    # destroyed, so `make destroy PROVIDER=kvm` still works. Verified, not
+    # assumed. The recovery is destroy, correct the pin, deploy.
     precondition {
-      condition     = can(regex("^https?://", var.ubuntu_cloud_image)) || fileexists(var.ubuntu_cloud_image)
-      error_message = "Ubuntu 24.04 cloud image must be either an existing local qcow2 path or an http(s) URL. Got '${var.ubuntu_cloud_image}'."
+      condition = (
+        can(regex("/release-[0-9]+/", var.ubuntu_cloud_image))
+        || (!can(regex("^https?://", var.ubuntu_cloud_image)) && fileexists(var.ubuntu_cloud_image))
+      )
+      error_message = <<-EOT
+        ubuntu_cloud_image must name immutable content. Got '${var.ubuntu_cloud_image}'.
+
+        Accepted:
+          - a dated release URL, e.g.
+            https://cloud-images.ubuntu.com/releases/noble/release-20260814/ubuntu-24.04-server-cloudimg-amd64.img
+          - a path to a file that exists on the machine running Terraform
+            (not on the KVM host - the upload resolves client-side)
+
+        Rejected: a floating alias such as .../noble/current/..., whose contents
+        change while its name does not. A tag derived from it never changes, so
+        the image on a host becomes a function of when that host first ran apply.
+
+        The pin now defaults from terraform/kvm/variables.tf. To adopt it, delete
+        the ubuntu_cloud_image line from kvm.tfvars. If this host already holds a
+        lab, that changes the base image tag, so deploy.sh will refuse until you
+        run `make destroy PROVIDER=kvm` first. See #304 and #261.
+      EOT
     }
   }
 }
