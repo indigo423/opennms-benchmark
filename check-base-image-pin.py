@@ -52,12 +52,30 @@ DATED_RELEASE = re.compile(r"release-([0-9]+)")
 HASH_LENGTH = 12
 
 
-def derive_tag(pin: str) -> str:
-    """The image tag `ubuntu_image_tag` produces for this pin."""
+def derive_tag(pin: str) -> str | None:
+    """The image tag `ubuntu_image_tag` produces for this pin, or None.
+
+    None means the module's precondition would reject the pin, so there is no
+    tag to compare against and Terraform will refuse on its own with a better
+    message than this guard could give.
+
+    Both branches name content: a dated release directory is a distinct build,
+    and a local file is hashed by its bytes. Hashing the URL *string* is what
+    this deliberately no longer does; see #304.
+    """
     match = DATED_RELEASE.search(pin)
     if match:
         return match.group(1)
-    return hashlib.sha256(pin.encode()).hexdigest()[:HASH_LENGTH]
+    if pin.startswith(("http://", "https://")):
+        return None
+    try:
+        with open(pin, "rb") as handle:
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()[:HASH_LENGTH]
 
 
 def recorded_tags(state_path: str) -> list[str]:
@@ -105,9 +123,23 @@ def assert_derivation(tf_path: str) -> int:
 
     expected = {
         'regex("release-([0-9]+)"': "the dated-release capture",
-        f", 0, {HASH_LENGTH})": f"the {HASH_LENGTH}-character hash fallback",
+        "filesha256(var.ubuntu_cloud_image)": "the local-file content hash",
+        f", 0, {HASH_LENGTH})": f"the {HASH_LENGTH}-character truncation",
         f'"{VOLUME_PREFIX}${{local.ubuntu_image_tag}}"': "the volume name prefix",
     }
+    # sha256() of the URL string is the defect #304 removed. If it comes back,
+    # the module and this script agree on nothing that matters. The negative
+    # lookbehind matters: filesha256(...) contains sha256(...) as a substring,
+    # so a plain `in` test flags the correct rule as the defect.
+    if re.search(r"(?<!file)sha256\(var\.ubuntu_cloud_image\)", source):
+        print(
+            f"error: {tf_path} hashes the pin STRING again "
+            "(sha256(var.ubuntu_cloud_image)).\n"
+            "That is not a pin: a floating alias keeps one name across every "
+            "image behind it. See #304.",
+            file=sys.stderr,
+        )
+        return 1
     missing = [why for literal, why in expected.items() if literal not in source]
     if missing:
         print(
@@ -149,6 +181,12 @@ def main() -> int:
 
     # No lab, nothing to protect. A first deploy must not be obstructed.
     if not old_tags:
+        return 0
+
+    # The module's precondition rejects this pin, so there is no tag to compare
+    # and no bump to refuse. Let Terraform speak: its message explains what is
+    # accepted and how to recover, which this guard cannot improve on.
+    if new_tag is None:
         return 0
 
     if old_tags == [new_tag]:

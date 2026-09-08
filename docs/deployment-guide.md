@@ -180,12 +180,11 @@ bridge link show          # enp2s0 should appear as a bridge member
 > sudo systemctl enable --now systemd-networkd systemd-resolved
 > ```
 
-### 1. Prepare the cloud image
+### 1. Prepare the storage pool
 
-```bash
-sudo wget -O /var/lib/libvirt/images/noble-server-cloudimg-amd64.img \
-  https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
-```
+There is no image to download. Terraform fetches the Ubuntu 24.04 cloud image itself, from the pin in `terraform/kvm/variables.tf`, so the substrate is the same on every host that runs the same commit.
+
+Do not pre-place an image under `/var/lib/libvirt/images/` and point `ubuntu_cloud_image` at it. The provider uploads image content from the machine running Terraform, and the check that the file exists runs there too, so a path that resolves only on the KVM host is rejected. If you do need to serve the image from local storage, put the file where Terraform runs and override the pin there; it is then identified by its contents rather than its path.
 
 Verify the libvirt storage pool is active:
 
