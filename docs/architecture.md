@@ -81,19 +81,21 @@ The minion VM reaches simulation targets via a static route through netsim:
 ip route add 10.42.0.0/16 via 192.0.2.134
 ```
 
-**Note:** These routes are not persistent across reboots. The Terraform cloud-init module adds this route for the minion VM automatically on first boot, but the netsim loopback route is set by the `net-snmp` Ansible role and must be re-applied after a reboot if the VM is bounced without re-running bootstrap.
+**Note:** These routes are not persistent across reboots. The Terraform cloud-init module adds this route for the minion VM automatically on first boot, but the netsim loopback route is set by the `net_snmp` Ansible role and must be re-applied after a reboot if the VM is bounced without re-running bootstrap.
 
 ## Technology Stack
 
 | Category | Technology | Version | Notes |
 |---|---|---|---|
-| IaC | Terraform | >= 1.5 | No state backend (local only) |
-| Cloud provider | Azure (`azurerm`) | ~> 3.0 | Location: eastus |
-| Hypervisor provider | libvirt (`dmacvicar/libvirt`) | ~> 0.7.0 | For KVM/local deployments |
-| Legacy provisioning | Azure CLI (`az`) | any | `azcli/benchmark-lab.sh` — reference only |
-| Configuration management | Ansible | any recent | Includes Prometheus community collection |
+| IaC | Terraform | >= 1.7 | No state backend (local only) |
+| Cloud provider | Azure (`azurerm`) | ~> 5.1 | Location: eastus |
+| Cloud provider | AWS (`aws`) | see `terraform/aws/providers.tf` | Consumes a deployment topology |
+| Hypervisor provider | libvirt (`dmacvicar/libvirt`) | ~> 0.9.6 | For KVM/local deployments |
+| Hypervisor provider | Proxmox | see `terraform/proxmox/providers.tf` | Consumes a deployment topology |
+| Hypervisor provider | VMware (`vsphere`) | see `terraform/vmware/providers.tf` | Deploys the fixed baseline |
+| Configuration management | Ansible | pinned in `constraints.txt` | Collection closure pinned in `requirements.yml` |
 | VM OS | Ubuntu 24.04 LTS | cloud image | Cloud-init enabled |
-| OpenNMS | OpenNMS Horizon | 34.1.0 (default) | Configurable per experiment |
+| OpenNMS | OpenNMS Horizon | 36.0.3 (default) | `opennms_version` in `opennms-lab-vars.yml`; configurable per experiment |
 | Message broker | Apache Kafka | KRaft mode | No ZooKeeper |
 | Database | PostgreSQL | 15+ | Configured via `indigo423.opennms` Galaxy collection |
 | Observability | Prometheus | latest | Scrapes node (9100) + Core JMX (9299) |
