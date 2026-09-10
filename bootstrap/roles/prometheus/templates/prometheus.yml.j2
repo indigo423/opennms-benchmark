@@ -17,6 +17,67 @@ rule_files:
 # - "first_rules.yml"
 # - "second_rules.yml"
 
+{# ── the VictoriaMetrics backend, resolved once and used by two jobs ─────────  #}
+{#                                                                              #}
+{# VictoriaMetrics exports its own instrumentation on the same port it serves    #}
+{# on, so scraping the store needs no exporter. Its HOST still runs a node       #}
+{# exporter like every other machine in the lab, and both are wanted: the store  #}
+{# says what it is doing, the host says whether it can. A backend running out of #}
+{# disk or saturating a CPU is a fact about the machine, and reading it off the  #}
+{# store's own gauges alone means trusting a process to describe the conditions  #}
+{# it is failing under.                                                         #}
+{#                                                                              #}
+{# Three ways the backend can appear:                                            #}
+{#                                                                              #}
+{#   in-lab   a victoriametrics group member, as vm-single provisions            #}
+{#   off-lab  the remote_write backend a deployment writes to, which vm-target    #}
+{#            provisions on a different lab entirely                             #}
+{#   pinned   prometheus_victoriametrics_targets, the escape hatch               #}
+{#                                                                              #}
+{# The off-lab target is derived from opennms_remotewrite.write_url rather than   #}
+{# written here. That URL is set by the deployment or experiment overlay and is   #}
+{# the address's one definition; a second copy in this template would disagree    #}
+{# with it the first time the backend moves.                                     #}
+{#                                                                              #}
+{# The escape hatch exists because both derivations run through this deployment,  #}
+{# so a store on another lab that nothing here writes to yet has no other route   #}
+{# into the config. Prefer either derivation; reach for the hatch only when       #}
+{# neither applies.                                                             #}
+{#                                                                              #}
+{# Deduplicated because a deployment can be more than one of these: vm-single     #}
+{# puts the store in the lab AND points write_url at it, and Prometheus rejects   #}
+{# a config carrying the same target twice in one job.                           #}
+{% set vm_targets = [] %}
+{% for target in prometheus_victoriametrics_targets | default([]) %}
+{%   set _ = vm_targets.append(target) %}
+{% endfor %}
+{% for host in groups['victoriametrics'] | default([]) %}
+{%   if (host ~ ':8428') not in vm_targets %}
+{%     set _ = vm_targets.append(host ~ ':8428') %}
+{%   endif %}
+{% endfor %}
+{% if opennms_remotewrite is defined and opennms_remotewrite.enabled | default(false) %}
+{%   set rw_authority = opennms_remotewrite.write_url | regex_replace('^https?://([^/]+).*$', '\\1') %}
+{%   if rw_authority not in vm_targets %}
+{%     set _ = vm_targets.append(rw_authority) %}
+{%   endif %}
+{% endif %}
+{#                                                                              #}
+{# The node exporter on each of those hosts, for the node job below. Derived by   #}
+{# dropping the port rather than by naming the host again, so the machine and     #}
+{# the store it runs cannot end up being two different addresses.                #}
+{#                                                                              #}
+{# Skipped when the host is already an inventory member, which is the in-lab      #}
+{# case: vm-single's store is in groups['all'] and the node job covers it         #}
+{# already. Adding it again would put the same target in the job twice and        #}
+{# Prometheus would refuse the whole config.                                     #}
+{% set vm_node_targets = [] %}
+{% for target in vm_targets %}
+{%   set vm_host = target | regex_replace(':[0-9]+$', '') %}
+{%   if vm_host not in groups['all'] and (vm_host ~ ':9100') not in vm_node_targets %}
+{%     set _ = vm_node_targets.append(vm_host ~ ':9100') %}
+{%   endif %}
+{% endfor %}
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
 scrape_configs:
@@ -34,6 +95,14 @@ scrape_configs:
       - targets:
 {% for host in groups['all'] %}
           - "{{ host }}:9100"
+{% endfor %}
+{# An off-lab VictoriaMetrics backend is not in this inventory, so nothing else  #}
+{# here reaches its host. Its CPU, memory and above all its disk are part of     #}
+{# what a write benchmark is measuring: an ingestion rate that falls because the #}
+{# backend's disk filled is a different finding from one that falls because the  #}
+{# plugin slowed down, and without the host's own metrics the two look alike.    #}
+{% for target in vm_node_targets %}
+          - "{{ target }}"
 {% endfor %}
 
   - job_name: "jmx"
@@ -64,42 +133,6 @@ scrape_configs:
           app: "pyroscope"
 {% endfor %}
 
-{# VictoriaMetrics exports its own instrumentation on the same port it serves    #}
-{# on, so scraping it needs no exporter. Two ways it can appear:                 #}
-{#                                                                              #}
-{#   in-lab   a victoriametrics group member, as vm-single provisions            #}
-{#   off-lab  the remote_write backend a deployment writes to, which vm-target    #}
-{#            provisions on a different lab entirely                             #}
-{#                                                                              #}
-{# The off-lab target is derived from opennms_remotewrite.write_url rather than   #}
-{# written here. That URL is set by the deployment or experiment overlay and is   #}
-{# the address's one definition; a second copy in this template would disagree    #}
-{# with it the first time the backend moves.                                     #}
-{#                                                                              #}
-{# A third way, the escape hatch: prometheus_victoriametrics_targets. A store on  #}
-{# another lab that nothing here writes to yet has no other route into this      #}
-{# config, because the two derivations above both go through this deployment.    #}
-{# Prefer either of them; reach for this only when neither applies, and expect    #}
-{# to remove it once remote_write is enabled and the address derives itself.     #}
-{#                                                                              #}
-{# Deduplicated because a deployment can be more than one of these: vm-single     #}
-{# puts the store in the lab AND points write_url at it, and Prometheus rejects   #}
-{# a config carrying the same target twice in one job.                           #}
-{% set vm_targets = [] %}
-{% for target in prometheus_victoriametrics_targets | default([]) %}
-{%   set _ = vm_targets.append(target) %}
-{% endfor %}
-{% for host in groups['victoriametrics'] | default([]) %}
-{%   if (host ~ ':8428') not in vm_targets %}
-{%     set _ = vm_targets.append(host ~ ':8428') %}
-{%   endif %}
-{% endfor %}
-{% if opennms_remotewrite is defined and opennms_remotewrite.enabled | default(false) %}
-{%   set rw_authority = opennms_remotewrite.write_url | regex_replace('^https?://([^/]+).*$', '\\1') %}
-{%   if rw_authority not in vm_targets %}
-{%     set _ = vm_targets.append(rw_authority) %}
-{%   endif %}
-{% endif %}
 {% if vm_targets %}
   # Accepted-throughput measurement point for a remote_write deployment (#316).
   # vm_rows_inserted_total{type="promremotewrite"} is what the backend actually
