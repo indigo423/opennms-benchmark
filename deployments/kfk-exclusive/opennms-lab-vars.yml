@@ -106,6 +106,35 @@ kafka_server_properties:
   "log.retention.check.interval.ms": 300000
   "log.dirs": /var/log/kafka/combined-logs
 
+# ── Scrape the remote_write backend even when nothing writes to it yet ───────
+#
+# This is bootstrap/roles/prometheus' documented escape hatch (#321), used for
+# exactly the case it describes: a store on another lab that this deployment
+# does not write to yet.
+#
+# The job is normally DERIVED from opennms_remotewrite.write_url, which the #316
+# experiment overlay sets. That derivation is right, and on its own it is not
+# enough: it makes the backend visible only while that overlay is layered. A
+# plain `make deploy` re-renders prometheus.yml without it, the job disappears,
+# and the VictoriaMetrics dashboard goes blank -- which happened, and reads as a
+# backend that stopped rather than a scrape config that lost a target.
+#
+# The backend's own health is not an experiment-scoped concern. Its disk, its
+# merge backlog and its ingestion rate matter whenever it is running, including
+# between campaigns, so the target belongs where the lab is described rather
+# than where one run is.
+#
+# Deduplicated against the derived target, so layering the experiment overlay
+# does not produce the same address twice.
+#
+# 192.168.11.38 is the KVM lab's vm-target (deployments/vm-target/topology.yml,
+# which is that address's one definition). It is therefore specific to this
+# pair of labs: on a provider where that host does not exist the target simply
+# reports down, which is visible and harmless. Remove this when the pairing
+# ends.
+prometheus_victoriametrics_targets:
+  - "192.168.11.38:8428"
+
 # ── Collectd thread pool, raised for the fleet this deployment now drives ────
 #
 # The role's default is 100, and its own comment says to revisit it "once a
