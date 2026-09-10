@@ -89,7 +89,7 @@ OUT = HERE / "snmp-collector-sizing.html"
 #     p.Path("docs/sizing/house-style.css").write_text( \
 #       re.findall(r"<style>(.*?)</style>", h, re.S)[-1])'
 #
-# Extracted from experiments/pm-snmp-sizing-rule/results/bundle/report.html,
+# Extracted from campaigns/pm-snmp-sizing-rule/results/bundle/report.html,
 # rendered 2026-09-07. Take the LAST <style> block: some reports open with a
 # small print-only block, and the design tokens are in the last one.
 STYLE_SHEET = HERE / "house-style.css"

@@ -237,4 +237,4 @@ Required rate at 3,004 services: 10.01/s. The doubling sweep stopped at 400 on t
 
 **What the burst-detach search found instead.** Collectd releases the whole fleet's due collections as a wave, and at 3,000 devices holding a thread about 11 s each, the crest of that wave wants more than 400 concurrent slots even though the cycle's average is 120. A pool that absorbs the crest without queueing would have to be measured above 400, and at 400 the preemption cost is already 7% of switches. Whether such a pool is worth its cost is the outage question, parked for its own session: the crest is where a rescan wave or a burst of timeouts would land.
 
-Data: `experiments/pm-snmp-agent-latency/results/pool-sweep.jsonl`, `pool-sweep.log`, per-rung NMT and thread-state captures as `rung-<n>-{before,after}-{nmt,threads}.txt`.
+Data: `campaigns/pm-snmp-agent-latency/results/pool-sweep.jsonl`, `pool-sweep.log`, per-rung NMT and thread-state captures as `rung-<n>-{before,after}-{nmt,threads}.txt`.

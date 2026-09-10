@@ -353,9 +353,10 @@ experiments: ## List runnable experiments
 	  [ -f "$$f" ] || continue; \
 	  printf "  \033[36m%s\033[0m\n" "$$(basename $$(dirname $$f))"; \
 	done; \
-	echo "  (playbook-driven only; experiments/legacy/ is reference, and"; \
-	echo "   nms-20027-painless-flows is a standalone harness with its own"; \
-	echo "   runner — see experiments/README.md)"
+	echo "  (playbook-driven only. flows-es-vs-victorialogs and"; \
+	echo "   nms-20027-painless-flows are standalone harnesses with their own"; \
+	echo "   runners; experiments/legacy/ is reference. Records of runs that"; \
+	echo "   already happened are in campaigns/ — see campaigns/README.md)"
 
 .PHONY: endpoints
 endpoints: check-provider ## Publish lab-endpoints.<provider>.yml for a running lab (PROVIDER=…, DEPLOYMENT=<slug>)
