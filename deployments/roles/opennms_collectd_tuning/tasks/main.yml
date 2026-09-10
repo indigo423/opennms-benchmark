@@ -31,8 +31,20 @@
 # failure normally, and a false PASS whenever that parameter happens to hold the
 # value being asked for. The second grep narrows the matched element back to the
 # attribute, so stdout_lines[0] stays threads="N" for the assertion below.
+#
+# executable is required, not decoration. Ansible runs shell tasks under
+# /bin/sh, which on Ubuntu is dash, and dash has no `pipefail`:
+#
+#   /bin/sh: 1: set: Illegal option -o pipefail
+#
+# So this task failed on every run, with rc=2, before it read anything. That is
+# worse than it sounds: the replace above and its flush_handlers have already
+# happened, so the value IS changed and OpenNMS IS restarted, and then the step
+# that exists to prove the change took effect dies of its own shell. The play
+# aborts reporting a failure to verify, having already applied. Found in #316.
 - name: Read back the configured thread count
   ansible.builtin.shell:
+    executable: /bin/bash
     cmd: >-
       set -o pipefail;
       grep -oE '<collectd-configuration[^>]*threads="[0-9]+"' {{ opennms_collectd_tuning_config }}
