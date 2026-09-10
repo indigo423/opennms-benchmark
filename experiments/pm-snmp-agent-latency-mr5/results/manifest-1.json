@@ -362,6 +362,11 @@
         "answer_ref": "#on-the-wire"
       },
       {
+        "id": "q-fragmentation",
+        "question": "Does max-repetitions 5 push SNMP responses into IP fragmentation, and where is the ceiling?",
+        "answer_ref": "#fragmentation"
+      },
+      {
         "id": "q-rate",
         "question": "How many metrics does this fleet produce, and at which rung?",
         "answer_ref": "#metric-rate"
@@ -388,6 +393,11 @@
       }
     ],
     "gaps": [
+      {
+        "question": "Is the 14,250 failure the processor or the heap?",
+        "why": "This search cannot separate them: garbage collection on the 10 GiB heap is charged to the processor, so both read as maxed at the failing rung, CPU 90% and GC 22% of wall time. The later pm-snmp-sizing-rule synthesis, with a larger Core to compare against, resolves it to the heap: CPU per collection is 0.13 to 0.16 core-seconds here with GC in it against 0.114 to 0.115 on a 32 GiB Core at the same latency, and of the rule's three limits only the heap table predicts a knee at 14,250, the pool giving 17,000 and the processor 15,000. That conclusion is imported, not measured here.",
+        "validity": "internal"
+      },
       {
         "question": "Where exactly between 13,750 and 14,250 is the CPU knee?",
         "why": "The step is 500 and the two rungs straddle the cleanroom's 14,004; the failing rung is not marginal (throughput fell, GC 22% of wall time), so the knee sits in the lower half of the bracket. Locating it finer means 250-device rungs at two hours each under the import race.",
@@ -421,6 +431,16 @@
       {
         "question": "How much of the Core's CPU is collection?",
         "why": "The rolling rescan runs about 40% of the time at the stock provisiond pool and cost about 5 CPU points in the cleanroom; it was not separated out here.",
+        "validity": "construct"
+      },
+      {
+        "question": "Does the fragmentation headroom hold for a real agent?",
+        "why": "The datagram sizes are nl6's encoding of one simulated Cisco CRS-X with 144 interfaces, captured on a 1500 B path. A real agent with longer interface names, more columns per PDU or a smaller path MTU reaches the limit at a lower max-repetitions, and its behaviour when a response would not fit (truncate with noError as nl6 does, answer tooBig, or not reply) was not tested. The ceiling of 6 is arithmetic on this shape, not a general limit.",
+        "validity": "external"
+      },
+      {
+        "question": "Was the fragmentation capture taken on this search's fleet?",
+        "why": "No. It was taken on 2026-09-08 on the same deployment and the same device shape at max-repetitions 5, but at 11,000 devices rather than any rung measured here. Datagram size is a property of the device's tables and the attribute, not of fleet size, so the sizes carry; the packet rate in that capture does not correspond to any rung in this report.",
         "validity": "construct"
       }
     ]
