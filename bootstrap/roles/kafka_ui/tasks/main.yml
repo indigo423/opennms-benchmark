@@ -26,9 +26,19 @@
 # Ask the service instead.
 #
 # Runs in its own play on the broker host
+#
+# The probe must go through the context path. The unit sets
+# SERVER_SERVLET_CONTEXT_PATH, so the application is mounted under it and a bare
+# `/` is a 404 from a perfectly healthy service — the same trap the Prometheus
+# role documents for its route prefix. Asking `/` failed every deploy from #296,
+# which added this readiness check, until it was found in #316: 24 retries, then
+# a fatal, on a Kafka UI that was up and scraping the cluster.
+#
+# actuator/health rather than the SPA root, so a 200 means the application
+# reports itself healthy rather than merely that something served an index page.
 - name: Wait for Kafka UI to answer
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ kafka_ui_port }}/"
+    url: "http://127.0.0.1:{{ kafka_ui_port }}{{ kafka_ui_context_path | regex_replace('/$', '') }}/actuator/health"
     method: GET
     status_code: [200]
   register: kafka_ui_ready
