@@ -128,6 +128,20 @@
         msg: "endpoints published to {{ endpoints_file }} (+ .json)"
       tags: ["endpoints"]
 
+    # endpoints_file is a var of THIS play, and play vars do not cross a play
+    # boundary. The distribution play below referenced it anyway and failed with
+    # "'endpoints_file' is undefined" on every run since #278 scoped the path per
+    # provider and moved it out of the global vars. Generation succeeded first,
+    # so the manifest still appeared on the control node and the failure read as
+    # a lab problem rather than a playbook one.
+    #
+    # Promoted to a fact rather than restated in the second play, so the path
+    # keeps one definition. The consuming play reads it out of hostvars.
+    - name: Publish the manifest path to the plays that consume it
+      ansible.builtin.set_fact:
+        endpoints_file: "{{ endpoints_file }}"
+      tags: ["endpoints"]
+
 # Distribution, not generation. The tools that consume the manifest run on the
 # monitoring node, while generation happens on the control machine, so the file
 # has to travel. Kept as its own play so the generation play above stays
@@ -136,6 +150,10 @@
   hosts: mon_servers
   become: true
   gather_facts: false
+  vars:
+    # Read from the generating play's facts, not restated. See the set_fact
+    # above for why this is not simply a second copy of the path expression.
+    endpoints_file: "{{ hostvars['localhost'].endpoints_file }}"
   tasks:
     - name: Install the endpoints manifest
       ansible.builtin.copy:
