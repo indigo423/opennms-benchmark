@@ -79,8 +79,23 @@ roles:
     routes: { sim: net_sim }
     groups: [minion]
   loadgen:
+    # large, not the small that deployments/README.md sizes loadgen from. That
+    # figure comes from a measurement of 2,150 devices at 0.20 load per core,
+    # and this deployment has been driving 11,000 since the pm-snmp-72m and
+    # pm-snmp-target campaigns grew the fleet.
+    #
+    # CPU was never the binding side. Measured 2026-09-10 at 11,000 devices the
+    # generator ran a load average of 1.22 on 4 cores, which small's 2 would
+    # still carry. Memory is the constraint: 4,720 MB of 7,941 MB in use, and
+    # small gives 4,096 MB -- less than nl6 is holding right now.
+    #
+    # The lab had already been raised to this by hand; the spec had not, so a
+    # plan against it proposed shrinking a running generator below its own
+    # working set. A generator that OOMs mid-run reads as a system under test
+    # that stopped accepting, which is the same silent-stop class of failure the
+    # broker's disk sizing above guards against. See #317.
     count: 1
-    size: small
+    size: large
     subnets: [mgmt, sim]
     groups: [net_sim, docker_engine]
   monitoring:
