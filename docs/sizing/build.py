@@ -175,7 +175,7 @@ def main() -> int:
     )
     stray = re.findall(r"\d,\d{3}", re.sub(r"(?s)<(script|style|pre|code)\b.*?</\1>", "", page))
     if stray:
-        print("build: comma-grouped numbers survived outside code/pre: %s" % stray[:5], file=sys.stderr)
+        print(f"build: comma-grouped numbers survived outside code/pre: {stray[:5]}", file=sys.stderr)
         return 1
     OUT.write_text(page, encoding="utf-8")
     kib = OUT.stat().st_size / 1024
