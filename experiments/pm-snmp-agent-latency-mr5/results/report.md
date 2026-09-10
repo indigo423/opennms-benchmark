@@ -2,12 +2,12 @@
 author: "Ronny Trommer <ronny@opennms.com>"
 eyebrow: "PoweredBy 2026 · SNMP performance management · agent response time · max-repetitions 5"
 title: "One attribute moves the ceiling<br>from 5,000 to 11,750 devices"
-lede: "Same Core, same Minion, same 200 threads, same 50 to 100 milliseconds on every SNMP packet. One attribute in snmp-config.xml, max-repetitions 2 to 5, cut a collection from 149 requests to 58 and moved the knee from 5,000 to 5,250 devices up to 11,750 to 12,250. At the new knee the pool still binds first: the same fleet passes with 300 threads at 72% CPU. Pushed on with 300 threads, the collector reaches 13,750 and fails at 14,250 with the processor at 90% and a fifth of its time in garbage collection, the cleanroom's failure at the cleanroom's fleet size."
+lede: "Same Core, same Minion, same 200 threads, same 50 to 100 milliseconds on every SNMP packet. One attribute in snmp-config.xml, max-repetitions 2 to 5, cut a collection from 149 requests to 58 and moved the knee from 5,000 to 5,250 devices up to 11,750 to 12,250. At the new knee the pool still binds first: the same fleet passes with 300 threads at 72% CPU. Pushed on with 300 threads, the collector reaches 13,750 and fails at 14,250 with the processor at 90% and a fifth of its time in garbage collection, the cleanroom's failure at the cleanroom's fleet size. From inside this search those two are one signal; the campaign that followed separates them, and the binding constraint at that knee is the 10 GiB heap, not the processor."
 verdict:
   - { k: "Knee", v: "11,750 to 12,250", n: "devices at 50 to 100 ms per PDU, 200 threads, max-repetitions 5", hero: true }
   - { k: "Against the default", v: "2.3x", n: "the pool-200 knee of 5,000 to 5,250 at max-repetitions 2" }
   - { k: "Requests per collection", v: "58", n: "down from 149, measured on the wire" }
-  - { k: "With 300 threads", v: "13,750 to 14,250", n: "CPU 90% and GC 22% of wall time at the failure: the cleanroom's ceiling" }
+  - { k: "With 300 threads", v: "13,750 to 14,250", n: "CPU 90% and GC 22% of wall time at the failure; later work attributes this knee to the 10 GiB heap" }
   - { k: "Metric rate at 11,750", v: "245.0M/h", n: "68,050 samples a second, 1,738 per device per cycle" }
 caveats: |
   This is a single search on one deployment, one 900 s window per rung, three cycles each, with no repetition.
@@ -71,11 +71,37 @@ At 5,250 devices this is the same fleet the pool-200 search failed on twenty hou
 | Collection wall time | 11.52 s | 4.38 s |
 | Per round trip | 77.3 ms | 75.5 ms |
 | `tooBig` responses | 0 | 0 |
-| IP fragments | 0 | 1 in 30 s of all traffic |
+| IP fragments, all traffic on the link | 0 | 1 in 30 s |
 
-The largest response, 1,143 bytes, sits inside one 1,472-byte datagram with room to spare, which is why 5 was the value chosen: nl6 measures the real encoded response and drops rows from the end when it would not fit, answering `noError`, so a larger value would not fail here, it would silently return fewer rows whenever a long value appeared. The per-round-trip time did not move, 77 ms against 75; the injected delay is the round trip, and fewer round trips is the whole gain.
+The largest response, 1,143 bytes, sits inside one 1,472-byte datagram with room to spare, which is why 5 was the value chosen; the next section measures that margin across 83,009 responses and finds where it runs out. The per-round-trip time did not move, 77 ms against 75; the injected delay is the round trip, and fewer round trips is the whole gain.
 
 The setting itself was the surprise of the day. This Core runs the shipped defaults with no `snmp-config.xml` on disk, and writing one, with the pristine root and the new definition, changed nothing: not on a reload event, not on a restart. On Horizon 36 the Config Manager owns `snmp-config`; the file was imported once at first start and the database copy is authoritative. One `PUT` to `rest/cm/snmp-config/default` applied the definition immediately, and the effective configuration for a fleet address read `maxRepetitions 5` while a non-fleet address still read 2.
+
+## Datagram size and fragmentation {#fragmentation}
+
+**None, and 6 is the last value that would still fit.** Raising `max-repetitions` grows the response, so the question the attribute raises is whether a response can outgrow the path and fragment. It cannot at 5, and the margin is measurable: a capture on the Minion's simulator interface on 2026-09-08, with the fleet running the same device shape at `max-repetitions=5`, saw 83,009 responses in 31.9 seconds and not one fragment.
+
+| | measured |
+|---|---:|
+| Responses captured | 83,009 in 31.9 s |
+| More-fragments bit set | 0 |
+| Non-zero fragment offset | 0 |
+| Don't-fragment bit set | 100% of requests and responses |
+| Response IP datagram, median / p99 / max | 1,125 / 1,221 / 1,221 B |
+| Largest against the 1500 B MTU | 81.4%, 279 B spare |
+| Responses over the 1,472 B UDP payload budget | 0 |
+
+Table: `tcpdump -ni enp6s20 -s 64 'net 10.42.0.0/16'` on `minion-benchmark-01`, MTU 1500; full detail in `captures/fragmentation-20260908.md`.
+
+Two things make fragmentation the wrong thing to worry about here, and one makes it worth worrying about at a higher value.
+
+**The datagrams are nowhere near the limit.** A GETBULK of ten columns at `max-repetitions=5` asks for fifty rows, and 77.5% of responses carry exactly those fifty varbinds. The largest such response is 1,174 bytes of SNMP message, 1,202 bytes as an IP datagram, against a budget of 1,472 bytes of UDP payload inside a 1500-byte MTU. The largest response of any kind in the capture is 1,221 bytes, 81.4% of the MTU. The remaining 22.5% of responses are shorter because the walk reached the end of a table, not because anything was truncated: they run 500 to 700 bytes, far below the budget.
+
+**They could not fragment even if they were large.** Every SNMP datagram in the capture, in both directions, has the don't-fragment bit set. A datagram that outgrew the path would therefore not arrive in pieces. It would fail at the sender with `EMSGSIZE`, or be dropped by the first router too small to forward it, which returns an ICMP fragmentation-needed. The failure mode of an oversized `max-repetitions` is a lost collection, not a reassembled one, and a lost collection at 1,800 ms and one retry costs 3.6 s of thread time.
+
+**Six is the last value that fits.** At about 22.7 bytes per varbind for this device, the datagram grows roughly 227 bytes per unit of `max-repetitions`. That puts 6 at an estimated 1,429 bytes, some 70 bytes inside the MTU, and 7 at an estimated 1,656 bytes, past it. The gain is also shrinking: going from 2 to 5 removed 91 of 149 requests, while 5 to 6 would remove only about 10 more. This is why 5 was chosen and why the next step is not worth taking. The estimate is one device shape's encoded size; a device with longer interface names, more columns per PDU or a smaller path MTU reaches the ceiling sooner, and the way to check is this capture on that fleet rather than this arithmetic.
+
+The behaviour that keeps a too-large value from failing outright is nl6's, not the protocol's: it measures the encoded response and drops rows from the end when they would not fit, answering `noError`. A real agent may do the same, may answer `tooBig`, or may simply not reply. Nothing here tests that.
 
 ## Metric rate {#metric-rate}
 
@@ -150,7 +176,11 @@ The search then continued upward with the 300-thread pool, in steps of 500.
 
 {{figure pool300-gc}}
 
-The cleanroom bracketed this Core at 14,004 to 15,004 services with agents answering in 0.1 ms, CPU at 85.6% and Full GC at 15.8% of wall time as the ceiling. With 50 to 100 ms on every packet, `max-repetitions=5` and 300 threads, the same Core brackets at 13,750 to 14,250 with CPU at 86 to 90% and GC at 19 to 22%. The metric rate at 13,750 is 46.06 × 1,738 × 3,600 = 288.2 million an hour, 98.7% of the cleanroom's 292.1 million. The injected latency no longer costs anything this search can measure; what remains is the Core's 8 vCPU and its 10 GiB heap, which is the parked question of a larger Core.
+The cleanroom bracketed this Core at 14,004 to 15,004 services with agents answering in 0.1 ms, CPU at 85.6% and Full GC at 15.8% of wall time as the ceiling. With 50 to 100 ms on every packet, `max-repetitions=5` and 300 threads, the same Core brackets at 13,750 to 14,250 with CPU at 86 to 90% and GC at 19 to 22%. The metric rate at 13,750 is 46.06 × 1,738 × 3,600 = 288.2 million an hour, 98.7% of the cleanroom's 292.1 million. The injected latency no longer costs anything this search can measure; what remains is the Core's 8 vCPU and its 10 GiB heap.
+
+**This search cannot separate those two, and the campaign that followed it can: the binding constraint here is the heap.** From inside this rung the processor and the heap are one signal, because garbage collection on a 10 GiB heap is charged to the processor. The later `pm-snmp-sizing-rule` synthesis, which ran the same fleet on a Core with twice the memory, reads the CPU cost of a collection as 0.13 to 0.16 core-seconds on this 16 GiB Core with garbage collection in it, against 0.114 to 0.115 on a 32 GiB Core at the same 76 ms. The difference is the heap's term leaking into the processor's. Applying that synthesis' three limits to this rung, the pool would carry 17,000 devices and the processor 15,000, while the measured knee is 14,250. Neither of those explains it. The heap table does, and this is the one knee in the whole campaign where it is the heap that binds. The 90% CPU at 14,250 is partly the 10 GiB heap wearing a processor's costume.
+
+That resolution is later work and is recorded here rather than measured here. What this search establishes on its own is the bracket, 13,750 passing and 14,250 failing, with both the processor and the heap at their limits when it does.
 
 ## What the attribute bought {#against-the-defaults}
 
@@ -164,11 +194,13 @@ The cleanroom bracketed this Core at 14,004 to 15,004 services with agents answe
 | Seconds a thread holds a collection | 11.5 | 11.5 | 4.4 |
 | Throughput ceiling, collections/s | 8.78 | 17.50 | 39.9 |
 | Core CPU at the failing rung | 15.9% | 28.6% | 74.5% |
-| What bound | the pool | the pool | the pool at 200 threads; the CPU and the heap at 300 |
+| What bound | the pool | the pool | the pool at 200 threads; the heap at 300, seen as CPU |
 
 Doubling the pool doubled the fleet and left the processor idle. Cutting the requests per collection by 2.6 raised the fleet by 2.3 and used the processor. The two levers are not alike: threads convert waiting into memory, and there was memory to spare; fewer requests remove the waiting, and what remains is work. This deployment at 50 to 100 ms per packet is now within 16% of its cleanroom limit of 14,004 devices at 0.1 ms.
 
 There was one lever left on the pool side, and the 300-thread search shows it was worth four rungs: 12,250 passes with room, 13,750 is the last pass, and at 14,250 the Core's processor and its 10 GiB heap end it, the fleet size the cleanroom found them at with agents answering in 0.1 ms. That is the outcome the research predicted: at `max-repetitions` 5 to 6 the collector stops being thread-bound and becomes the CPU-bound collector the cleanroom measured.
+
+One correction the campaign added afterwards: the last of those bounds is memory, not the processor. By the sizing rule's arithmetic this Core's pool would carry 17,000 devices at 300 threads and its processor 15,000, and the knee measured here is 14,250, which only the heap table predicts. The attribute took this deployment from thread-bound to heap-bound, and the next lever is not a further `max-repetitions` step or more threads. It is a larger heap on a larger VM.
 
 ## How it was done {#how-it-was-done}
 

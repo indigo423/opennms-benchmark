@@ -17,7 +17,7 @@
     "workload.fixtures"
   ],
   "sut": {
-    "config_delta": "The 16 GiB shape of kfk-exclusive, as re-established on 2026-09-07 for the sizing rule's balanced fleet, with one variable added: agent reachability.\n\nOpenNMS Core, changed against the 20,250 capture\n  VM: 8 vCPU, 16 GiB (was 32 GiB); opennms.conf JAVA_HEAP_SIZE 10240, JAVA_INITIAL_HEAP_SIZE 8192 (was 20480 / 20480)\n  collectd-configuration.xml: threads 250 (was 400)\n  fleet: 11,000 nl6 devices, 11,004 collectable services; nl6 restarted and rebuilt with octets 0-43, the requisition re-imported (8,250 nodes deleted)\n\nThe outages, all silent drops on netsim (bin/level.sh <on|off> <level>)\n  25%: iptables -I FORWARD 1 -o veth-sim-host -d 10.42.0.0/21, 10.42.8.0/23, 10.42.10.0/24 -j DROP (octets 0-10, 2,750 devices)\n  50%: 10.42.0.0/20, 10.42.16.0/22, 10.42.20.0/23 (octets 0-21, 5,500)\n  75%: 10.42.0.0/19, 10.42.32.0/24 (octets 0-32, 8,250)\n  100%: 10.42.0.0/18 (all 44 blocks, 11,000)\n  the healthy baseline window is 11:00-11:15Z of the same day (record baseline-0 in levels.jsonl)\n\nThe pulse: 100% on 16:07:28Z, off 16:13:14Z (one cycle), run to clear the 4,404 alarms orphaned by the external restart of 15:33Z\n\nThe earlier full outage (for reference)\n  netsim: iptables -D FORWARD -o veth-sim-host -j ACCEPT at 10:28:02Z (silent drop of every SNMP request into the simulator's namespace; the rule is the one an nl6 container restart needs, see the lab notes); iptables -I FORWARD 1 -o veth-sim-host -j ACCEPT at 10:43:12Z\n  snmp-config (Config Manager): timeout 1800 ms, retry 1, so a failing collection costs 3.6 s of thread time; max-repetitions 5 for 10.42.0.0/16\n  org.opennms.core.ipc.rpc.kafka.ttl: unset, 20,000 ms default; never reached\n\nUnchanged: G1, NMT, 13 daemons disabled, Syslogd enabled, log4j2 instrumentation INFO, Kafka producer forward.metrics, no compression anywhere, PostgreSQL pgtune profile with SSL, Minion stock (2 GiB default heap), netem delay 75ms 25ms on netsim enp6s19.\n\nJudged windows: before 10:00-10:15Z (record class16g-11000-threads250-g1 in pm-snmp-sizing-rule/results/trials.jsonl), after 10:45-11:00Z and 11:00-11:15Z (trials.jsonl here).",
+    "config_delta": "The 16 GiB shape of kfk-exclusive, re-established on 2026-09-07 and judged healthy before the series, with one variable added: agent reachability.\n\nOpenNMS Core\n  VM: 8 vCPU, 16 GiB; opennms.conf JAVA_HEAP_SIZE 10240, JAVA_INITIAL_HEAP_SIZE 8192\n  collectd-configuration.xml: threads 250, thresholding-enabled false on every service\n  snmp-config (Config Manager): timeout 1800 ms, retry 1, so a failing collection costs 3.6 s of thread time;\n                                max-repetitions 5 for 10.42.0.0/16\n  org.opennms.core.ipc.rpc.kafka.ttl: unset, 20,000 ms default; never reached\n  G1, NativeMemoryTracking summary, 13 daemons disabled, Syslogd enabled, log4j2 instrumentation INFO\n  org.opennms.features.kafka.producer.cfg: forward.metrics true, metricTopic metrics; no compression anywhere\n\nFleet: 11,000 nl6 devices, 11,004 collectable services, 10.42.0.0/16 octets 0-43, 144 interfaces each;\n       netem delay 75ms 25ms on netsim enp6s19\n\nThe outages, all silent drops on netsim (bin/level.sh <on|off> <level>)\n  25%: iptables -I FORWARD 1 -o veth-sim-host -d 10.42.0.0/21, 10.42.8.0/23, 10.42.10.0/24 -j DROP\n       (octets 0-10, 2,750 devices)\n  50%: 10.42.0.0/20, 10.42.16.0/22, 10.42.20.0/23 (octets 0-21, 5,500)\n  75%: 10.42.0.0/19, 10.42.32.0/24 (octets 0-32, 8,250)\n  100%: 10.42.0.0/18 (all 44 blocks, 11,000)\n\nThe pulse: 100% on 16:07:28Z, off 16:13:14Z (one cycle), run to clear the 4,404 alarms orphaned by the\n           external restart of 15:33Z\n\nMinion stock (2 GiB default heap). PostgreSQL pgtune profile with SSL.\n\nThe healthy baseline window is 11:00-11:15Z of the same day (record baseline-0 in levels.jsonl). An earlier full outage on this same deployment, for reference: the netsim FORWARD ACCEPT rule removed at 10:28:02Z and restored at 10:43:12Z.",
     "db_version": "PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg24.04+2)",
     "jvm": {
       "heap": "-Xms8192m -Xmx10240m",
@@ -35,14 +35,14 @@
     "disk": "sda 200G disk rota=1 QEMU HARDDISK",
     "os": "Ubuntu 24.04.4 LTS",
     "ram_gb": 15.62,
-    "hygiene_notes": "Core VM resized to 16 GiB (xlarge class) on 2026-09-07 09:17Z by qm set 108 --memory 16384 and a Proxmox reboot; the deployment spec still says xxlarge-mem."
+    "hygiene_notes": "Core VM set to 16 GiB (8 vCPU) on 2026-09-07 09:17Z by qm set 108 --memory 16384 and a Proxmox reboot. The deployment spec still names the xxlarge-mem class, which this VM is not; read the size from the host record here, not from the spec."
   },
   "workload": {
     "axis": "snmp-collection",
     "generator_scenario": "nl6 cisco_crs_x.json, 11,000 devices, 144 interfaces each, SNMP v2c, 10.42.0.0/16 octets 0-43, netem delay 75ms 25ms on the simulator, GETBULK max-repetitions 5; 25%, 50%, 75% and 100% of the fleet unreachable in turn"
   },
   "experiment": {
-    "question": "How does the share of the inventory that is unreachable, 25, 50, 75 and 100%, change what the Core and the Minion do and what the healthy remainder gets?",
+    "question": "How does this deployment deal with SNMP agent outages: what does an unreachable agent cost, is the healthy remainder protected, what does recovery cost, and what does the max-repetitions=5 tuning have to do with any of it?",
     "independent_variable": "workload.parameters.unreachable_share",
     "variant": "11000-devices-threads250-16g-partial-outage-25-50-75-100",
     "plan": "One variable, the share of the fleet dropped silently, in whole /24 blocks of 250 devices: 11 blocks (25%), 22 (50%), 33 (75%), 44 (100%). Each level is applied on netsim's FORWARD chain ahead of the rule that carries SNMP into the simulator's namespace, held three collection cycles, judged over its second and third cycle by bin/judge.py, removed, and followed by two cycles of recovery before the next. Delivered work is read from the Core's metrics stream to Kafka against the healthy baseline, because the completion counter counts failed collections as completed. bin/monitor.py logs one line a minute including the events and alarms tables."
@@ -85,7 +85,7 @@
           "dashboard": "Node Exporter Full",
           "panel": "CPU Busy"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. Every machine steps down with the share of dead devices: a failed collection decodes, stores and looks up nothing. The 97% at 15:36 is the reload after an external restart of OpenNMS at 15:33.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. Every machine steps down with the share of dead agents: a failed collection decodes, stores and looks up nothing. The 97% at 15:36 is the reload after an external restart of OpenNMS at 15:33.",
         "series": [
           {
             "label": "core (8 vCPU)",
@@ -110,7 +110,7 @@
           "dashboard": "Prometheus: OpenNMS Core Internals",
           "panel": "Collectd active threads"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. A dead device holds a thread for one timeout and one retry, 3.6 s, against 5.4 s for a live one, so occupancy falls with every level. The pool pegged at 250 from 15:35 is that restart's scheduling wave.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. A dead agent holds a thread for one timeout and one retry, 3.6 s, against 5.2 s for a live one by Little's law on this run, so occupancy falls with every level. The pool pegged at 250 from 15:35 is that restart's scheduling wave.",
         "series": [
           {
             "label": "rolling 1-minute peak",
@@ -125,6 +125,33 @@
             "expr": "last_over_time(opennms_collectd_maxpoolthreads{instance=\"core-benchmark-01:9299\"}[1m])"
           }
         ]
+      },
+      {
+        "id": "thread-time",
+        "title": "Thread time per collection through the four levels, against the 3.6 s an unreachable agent costs",
+        "unit": "s",
+        "kind": "line",
+        "window": {
+          "start": "2026-09-07T13:45:00Z",
+          "end": "2026-09-07T15:32:00Z"
+        },
+        "decimals": 2,
+        "source": {
+          "dashboard": "Prometheus: OpenNMS Core Internals",
+          "panel": "derived: Collectd active threads / collections per second"
+        },
+        "note": "Little's law read backwards: busy threads over collections per second is the mean time a collection holds a thread. It is derived from the same two captures as the threads and throughput figures, not a metric the Core exports, and both terms are smoothed over 5 minutes, one full collection interval, because the schedule swings both of them by more than the effect within a cycle. Scoped to the four levels, 13:45 to 15:32 UTC, and so narrower than every other figure here: after the 15:33 restart the completion rate briefly falls to near zero and the ratio is undefined. The floor is configuration, not tuning: an unreachable agent costs one 1,800 ms timeout and one retry, 3.6 s, whatever max-repetitions is set to. The recovery gaps between levels are two cycles long and the smoothing bleeds across their edges, so the curve peaks near 5 s there rather than at the baseline's 5.18 s.",
+        "series": [
+          {
+            "label": "thread time per collection",
+            "expr": "avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[5m]) / rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])"
+          },
+          {
+            "label": "unreachable-agent floor, one timeout and one retry",
+            "expr": "(avg_over_time(opennms_collectd_activethreads{instance=\"core-benchmark-01:9299\"}[5m]) / rate(opennms_collectd_taskscompleted{instance=\"core-benchmark-01:9299\"}[5m])) * 0 + 3.6"
+          }
+        ],
+        "resolution": "5m"
       },
       {
         "id": "throughput",
@@ -177,7 +204,7 @@
           "dashboard": "Prometheus: OpenNMS Core Internals",
           "panel": "Collectd pending tasks"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. The queue stays empty at every level; a dead device is cheaper to the collector than a live one. The 7,000-task spike at 15:34 is the reload after an Ansible run from outside the experiment restarted OpenNMS, not an outage effect; the 10,000 peak at 16:07 is that restart's wave grown over the following half hour, which the pulse's outage cycle emptied because failed collections are short.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. The queue stays empty at every level; a dead agent is cheaper to the collector than a live one. The 7,000-task spike at 15:34 is the reload after an Ansible run from outside the experiment restarted OpenNMS, not an outage effect; the 10,000 peak at 16:07 is that restart's wave grown over the following half hour, which the pulse's outage cycle emptied because failed collections are short.",
         "series": [
           {
             "label": "rolling 1-minute peak",
@@ -198,7 +225,7 @@
           "dashboard": "JVM (JMX exporter)",
           "panel": "Heap / GC"
         },
-        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. The heap tracks in-flight state: lower with more dead devices, back with the recovery, and no old-generation collection at any level. The drop to 0.3 GiB at 15:34 is the JVM restarted by an external Ansible run.",
+        "note": "Levels on the FORWARD chain: 25% 13:50:47 to 14:06:10, 50% 14:22:45 to 14:38:23 (a first attempt 14:15:51 to 14:22:29 was cut short and discarded), 75% 14:48:13 to 15:04:17, 100% 15:14:11 to 15:30:25, each with two cycles of recovery after; then a one-cycle 100% pulse 16:07:28 to 16:13:14 to clear the alarms the external restart had orphaned, which doubles as the clean recovery from a total outage. The heap tracks in-flight state: lower with more dead agents, back with the recovery, and no old-generation collection at any level. The drop to 0.3 GiB at 15:34 is the JVM restarted by an external Ansible run.",
         "series": [
           {
             "label": "heap used",
@@ -232,41 +259,66 @@
   "questions": {
     "answers": [
       {
-        "id": "q-the-shape",
-        "question": "How do the Core and the Minion scale with the share of the fleet that is dead?",
-        "answer_ref": "#the-shape"
+        "id": "q-the-cost",
+        "question": "What does an unreachable SNMP agent cost the Core, the Minion and the database?",
+        "answer_ref": "#the-cost"
       },
       {
         "id": "q-the-remainder",
-        "question": "Does the healthy remainder still get collected on time at every level?",
+        "question": "Is the healthy remainder still collected on time while a quarter, a half, three quarters of the agents are down?",
         "answer_ref": "#the-remainder"
       },
       {
+        "id": "q-the-tuning",
+        "question": "What does the max-repetitions=5 tuning have to do with how outages land?",
+        "answer_ref": "#the-tuning"
+      },
+      {
         "id": "q-the-event-path",
-        "question": "What does each level cost the event path, and what does recovery cost?",
+        "question": "What does each outage cost the event path, and what does recovery cost?",
         "answer_ref": "#the-event-path"
       },
       {
         "id": "q-the-pulse",
-        "question": "What does a clean recovery from a total outage look like on this deployment?",
+        "question": "What does a clean recovery from a total agent outage look like on this deployment?",
         "answer_ref": "#the-pulse"
       },
       {
+        "id": "q-what-to-watch",
+        "question": "What should an operator watch for, and is a 250-thread pool the right size for this fleet?",
+        "answer_ref": "#what-to-watch"
+      },
+      {
         "id": "q-where-it-stops",
-        "question": "Which outages are not this one?",
+        "question": "Which agent outages are not this one?",
         "answer_ref": "#where-it-stops"
       }
     ],
     "gaps": [
       {
-        "question": "Is a dead device the right partial outage?",
-        "why": "Every dead device fails on its first PDU after one timeout and one retry. A slow or half-answering device holds a thread through up to 61 timeouts; that is the outage that loads the pool, and it was not run.",
+        "question": "Is an unreachable agent the right partial outage?",
+        "why": "Every dead agent fails on its first PDU after one timeout and one retry, so it is the cheapest failure the collector has. The expensive one is the agent that answers late or answers some tables and not others, which may hold a thread through as many as 61 timeouts. That outage was not run, and the gap below on Collectd's timeout semantics has to be closed before its cost can even be stated.",
         "validity": "internal"
+      },
+      {
+        "question": "Does Collectd abandon a collection at the first timeout, or continue to the next table?",
+        "why": "Not established in this series. A dead agent returns after one timeout and one retry, 3.6 s, which is consistent with either semantics because there is nothing left to ask. The degraded-agent budgets in the tuning section assume it continues and so eats a timeout per unanswered PDU; if it abandons the collection at the first timeout, a degraded agent costs the same 3.6 s a dead one does and those budgets do not apply.",
+        "validity": "internal"
+      },
+      {
+        "question": "Was max-repetitions varied in this run?",
+        "why": "No. Every level ran at max-repetitions=5. The 61-against-149 PDU counts and the max-repetitions=2 thread times quoted in the tuning section come from two earlier searches on this same Core class, 8 vCPU with a 10 GiB heap, the same simulated device and the same netem, at a different fleet size and pool: pm-snmp-agent-latency-mr5 and pm-snmp-sizing-rule. The degraded-agent numbers derived from them are arithmetic on this deployment's timeout and interval, not measurements.",
+        "validity": "construct"
       },
       {
         "question": "Are the levels comparable to each other?",
         "why": "They were run in ascending order with two recovery cycles between them, each judged over its own second and third cycle; the 100% level repeats the earlier full-outage test on the same deployment.",
         "validity": "internal"
+      },
+      {
+        "question": "Does max-repetitions=5 still help when the agent is slow through its own load?",
+        "why": "netem makes every agent slow per packet, uniformly, and against that failure mode fewer requests is strictly fewer timeouts. An agent slow because its own processor is loaded may fail a five-repetition GETBULK it would have answered at two, in which case the attribute moves the wrong way. Nothing in this lab can produce that failure mode or distinguish the two.",
+        "validity": "external"
       },
       {
         "question": "Does the 16 GiB Core at 11,000 devices stand for a Core at its knee?",
@@ -282,6 +334,11 @@
         "question": "One window per level?",
         "why": "Each level is one ten-minute window over two cycles, once. The steps are large, a quarter of the fleet each, and the response is linear in the dead share, so the shape is not in doubt; the per-level constants are single samples.",
         "validity": "conclusion"
+      },
+      {
+        "question": "Is an orphaned alarm after a mid-recovery restart expected behaviour?",
+        "why": "The collector that came up after the 15:33Z restart had no record of which services were failed and raised no success event for the 4,404 still down, leaving their major alarms open with nothing to clear them. Whether alarmd or collectd is expected to reconcile collector state against the open alarm table on startup was not investigated, and no issue has been filed.",
+        "validity": "construct"
       }
     ]
   }

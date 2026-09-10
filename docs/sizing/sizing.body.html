@@ -1,0 +1,377 @@
+<div class="wrap">
+  <header class="masthead">
+    <span class="print-only doc-title">Sizing a Collectd SNMP collector</span>
+    <span class="eyebrow">PoweredBy 2026 · SNMP performance management · sizing rule · from a metric-rate target</span>
+    <h1>Two constants size a collector,<br>and a metric rate is only one of the inputs</h1>
+    <p class="lede">Give a target in metrics per second and the average duration of a collection, and this rule returns the thread pool, the cores and the memory a Collectd SNMP collector needs. CPU follows the metric rate through one constant, about 15,000 samples a second per core. Threads follow the <em>collection</em> rate, which is the metric rate divided by the samples a single collection carries, so the metric rate alone does not determine the pool. Memory follows the device count, and is the term this campaign determined least well. Every constant is read from eight knees measured on one lab between 1 and 8 September 2026, and the rule was then tested by building two of the machines it specifies. One carried its load with every term inside 7%. The other collapsed, and what it exposed is now a fourth line of the rule: a floor of four vCPU.</p>
+    <span class="eyebrow">Derived from the pm-snmp campaign · no new measurement</span>
+  </header>
+
+  <div class="sections">
+
+    <section id="verdict">
+      <div class="verdict">
+        <div class="figure"><span class="k">CPU per sample</span><span class="v hero">66 µs</span><span class="n">of Core CPU, on a heap with headroom: about 15,000 samples a second per core</span></div>
+        <div class="figure"><span class="k">Threads</span><span class="v">1.2 × C × T</span><span class="n">Little's law on the collection rate C and the collection duration T, plus a fifth for the scheduling wave</span></div>
+        <div class="figure"><span class="k">Cores</span><span class="v">S / 15,000 / U</span><span class="n">U = 0.85 to size; 0.96 is the cliff this Core falls off</span></div>
+        <div class="figure"><span class="k">Tested end to end</span><span class="v">±7%</span><span class="n">every term of the 4 vCPU case on the machine the rule specified; the 2 vCPU case collapsed at 100% CPU</span></div>
+        <div class="figure"><span class="k">Memory</span><span class="v">reads high</span><span class="n">a four-point fit, two of them censored; over-predicted the live set in both tests, which is the safe direction</span></div>
+      </div>
+    </section>
+
+    <section id="inputs">
+      <h2>What you have to know</h2>
+      <p>Two inputs are yours. The third is a property of the device and its collection package, and it cannot be avoided.</p>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Symbol</th><th>Meaning</th><th>Where it comes from</th><th>This campaign</th></tr></thead>
+        <tbody>
+          <tr><td><var>S</var></td><td>Metrics per second you must sustain</td><td>your target</td><td class="n">—</td></tr>
+          <tr><td><var>T</var></td><td>Average duration of one collection, seconds</td><td>measured, or <var>P</var> × <var>R</var> + 0.75 s</td><td class="n">5.2 s</td></tr>
+          <tr><td><var>m</var></td><td>Samples carried by one collection</td><td>device and package</td><td class="n">1,738</td></tr>
+          <tr><td><var>I</var></td><td>Collection interval, in seconds</td><td>your configuration</td><td class="n">300</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout">
+        <span class="eyebrow">Why a metric rate is not enough</span>
+        <p><strong>CPU is driven by metrics per second. Threads are driven by collections per second.</strong> Two fleets delivering the same 60,000 metrics a second need very different pools if one delivers them in 1,738-sample collections and the other in 100-sample ones: the second makes seventeen times as many collections, and every one of them holds a thread for the whole round trip. That is why <var>m</var> appears, and why a sizing question phrased only as a metric rate cannot be answered.</p>
+      </div>
+    </section>
+
+    <section id="formula">
+      <h2>The rule</h2>
+      <pre class="mono">collections per second   <var>C</var> = <var>S</var> / <var>m</var>
+
+threads                  <var>N</var> = 1.2 × <var>C</var> × <var>T</var>
+cores                    <var>K</var> = <var>S</var> / 15 000 / <var>U</var>          <var>U</var> = 0.85 to size
+                             never fewer than 4       measured, not derived; see below
+devices                  <var>D</var> = <var>C</var> × <var>I</var>
+
+live heap                <var>H</var> = 2 GiB + 0.7 MiB × <var>D</var> + 2 MiB × <var>N</var>
+heap                       = 1.4 × <var>H</var>, but never between 32 and 47 GiB
+VM memory                  = 1.5 × heap</pre>
+      <p>The order the levers are worth pulling in has not changed from the campaign's own rule: the SNMP attribute first, because <code>max-repetitions</code> changes <var>T</var> by a factor of two before any hardware is bought; then the threads; then the cores; then the heap. The interval is the one lever that moves the rate, the pool and the processor together, and leaves the memory alone.</p>
+      <p class="where">Inverted, for a machine you already have: <var>S</var> = cores × 15 000 × <var>U</var>. Eight vCPU sustains about 102,000 metrics a second at U = 0.85, and the campaign's eight-vCPU Core collapsed at 117,000.</p>
+    </section>
+
+    <section id="calculator">
+      <h2>Work it out</h2>
+      <div class="calc-form">
+        <label>Metrics per second <span class="where"><var>S</var></span><input id="in-s" type="number" value="20000" min="1" step="1000"></label>
+        <label>Collection duration, s <span class="where"><var>T</var></span><input id="in-t" type="number" value="5.2" min="0.1" step="0.1"></label>
+        <label>Samples per collection <span class="where"><var>m</var></span><input id="in-m" type="number" value="1738" min="1" step="1"></label>
+        <label>Interval, s <span class="where"><var>I</var></span><input id="in-i" type="number" value="300" min="1" step="30"></label>
+        <label class="wide"><input id="in-gc" type="checkbox"> I will run a smaller heap than the "Heap to configure" figure below <span class="where">ticking this changes "Cores busy" only; every heap and memory figure stays the same</span></label>
+      </div>
+      <dl class="calc" id="out">
+        <dt>Collections per second <span class="where"><var>S</var> / <var>m</var></span></dt><dd id="o-c">—</dd>
+        <dt>Devices in the fleet <span class="where"><var>C</var> × <var>I</var>, one collection each per interval</span></dt><dd id="o-d">—</dd>
+        <dt>Busy threads, steady state <span class="where"><var>C</var> × <var>T</var></span></dt><dd id="o-busy">—</dd>
+        <dt>Thread pool to configure <span class="where">1.2 × <var>C</var> × <var>T</var>, up to the next 50</span></dt><dd id="o-n">—</dd>
+        <dt>Cores busy at <var>U</var> = 1.0 <span class="where"><var>S</var> / <span id="f-percore">—</span></span></dt><dd id="o-kraw">—</dd>
+        <dt>vCPU to provision, <var>U</var> = 0.85 <span class="where">cores / <var>U</var>, to a power of two</span></dt><dd id="o-k">—</dd>
+        <dt>4 vCPU floor <span class="where">measured, not derived</span></dt><dd id="o-floor">—</dd>
+        <dt>Live heap <span class="where">2 GiB + 0.7 MiB × <var>D</var> + 2 MiB × <var>N</var></span></dt><dd id="o-h">—</dd>
+        <dt>Heap to configure <span class="where">1.4 × <var>H</var>, up to the next 4 GiB, never 32 to 47</span></dt><dd><span class="fx" id="o-heap" title="">—</span></dd>
+        <dt>VM memory <span class="where">1.5 × heap, up to the next 4 GiB</span></dt><dd id="o-ram">—</dd>
+        <dt>Metrics per hour <span class="where"><var>S</var> × 3600</span></dt><dd id="o-mph">—</dd>
+      </dl>
+      <p class="viz-note">Rounding: the pool is rounded up to the next 50, vCPU to the next power of two but never below four, heap and VM memory to the next 4 GiB. The live-heap line is the weak term of the rule and is marked as an estimate wherever it appears.</p>
+    </section>
+
+    <section id="constants">
+      <h2>The constants, and how well they hold</h2>
+
+      <p><strong>CPU per sample is a constant only when the heap has headroom.</strong> Four captures on a Core with a 20 GiB heap agree to within 0.6%. Every capture on a 10 GiB heap is worse and scattered, because garbage collection time is charged to the processor and how much of it there is depends on how hard the heap is being pressed.</p>
+
+      <div class="table-scroll"><table>
+        <caption>Core CPU per sample, computed as CPU busy × cores ÷ samples per second</caption>
+        <thead><tr><th>Capture</th><th>Heap</th><th class="c">metrics/s</th><th class="c">µs per sample</th><th class="c">samples/s per core</th></tr></thead>
+        <tbody>
+          <tr><td>mr5, pool 300</td><td>20 GiB</td><td class="n">97,038</td><td class="n">65.6</td><td class="n">15,246</td></tr>
+          <tr><td>mr5, pool 400</td><td>20 GiB</td><td class="n">114,418</td><td class="n">66.2</td><td class="n">15,113</td></tr>
+          <tr><td>32g-live, 300 threads</td><td>20 GiB</td><td class="n">99,952</td><td class="n">66.4</td><td class="n">15,071</td></tr>
+          <tr><td>pool400-live, 400 threads</td><td>20 GiB</td><td class="n">117,315</td><td class="n">65.7</td><td class="n">15,212</td></tr>
+          <tr><td>mr2, pool 200</td><td>10 GiB</td><td class="n">28,967</td><td class="n">76.5</td><td class="n">13,068</td></tr>
+          <tr><td>partial outage, baseline</td><td>10 GiB</td><td class="n">63,750</td><td class="n">77.9</td><td class="n">12,832</td></tr>
+          <tr><td>cleanroom</td><td>10 GiB</td><td class="n">81,130</td><td class="n">84.4</td><td class="n">11,847</td></tr>
+          <tr><td>mr5, pool 300</td><td>10 GiB</td><td class="n">79,658</td><td class="n">85.7</td><td class="n">11,664</td></tr>
+          <tr><td>mr2, pool 100</td><td>10 GiB</td><td class="n">14,483</td><td class="n">92.1</td><td class="n">10,862</td></tr>
+        </tbody>
+      </table></div>
+      <p class="viz-note">The gap between 15,000 and 12,000 samples a second per core is the running cost of under-sizing memory. It is not a small effect: at the bottom of the table a core does two thirds of the work it does at the top.</p>
+
+      <p><strong>The thread term reproduces every knee.</strong> At a knee the pool is by definition full, so the prediction <var>C</var> × <var>T</var> should land on the configured pool. Across six knees at two attribute settings and four pool sizes it lands within 12%.</p>
+
+      <div class="table-scroll"><table>
+        <caption>Predicted busy threads against the pool that was full at each measured knee</caption>
+        <thead><tr><th>Knee</th><th class="c">metrics/s</th><th class="c">T, s</th><th class="c">pool</th><th class="c">C × T</th><th class="c">ratio</th></tr></thead>
+        <tbody>
+          <tr><td>mr2, pool 100</td><td class="n">14,483</td><td class="n">11.4</td><td class="n">100</td><td class="n">95</td><td class="n">0.95</td></tr>
+          <tr><td>mr2, pool 200</td><td class="n">28,967</td><td class="n">11.1</td><td class="n">200</td><td class="n">185</td><td class="n">0.93</td></tr>
+          <tr><td>mr5, pool 200</td><td class="n">68,072</td><td class="n">5.0</td><td class="n">200</td><td class="n">196</td><td class="n">0.98</td></tr>
+          <tr><td>mr5, pool 300, 10 GiB heap</td><td class="n">79,658</td><td class="n">6.3</td><td class="n">300</td><td class="n">289</td><td class="n">0.96</td></tr>
+          <tr><td>mr5, pool 300, 20 GiB heap</td><td class="n">97,038</td><td class="n">5.4</td><td class="n">300</td><td class="n">302</td><td class="n">1.01</td></tr>
+          <tr><td>mr5, pool 400, 20 GiB heap</td><td class="n">114,418</td><td class="n">5.6</td><td class="n">400</td><td class="n">369</td><td class="n">0.92</td></tr>
+        </tbody>
+      </table></div>
+      <p class="viz-note">A healthy deployment should not land on 1.0. The 11,000-device deployment, which is not at a knee, sits at 0.76 of its pool, and that difference is its spare capacity.</p>
+    </section>
+
+    <section id="tested">
+      <h2>Tested against the lab</h2>
+
+      <p><strong>Two of the machines this rule specifies were built and run on 8 September 2026.</strong> The fleet was reduced to the device count the rule predicts, the VM was set to the vCPU and memory it asks for, the pool to the threads it asks for, and the agent latency tuned to the collection duration the case assumes. Everything else is the deployment described above.</p>
+
+      <div class="table-scroll"><table>
+        <caption>Case B, 40,000 metrics a second at a 5 s collection: 6,904 devices, 4 vCPU, 20 GiB, 12 GiB heap, threads=150, netem 70 ms</caption>
+        <thead><tr><th>Term</th><th class="c">rule</th><th class="c">measured</th><th class="c">error</th></tr></thead>
+        <tbody>
+          <tr><td>Devices</td><td class="n">6,904</td><td class="n">6,904</td><td class="n">exact</td></tr>
+          <tr><td>Metrics per second</td><td class="n">40,000</td><td class="n">40,443</td><td class="n">+1.1%</td></tr>
+          <tr><td>Collection duration</td><td class="n">5.00 s</td><td class="n">4.77 s</td><td class="n">−4.6%</td></tr>
+          <tr><td>Busy threads</td><td class="n">115</td><td class="n">111</td><td class="n">−3.5%</td></tr>
+          <tr><td>Cores busy</td><td class="n">2.67</td><td class="n">2.51</td><td class="n">−6%</td></tr>
+          <tr><td>Samples/s per core</td><td class="n">15,000</td><td class="n">16,087</td><td class="n">+7%</td></tr>
+          <tr><td>Live heap</td><td class="n">7.0 GiB</td><td class="n">7.69 used, no old-gen GC</td><td class="n">fits</td></tr>
+          <tr><td>Queue</td><td class="n">drains</td><td class="n">min 0, max 84</td><td class="n">pass</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>Every term inside 7%, and the queue returns to zero inside the interval, which is this campaign's pass rule. The per-core figure came in <em>above</em> 15,000 because the 12 GiB heap has real headroom and no old-generation collection ran in the window. That is the difference between the two CPU constants, observed directly rather than inferred.</p>
+
+      <div class="table-scroll"><table>
+        <caption>Case A, 20,000 metrics a second at a 10 s collection: 3,452 devices, 2 vCPU, 12 GiB, 8 GiB heap, threads=150, netem 152 ms</caption>
+        <thead><tr><th>Term</th><th class="c">rule</th><th class="c">measured</th><th class="c">verdict</th></tr></thead>
+        <tbody>
+          <tr><td>Devices</td><td class="n">3,452</td><td class="n">3,452</td><td class="n">exact</td></tr>
+          <tr><td>Metrics per second</td><td class="n">20,000</td><td class="n">15,676</td><td class="n">78% of target</td></tr>
+          <tr><td>Cores busy</td><td class="n">1.33 of 2, 67%</td><td class="n">2.00 of 2, 99.9%</td><td class="n">saturated</td></tr>
+          <tr><td>Cores actually demanded</td><td class="n">1.33</td><td class="n">1.61, measured on 8 cores</td><td class="n">rule 19% low</td></tr>
+          <tr><td>Busy threads</td><td class="n">115</td><td class="n">150, pool pinned</td><td class="n">pool bound</td></tr>
+          <tr><td>Collection duration</td><td class="n">10.0 s</td><td class="n">16.63 s</td><td class="n">inflated by starvation</td></tr>
+          <tr><td>Queue</td><td class="n">drains</td><td class="n">min 1,100, max 3,302</td><td class="n">never drains</td></tr>
+          <tr><td>Live heap</td><td class="n">4.7 GiB</td><td class="n">3.91 used, no old-gen GC</td><td class="n">fine</td></tr>
+        </tbody>
+      </table></div>
+
+      <p><strong>The 2 vCPU machine did not work, and memory was never the reason.</strong> The heap term was comfortable at both cases; the processor term is what failed. OpenNMS terminated itself three times on two vCPU, each time with the box between 97 and 100% of its two cores, consuming 12 min 35 s of CPU in 6 min 30 s of wall time on the last attempt. It never reached the steady state the rule sized it for.</p>
+
+      <h3>Why two cores collapsed, settled by experiment</h3>
+
+      <p>The obvious reading of case A, that two cores cannot do the work, is wrong. The collector was rebuilt on eight cores at the same 3,452 devices, allowed to reach steady state, and then six cores were taken offline from inside the guest with <code>echo 0 &gt; /sys/devices/system/cpu/cpuN/online</code>, no restart. The guest scheduler then dispatches to two CPUs and computes its run queue over two; the hypervisor is not involved, and the halted vCPU threads burn no host time. That removes the machine's capacity without asking it to absorb a startup wave.</p>
+
+      <div class="table-scroll"><table>
+        <caption>The same fleet and configuration, reached three different ways</caption>
+        <thead><tr><th>Term</th><th class="c">8 cores</th><th class="c">2 cores, hot-offlined</th><th class="c">2 cores, from a restart</th></tr></thead>
+        <tbody>
+          <tr><td>Metrics per second</td><td class="n">19,758 (98.8%)</td><td class="n">19,952 (99.8%)</td><td class="n">15,676 (78%)</td></tr>
+          <tr><td>Metrics per hour</td><td class="n">71.1 M</td><td class="n">71.8 M</td><td class="n">56.4 M</td></tr>
+          <tr><td>Cores busy</td><td class="n">1.61 of 8</td><td class="n">1.53 of 2, 76%</td><td class="n">2.00 of 2, 100%</td></tr>
+          <tr><td>Collection duration</td><td class="n">9.87 s</td><td class="n">11.59 s</td><td class="n">16.63 s</td></tr>
+          <tr><td>Busy threads</td><td class="n">112</td><td class="n">133</td><td class="n">150, pinned</td></tr>
+          <tr><td>Queue</td><td class="n">min 0, max 94</td><td class="n">min 0, max 509</td><td class="n">1,100 to 3,302</td></tr>
+          <tr><td>Outcome</td><td class="n">pass</td><td class="n">pass</td><td class="n">collapse</td></tr>
+        </tbody>
+      </table></div>
+
+      <p><strong>Two cores sustain this workload. They cannot start it.</strong> Held at steady state the collector runs at 76% of two cores and delivers 99.8% of the target rate with the queue returning to zero, which is a pass. Asked to begin from a restart, where every one of the 3,452 services falls due at once, it needs the recovery burst this campaign measured at 1.46 times steady state. That is 2.2 to 2.4 cores against the two it has, so the queue never drains, collection times stretch, the pool fills with threads waiting on a starved processor, and the collapse feeds itself. The earlier knee searches named the same mechanism: a run queue deep enough to delay the single thread that receives every RPC response.</p>
+
+      <h3>And the processor term is low at small sizes</h3>
+
+      <p>Running case A on eight cores gave something the collapsed run could not: an uncensored reading of what the work actually costs. It is <strong>1.61 cores against the rule's 1.33</strong>, 19% low. Case B, four times the rate, went the other way: 2.51 measured against 2.67 predicted, 6% high. Over-predicting at a high rate and under-predicting at a low one is the signature of a missing constant term.</p>
+
+      <div class="table-scroll"><table>
+        <caption>Cost per collection at the two measured rates</caption>
+        <thead><tr><th>Case</th><th class="c">collections/s</th><th class="c">cores busy</th><th class="c">core-s per collection</th></tr></thead>
+        <tbody>
+          <tr><td>Case A, 8 cores</td><td class="n">11.37</td><td class="n">1.61</td><td class="n">0.142</td></tr>
+          <tr><td>Case B, 4 cores</td><td class="n">23.27</td><td class="n">2.51</td><td class="n">0.108</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>A collection does not get cheaper as you do more of them; a fixed cost is being spread over more work. Fitting those two points gives roughly <strong>0.75 of a core of fixed overhead plus 0.076 core-seconds per collection</strong>, estimated. The JVM, Karaf, Jetty, eventd, alarmd and the exporters do not shrink with the fleet. On eight cores that 0.75 is a tenth of the machine and invisible inside the campaign's constant; on two it is more than a third, which is the second reason small collectors come out under-sized.</p>
+
+      <p class="where">Two limits on that fit. It rests on two points, and it does not extrapolate: applied to the campaign's 20,250-device rung it predicts 5.9 cores where 7.7 were measured. So it is evidence that a constant term exists and matters at the small end, not a replacement for the rule. The 15,000 samples a second per core stands where it was measured, at high rates on a heap with headroom.</p>
+
+      <p class="where">One qualification on the offlined run. The JVM had already sized itself for eight CPUs: <code>availableProcessors()</code> returned 8 at startup, so G1's parallel collector threads, the common ForkJoinPool and every pool derived from them kept their eight-core sizing when the cores went away. A natively booted two-vCPU JVM would size those smaller. The bias runs the conservative way, since more collector threads contending over two cores is harder rather than easier, so the pass stands; it is not, however, byte-identical to a two-vCPU machine. Node Exporter stops exporting an offline CPU altogether, which was checked: the utilisation above is averaged over the two online cores, not diluted by six frozen ones.</p>
+
+      <div class="callout">
+        <span class="eyebrow">Read this before trusting a small answer</span>
+        <p><strong>The rule sizes a steady state without asking whether the machine can reach it.</strong> A collector that cannot absorb its own restart is not a working collector, however well the arithmetic fits once it is running. Size for the burst, not the average: the floor exists because below four cores the burst has nowhere to land.</p>
+      </div>
+
+      <p class="where">A separate limit the same run exposed: two vCPU could not complete a provisioning import of this fleet either, and the import had to be done on eight vCPU before downsizing. Provisioning is not collection and this rule does not model it at all.</p>
+    </section>
+
+    <section id="examples">
+      <h2>Worked examples</h2>
+
+      <h3>72 million metrics an hour on the fleet we deployed</h3>
+      <p>The target is 72 M per hour, which is 20,000 samples a second. The deployed fleet is 11,000 simulated Cisco CRS-X devices of 144 interfaces each, the shape this whole campaign used, at <code>max-repetitions=5</code> and 76 ms per PDU, where a collection takes 5.2 s.</p>
+      <p><strong>That fleet already overshoots the target by a factor of three at a 300 s interval.</strong> 11,000 devices on 300 s make 36.7 collections a second, and at 1,738 samples each that is 63,750 samples a second, or 229 M an hour. So the question is not what hardware reaches 72 M. It is what the interval has to be for 11,000 devices to produce only 72 M, and what that saves.</p>
+
+      <div class="table-scroll"><table>
+        <caption>The same 11,000 devices, sized for 229 M/h and for 72 M/h. This Core runs a 10 GiB heap, so the cores line uses 12,000 samples a second per core, not 15,000.</caption>
+        <thead><tr><th></th><th class="c">300 s interval</th><th class="c">900 s interval</th></tr></thead>
+        <tbody>
+          <tr><td>Metrics per second</td><td class="n">63,750</td><td class="n">21,242</td></tr>
+          <tr><td>Metrics per hour</td><td class="n">229.5 M</td><td class="n">76.5 M</td></tr>
+          <tr><td>Collections per second</td><td class="n">36.7</td><td class="n">12.2</td></tr>
+          <tr><td>Busy threads, <var>C</var> × <var>T</var></td><td class="n">191</td><td class="n">64</td></tr>
+          <tr><td>Pool to configure</td><td class="n">250</td><td class="n">100</td></tr>
+          <tr><td>Cores busy</td><td class="n">5.3</td><td class="n">1.8</td></tr>
+          <tr><td>vCPU</td><td class="n">8</td><td class="n">4</td></tr>
+          <tr><td>Live heap, estimated</td><td class="n">10.0 GiB</td><td class="n">9.7 GiB</td></tr>
+          <tr><td>VM memory</td><td class="n">24 GiB</td><td class="n">24 GiB</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="note">
+        <p><strong>Tripling the interval cuts the pool and the processor by three and leaves the memory alone.</strong> Threads and CPU follow the rate; the heap follows the device count, and that has not changed. This is the single most useful thing the rule says about intervals, and it is the reason a slow, wide fleet is a memory problem while a fast, narrow one is a processor problem.</p>
+      </div>
+
+      <p class="where">Measured check: this deployment ran the 300 s column on 8 vCPU at 62.1% with 190 busy threads of 250 and a 10 GiB heap holding 8.6 GiB with no old-generation collection. The rule's 191 threads and 5.3 cores match. Its 10.0 GiB live-heap estimate does not: a 10 GiB heap carried it comfortably, so the memory term is reading high here by something like a third.</p>
+
+      <h3>72 million metrics an hour, sized from scratch</h3>
+      <p>Same device, same 5.2 s collection, but the fleet is whatever the target needs on a 300 s interval.</p>
+      <pre class="mono"><var>S</var> = 20 000 metrics/s          target
+<var>C</var> = 20 000 / 1 738            = 11.5 collections/s
+<var>D</var> = 11.5 × 300                = 3 452 devices
+<var>N</var> = 1.2 × 11.5 × 5.2          = 72       -> threads="100"
+<var>K</var> = 20 000 / 15 000 / 0.85    = 1.6      -> 4 vCPU (the floor; 2 was tried and collapsed)
+<var>H</var> = 2 + 2.4 + 0.2             = 4.6 GiB estimated -> 8 GiB heap on a 12 GiB VM
+                                         measured on that machine: 3.91 GiB used, no old-gen GC</pre>
+      <p class="where">Measured check: <code>pm-snmp-target</code> sustained 79.3 M an hour on 3,801 devices with a 100-thread pool and a Core averaging 23.7% of 8 vCPU, which is 1.9 cores against the rule's 1.5 at that rate. The rule is a little optimistic there and that run carried work this rule does not model.</p>
+
+      <h3>A wide, slow fleet</h3>
+      <p>30,000 devices of the same shape at 20 ms per PDU, so <var>T</var> = 61 × 0.020 + 0.75 = 1.97 s, on a 300 s interval. The rate is 173,800 metrics a second, 626 M an hour.</p>
+      <pre class="mono"><var>C</var> = 100 collections/s
+<var>N</var> = 1.2 × 100 × 1.97          = 236      -> threads="250"
+<var>K</var> = 173 800 / 15 000 / 0.85   = 13.6     -> 16 vCPU
+<var>H</var> = 2 + 20.5 + 0.5            = 23 GiB estimated -> 31 GiB heap on a 48 GiB VM
+                                         31, not 32: above ~31 GiB the JVM drops pointer compression</pre>
+      <p class="where">The processor and the memory both grow; the pool barely does, because a fast agent returns its thread quickly. Latency, not fleet size, is what fills a pool.</p>
+    </section>
+
+    <section id="stops">
+      <h2>Where this stops applying</h2>
+      <div class="table-scroll"><table>
+        <caption>What the rule cannot tell you</caption>
+        <thead><tr><th>Question</th><th>Why not</th><th>Validity</th></tr></thead>
+        <tbody>
+          <tr><td>How much memory do I actually need?</td><td>The heap term is a four-point fit in which the two low-end points sit on a 10 GiB heap, so the live set is censored by the heap it ran on and cannot be observed. Fitting only the two uncensored points gives a negative intercept, which is not physical. Against the 11,000-device deployment the term reads about a third high. Use it as an order-of-magnitude floor, then watch the old-generation collection rate. This matters: memory was the binding term at one of the six knees.</td><td class="c">conclusion</td></tr>
+          <tr><td>Do the constants hold for another device?</td><td>Every constant is a property of one simulated Cisco CRS-X with 144 interfaces and one collection package: 1,738 samples per collection, results carried as XML through the Kafka RPC. Another device or package moves <var>m</var>, <var>T</var> and the 66 µs together. The form of the rule does not change; the constants must be read again the same way.</td><td class="c">external</td></tr>
+          <tr><td>Does it hold for a fleet with slow agents?</td><td>The latency is injected uniformly by netem on every response. A real fleet's slow agents time out, and a timeout holds a thread far longer than a response does. The simulator never times out, so nothing here sizes a pool against a degraded fleet.</td><td class="c">external</td></tr>
+          <tr><td>What does <var>T</var> hide?</td><td>Taking the collection duration as an input is convenient when it has been measured, but it folds away <var>T</var> = <var>P</var> × <var>R</var> + 0.75 s and with it the largest lever in the whole rule. <code>max-repetitions</code> changes <var>P</var> by a factor of 2.4 and therefore <var>T</var>, and it costs nothing. Size the attribute before sizing the machine.</td><td class="c">construct</td></tr>
+          <tr><td>Why a four-vCPU floor, and is four enough?</td><td>Because two was measured and it collapsed. The floor is an empirical guard rail from a single failing case, not a derived constant. The mechanism it stands in for, the restart wave at 1.46 times steady-state CPU landing on a machine with no spare, was not isolated: settling that would mean reaching steady state on a large machine and hot-removing cores without a restart, which was not done. Four is where this lab stopped failing, not a proven minimum. It is also applied unconditionally, so a very small fleet gets four vCPU for work that needs a fraction of one. That is deliberate but untested at that end: the restart burst scales with the fleet, so a few hundred devices may well start on less. The floor was measured at 3,452 devices and nowhere smaller.</td><td class="c">conclusion</td></tr>
+          <tr><td>What happens to the heap term above 31 GiB?</td><td>With G1, Parallel or Serial the JVM addresses a heap of about 31 GiB or less with compressed ordinary object pointers, four bytes per reference; past that it uses eight, so a 32 GiB heap holds less application data than a 31 GiB one. The advice is to skip 32 to 47 GiB entirely and jump to 48 or beyond, which is what this page does. Still true on JDK 21 and JDK 25: the limit is architectural, 32-bit offsets against 8-byte alignment, and G1's own ergonomics still clamp the default maximum heap to it. The true cutoff sits slightly under 32 GiB because of the null page, which is why 31 is the number to use, and newer JDKs will nudge a heap down when it lands within a couple of per cent of the line. <strong>None of this was measured here.</strong> The largest heap this campaign ran was 20 GiB, on JDK 21.0.12 with G1 and compressed pointers on, so everything above that line is documented JVM behaviour applied to this rule rather than a result, and the quarter added when the threshold is crossed stands in for a measurement nobody has taken.</td><td class="c">external</td></tr>
+          <tr><td>Can the threshold be avoided rather than sized around?</td><td>Two ways, neither tested here. ZGC never uses compressed pointers at all, since it stores metadata in the pointer itself, so it has no cliff: above 31 GiB it simply pays a cost G1 avoids below it, and the heap can be sized purely from the live set. If a deployment genuinely needs more than 31 GiB, changing collector is likely a better answer than jumping to 48. Separately, compact object headers, experimental in JDK 24 and a product feature in JDK 25 under <code>-XX:+UseCompactObjectHeaders</code>, merge the mark and class words and cut 10 to 20 per cent off heap usage; that does not move the threshold but it shrinks the live set, so it pushes the device count at which you meet it further out. Neither was run on this deployment.</td><td class="c">external</td></tr>
+          <tr><td>Does the rule cover provisioning?</td><td>No. It sizes steady-state collection. The same test showed two vCPU could not complete a provisioning import of 3,452 nodes, which had to be run on eight vCPU first. Imports, rescans and the rolling provisiond scan are work this rule does not count.</td><td class="c">construct</td></tr>
+          <tr><td>Is 0.96 really the cliff?</td><td>It is where this Core collapsed, and the collapse is sharp: a run queue a few deep delays the single thread that receives every RPC response, the pool then fills with waiting threads, and the backlog does not drain without a restart. It is one machine's number, observed at one shape of load.</td><td class="c">external</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="provenance">
+      <h2>Where each number comes from</h2>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Number</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>66 µs per sample, 15,000 samples/s per core</td><td><code>pm-snmp-agent-latency-32g-live</code>, <code>pm-snmp-agent-latency-32g-pool400-live</code>, and the two 20 GiB rungs of <code>pm-snmp-sizing-rule</code></td></tr>
+          <tr><td>12,000 samples/s per core on a pressed heap</td><td><code>pm-snmp-14k-cleanroom</code>, <code>pm-snmp-agent-latency-mr5</code>, <code>pm-snmp-agent-latency-pool200</code>, <code>pm-snmp-partial-outage</code></td></tr>
+          <tr><td><var>T</var> = <var>P</var> × <var>R</var> + 0.75 s, the 1.2 wave margin, U = 0.85 and 0.96</td><td><code>pm-snmp-sizing-rule</code>, which derives them from the latency sweep, the edge search and six knee searches</td></tr>
+          <tr><td>1,738 samples per collection</td><td>decoded from the metrics topic; 27,163 of 27,183 records in a 5,250-device capture carried exactly this</td></tr>
+          <tr><td>P = 61 at <code>max-repetitions=5</code>, 149 at the default</td><td>counted on the Minion's pcap, <code>pm-snmp-agent-latency-mr5</code></td></tr>
+          <tr><td>The heap fit</td><td>four points in <code>pm-snmp-sizing-rule</code>; see the caveat above before using it</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+  </div>
+
+  <footer class="doc">
+    <span>Sizing a Collectd SNMP collector · derived from the pm-snmp campaign, 1 to 8 September 2026 · no new measurement</span>
+    <span>Ronny Trommer &lt;ronny@opennms.com&gt; · built by <code>docs/sizing/build.py</code> from <code>sizing.body.html</code></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var ids = ['in-s', 'in-t', 'in-m', 'in-i', 'in-gc'];
+  var GIB = 1073741824;
+
+  function ceilTo(x, step) { return Math.ceil(x / step) * step; }
+  function pow2(x) { var v = 1; while (v < x) { v *= 2; } return Math.max(v, 1); }
+  // ISO 80000-1: groups of three split by a narrow no-break space, point as decimal sign.
+  var THIN = '\u202f';
+  function fmt(x, d) {
+    return x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+            .replace(/,/g, THIN);
+  }
+
+  function run() {
+    var S = parseFloat($('in-s').value);
+    var T = parseFloat($('in-t').value);
+    var m = parseFloat($('in-m').value);
+    var I = parseFloat($('in-i').value);
+    var perCore = $('in-gc').checked ? 12000 : 15000;
+    var U = 0.85;
+
+    if (!(S > 0 && T > 0 && m > 0 && I > 0)) {
+      ['o-c','o-d','o-busy','o-n','o-kraw','o-k','o-floor','o-h','o-heap','o-ram','o-mph']
+        .forEach(function (i) { $(i).textContent = '—'; });
+      return;
+    }
+
+    var C = S / m;
+    var D = C * I;
+    var busy = C * T;
+    var N = ceilTo(1.2 * busy, 50);
+    var kRaw = S / perCore;
+    var kUnfloored = pow2(Math.ceil(kRaw / U));
+    // Measured, not derived: 2 vCPU collapsed under the restart wave. See "Tested against the lab".
+    var K = Math.max(4, kUnfloored);
+    var liveGiB = 2 + (0.7 * D) / 1024 + (2 * N) / 1024;
+    // Compressed ordinary object pointers stop working above roughly 31 GiB of heap, and every
+    // reference then doubles from 4 to 8 bytes. Rounding up across that line makes the heap hold
+    // LESS, so never land between 32 and 47: either stay under the line, or jump past it far enough to recover.
+    var rawHeap = 1.4 * liveGiB;
+    var heap, oops;
+    if (rawHeap <= 31) {
+      heap = Math.min(31, ceilTo(rawHeap, 4));
+      oops = 'Compressed object pointers: kept. This heap is under the ~31 GiB threshold, so references stay 4 bytes wide.';
+    } else if (liveGiB * 1.25 <= 31) {
+      heap = 31;                       // tighter than 1.4x live, but worth it to keep compression
+      oops = 'Compressed object pointers: kept, at the cost of a tighter heap. 1.4 × live would cross the ~31 GiB threshold, and 31 GiB with 4-byte references holds more than 32 GiB with 8-byte ones.';
+    } else {
+      heap = Math.max(48, ceilTo(rawHeap * 1.25, 4));
+      oops = 'Compressed object pointers: lost. Above ~31 GiB every reference doubles to 8 bytes, so 32 to 47 GiB is skipped entirely and this is sized past it to break even. ZGC has no such threshold and may suit better. Not measured in this campaign, whose largest heap was 20 GiB.';
+    }
+    var ram = ceilTo(1.5 * heap, 4);
+
+    $('o-c').textContent = fmt(C, 1) + ' /s';
+    $('o-d').textContent = fmt(D, 0);
+    $('o-busy').textContent = fmt(busy, 0);
+    $('o-n').textContent = 'threads="' + N + '"';
+    $('o-kraw').textContent = fmt(kRaw, 2);
+    $('f-percore').textContent = fmt(perCore, 0);
+    $('o-k').textContent = K + ', ' + fmt(100 * kRaw / K, 0) + THIN + '% busy';
+    $('o-floor').textContent = K > kUnfloored
+      ? 'applied: arithmetic alone said ' + kUnfloored
+      : 'not binding';
+    $('o-h').textContent = fmt(liveGiB, 1) + ' GiB, estimated';
+    $('o-heap').textContent = heap + ' GiB';
+    $('o-heap').title = oops;
+    $('o-ram').textContent = ram + ' GiB';
+    $('o-mph').textContent = fmt(S * 3600, 0);
+  }
+
+  ids.forEach(function (i) {
+    var el = $(i);
+    el.addEventListener('input', run);
+    el.addEventListener('change', run);
+  });
+  run();
+})();
+</script>
