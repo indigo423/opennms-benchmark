@@ -36,3 +36,27 @@
     mode: "0644"
   notify: Restart grafana
   tags: ["monitoring", "grafana"]
+
+# Only when the deployment actually writes somewhere. A datasource pointing at a
+# backend nothing populates is worse than no datasource: every dashboard built on
+# it reads empty, which looks like a system producing no metrics rather than a
+# connection to a store that was never filled.
+#
+# Removed again when remote_write is turned off, so the datasource list follows
+# the deployment instead of accumulating whatever any past run enabled.
+- name: Deploy the VictoriaMetrics datasource
+  ansible.builtin.template:
+    src: datasources/victoriametrics.yml.j2
+    dest: "{{ grafana_provisioning_datasources_dir }}/victoriametrics.yml"
+    mode: "0644"
+  when: opennms_remotewrite.enabled | default(false)
+  notify: Restart grafana
+  tags: ["monitoring", "grafana"]
+
+- name: Remove the VictoriaMetrics datasource when nothing writes to it
+  ansible.builtin.file:
+    path: "{{ grafana_provisioning_datasources_dir }}/victoriametrics.yml"
+    state: absent
+  when: not (opennms_remotewrite.enabled | default(false))
+  notify: Restart grafana
+  tags: ["monitoring", "grafana"]

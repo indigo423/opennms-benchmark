@@ -1,0 +1,58 @@
+---
+# Managed by Ansible.
+#
+# The remote_write backend as a Grafana datasource, so the time series OpenNMS
+# persists there can be read in Grafana rather than only through the plugin's
+# readUrl or a curl against the HTTP API.
+#
+# This is NOT where VictoriaMetrics' own instrumentation lives. The backend does
+# not scrape itself, deliberately: self-scrape would write its own series into
+# the store a benchmark is measuring, adding ingest, series and disk to the
+# thing under test. Its vm_* series are collected by the lab Prometheus instead
+# (the victoriametrics job in bootstrap/roles/prometheus), which is what the
+# VictoriaMetrics dashboard reads. So:
+#
+#   this datasource     -> the metrics OpenNMS wrote (Collectd samples)
+#   the Prometheus one  -> how the backend itself is behaving (vm_*)
+#
+# type is `prometheus`: VictoriaMetrics implements the Prometheus query API and
+# Grafana has no separate core datasource for it. prometheusType Prometheus
+# keeps Grafana from offering Mimir/Thanos-only features the backend lacks.
+#
+# The URL derives from the plugin's read_url, so this datasource and the writer
+# cannot disagree about which backend is in use.
+#
+# The trailing /api/v1 is STRIPPED. The two consumers disagree about what a
+# "read URL" is: the plugin wants the full API root
+# (http://host:8428/prometheus/api/v1) while Grafana wants the base and appends
+# /api/v1/query itself. Passed through verbatim, Grafana asks for
+# /prometheus/api/v1/api/v1/query and every panel 404s with a datasource that
+# looks correctly configured.
+#
+# The uid is fixed so dashboards and links can address it across redeploys.
+apiVersion: 1
+
+datasources:
+  - name: VictoriaMetrics
+    type: prometheus
+    uid: victoriametrics
+    orgId: 1
+    access: proxy
+    url: {{ opennms_remotewrite.read_url | default('http://localhost:8428/prometheus', true) | regex_replace('/api/v1/?$', '') }}
+    jsonData:
+      httpMethod: POST
+      manageAlerts: false
+      prometheusType: Prometheus
+      cacheLevel: Low
+      # The interval the samples actually arrive at. Below this, Grafana asks
+      # for a resolution the data does not have and draws gaps between points
+      # that are not gaps in the data. OpenNMS collects on a 300 s cycle.
+      timeInterval: "{{ victoriametrics_datasource_time_interval | default('300s', true) }}"
+{% if opennms_remotewrite.organization_id | default('', true) %}
+      # Multi-tenant backends read the tenant from this header. Empty on a
+      # single-node VictoriaMetrics, so it is only emitted when set.
+      httpHeaderName1: "X-Scope-OrgID"
+    secureJsonData:
+      httpHeaderValue1: "{{ opennms_remotewrite.organization_id }}"
+{% endif %}
+    editable: true
