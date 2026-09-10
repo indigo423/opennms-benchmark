@@ -2,7 +2,9 @@
 
 An **experiment** is the workload: which protocols are driven, at what rate, against how many devices, and the requisition that matches.
 The **deployment** is the system under test.
-Keeping them apart is what lets one topology serve several benchmarks, and it is why nothing about load belongs in `deployments/`.
+The **campaign** is the sealed record of a run, and it lives in `campaigns/`.
+
+Keeping the three apart is what lets one topology serve several benchmarks. It is why nothing about load belongs in `deployments/`, and why nothing about the system under test belongs in an experiment's or a record's name.
 
 ```bash
 make experiment PROVIDER=<provider> EXPERIMENT=<name>
@@ -50,14 +52,26 @@ experiments/
     experiment.yml         # the playbook; hosts: core, minion, …
     opennms-lab-vars.yml   # optional overlay, layered after the root vars
     roles/                 # experiment-local roles
-  legacy/                  # pre-rebuild, reference only — see below
-  inventory/               # requisition and fleet helpers, not an experiment
+  flows-es-vs-victorialogs/    # standalone harness with its own runner
   nms-20027-painless-flows/    # standalone harness with its own runner
+  inventory/               # requisition and fleet helpers, not an experiment
+  legacy/                  # pre-rebuild, reference only — see below
+  roles/                   # roles shared across experiments
 ```
 
-`make experiments` lists only the playbook-driven ones. The standalone harness predates this structure, carries its own scripts and reports, and is run directly rather than through the front door.
+Everything here can be run. One test decides whether a directory belongs: it has an `experiment.yml`, or it has its own `bin/` runner, or it is shared tooling. `make experiments` lists the first kind, which is now the whole of `experiments/*/experiment.yml` rather than a subset of the tree.
+
+**A record of a run that has already happened belongs in `campaigns/`, not here.** It has no playbook and no runner, because the run is over and what remains is its evidence. See `campaigns/README.md`, which indexes every one of them.
+
+The two standalone harnesses predate this structure, carry their own scripts and reports, and are run directly rather than through the front door.
 
 No `ansible.cfg`, no `inventory`, no `opennms-lab-inventory.yml`. The repository root owns all three.
+
+## A record and its experiment share a slug
+
+`experiments/pm-snmp-target/experiment.yml` is the workload; `campaigns/pm-snmp-target/results/` is what it produced. Same slug, other tree, and that convention is the only association there is.
+
+It follows that nothing about the system under test belongs in a directory name on either side. `deployments/` owns the system under test, and where a record needs to say which heap, which pool or which `max-repetitions` it ran at, the index in `campaigns/README.md` carries it. Sixteen records were named that way before, and seven of them differ in nothing else.
 
 ## `legacy/` is reference, not runnable
 
