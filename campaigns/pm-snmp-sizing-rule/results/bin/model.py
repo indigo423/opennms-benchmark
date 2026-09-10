@@ -11,8 +11,8 @@ smaller is the knee. Every input is read from the searches' own records.
 import json
 import statistics
 
-A = "experiments/pm-snmp-agent-latency/results"
-L = "experiments/pm-snmp-latency/results"
+A = "campaigns/pm-snmp-agent-latency/results"
+L = "campaigns/pm-snmp-latency/results"
 R_MS = 75.6           # median SNMP round trip under netem delay 75ms 25ms, from the Minion pcap
 INTERVAL = 300
 

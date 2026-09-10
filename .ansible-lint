@@ -14,7 +14,10 @@
 # exclusion guarded nothing while the path that replaced it was unguarded.
 exclude_paths:
   - .ansible/
-  # benchmark-capture's run configs are plain YAML, not Ansible.
+  # benchmark-capture's run configs are plain YAML, not Ansible. Both prefixes:
+  # sealed records live in campaigns/, and a playbook experiment can still be
+  # given a results directory of its own, as pm-snmp-target had until #313.
+  - campaigns/*/results*/capture.yaml
   - experiments/*/results*/capture.yaml
 
 # experiments/inventory/ holds nl6 node-provisioning tooling, so ansible-lint

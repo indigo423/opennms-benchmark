@@ -29,7 +29,7 @@ T0 10:28:02Z, T1 10:43:12Z; one line per minute from bin/monitor.py.
 | After, 10:45 to 11:00 | 36.67 | 100.0% | 93% | 32 | 190 | 59.8% | 0 | pass |
 | After, 11:00 to 11:15 | 36.66 | 99.9% | 92% | 56 | 190 | 61.9% | 0 | pass |
 
-Table: `trials.jsonl` here for the two windows after; the window before is the record `class16g-11000-threads250-g1` in `experiments/pm-snmp-sizing-rule/results/trials.jsonl`.
+Table: `trials.jsonl` here for the two windows after; the window before is the record `class16g-11000-threads250-g1` in `campaigns/pm-snmp-sizing-rule/results/trials.jsonl`.
 
 REST during the outage: three requests for the node list answered in 0.29 to 0.45 s.
 

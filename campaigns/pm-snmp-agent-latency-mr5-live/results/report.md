@@ -20,7 +20,7 @@ method: |
   It had run at this size since 02:43 UTC; the capture was armed at 07:42 and the window is 07:45 to 08:20 UTC, seven 300 s cycles.
 
   Every collector of the benchmark-capture skill ran on Core and the Minion: JFR profiles, GC logs enabled at runtime with `jcmd VM.log`, `perf` at 99 Hz, a 5 s procfs poller, sysstat, every interface as pcap, and the `metrics` topic itself streamed from the broker for 1,560 s.
-  The artifact is sealed under `experiments/pm-snmp-agent-latency-mr5-live/results`.
+  The artifact is sealed under `campaigns/pm-snmp-agent-latency-mr5-live/results`.
   This report reads only the Prometheus side of it: Collectd's JMX gauges and counters, the JVM's G1 counters, Node Exporter on every VM.
 
   Rates are window integrals of the completion counter over the seven cycles.

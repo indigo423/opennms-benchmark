@@ -166,12 +166,12 @@ reproducing the measured figure exactly. `mib2-interfaces` is **not** used (it i
 
 | what | where |
 |---|---|
-| Runbook (latency sweep) | `experiments/pm-snmp-latency/RUNBOOK.md` |
+| Runbook (latency sweep) | `campaigns/pm-snmp-latency/RUNBOOK.md` |
 | Research artifact | `_bmad-output/planning-artifacts/research/technical-snmp-agent-response-latency-modelling-2026-09-01/research.md` |
 | Published report | https://claude.ai/code/artifact/79e147e0-8f42-4632-8961-8f0abbafa07e |
-| Benchmark report source | `experiments/pm-snmp-target/results/report-fragment.html` → `report.html` via `build-report.py` |
-| Rung data, all three sweeps | `experiments/pm-snmp-latency/results/` — see its `README.md`. Recovered from the scratchpad; this is the only copy |
-| Campaign drivers | `experiments/pm-snmp-latency/results/bin/` — preserved verbatim as provenance, excluded from ruff in `ruff.toml` |
+| Benchmark report source | `campaigns/pm-snmp-target/results/report-fragment.html` → `report.html` via `build-report.py` |
+| Rung data, all three sweeps | `campaigns/pm-snmp-latency/results/` — see its `README.md`. Recovered from the scratchpad; this is the only copy |
+| Campaign drivers | `campaigns/pm-snmp-latency/results/bin/` — preserved verbatim as provenance, excluded from ruff in `ruff.toml` |
 | Instrumentation capture | Core `/var/tmp/pm-snmp-latency/capture.log` — 1.18 GB, **capture stopped 2026-09-02 16:00**; file left in place as raw evidence |
 | Duration parser | Core `/var/tmp/pm-snmp-latency/durations.py` — `collectData` begin→end per device |
 | Fleet manifest | mon `/tmp/nl6-manifest.json` — **stale above 10,051**; re-capture after every growth |
