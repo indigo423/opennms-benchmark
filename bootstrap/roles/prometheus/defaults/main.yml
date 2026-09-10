@@ -15,3 +15,19 @@ prometheus_memory: 512m
 prometheus_tz: UTC
 prometheus_config_dir: /etc/docker/prometheus
 prometheus_retention_time: 90d
+
+# Extra VictoriaMetrics instances to scrape, as "host:port".
+#
+# Normally empty and normally should stay that way. The template already derives
+# the job from two places that each own the address: members of the
+# victoriametrics inventory group, and the backend named by
+# opennms_remotewrite.write_url. Both follow the deployment, so neither can
+# disagree with it.
+#
+# This list is for the case neither covers: a store on a different lab that this
+# deployment does not write to yet, which therefore has no route into the
+# scrape config at all. That is the state the vm-target backend was in before
+# #316 enabled remote_write against it. Anything added here is a second place an
+# address is written down, so remove the entry once the deployment writes to it
+# and the target derives itself.
+prometheus_victoriametrics_targets: []

@@ -358,6 +358,17 @@ experiments: ## List runnable experiments
 	echo "   runners; experiments/legacy/ is reference. Records of runs that"; \
 	echo "   already happened are in campaigns/ — see campaigns/README.md)"
 
+.PHONY: monitoring
+monitoring: check-provider ## Re-apply the monitoring stack config on a running lab (PROVIDER=…, DEPLOYMENT=<slug>)
+	@[ -f $(INVENTORY) ] || { echo "Error: $(INVENTORY) not found; deploy first" >&2; exit 1; }
+	ansible-playbook --become -i $(INVENTORY) \
+	  bootstrap/preparation-playbook.yml \
+	  --limit mon_servers --tags monitoring \
+	  --extra-vars="lab_provider=$(PROVIDER)" \
+	  --extra-vars="@opennms-lab-vars.yml" \
+	  $(if $(wildcard $(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml),--extra-vars="@$(DEPLOYMENTS_DIR)/$(DEPLOYMENT)/opennms-lab-vars.yml") \
+	  $(if $(EXPERIMENT),$(if $(wildcard experiments/$(EXPERIMENT)/opennms-lab-vars.yml),--extra-vars="@experiments/$(EXPERIMENT)/opennms-lab-vars.yml"))
+
 .PHONY: endpoints
 endpoints: check-provider ## Publish lab-endpoints.<provider>.yml for a running lab (PROVIDER=…, DEPLOYMENT=<slug>)
 	@[ -f $(INVENTORY) ] || { echo "Error: $(INVENTORY) not found; deploy first" >&2; exit 1; }

@@ -63,3 +63,54 @@ scrape_configs:
         labels:
           app: "pyroscope"
 {% endfor %}
+
+{# VictoriaMetrics exports its own instrumentation on the same port it serves    #}
+{# on, so scraping it needs no exporter. Two ways it can appear:                 #}
+{#                                                                              #}
+{#   in-lab   a victoriametrics group member, as vm-single provisions            #}
+{#   off-lab  the remote_write backend a deployment writes to, which vm-target    #}
+{#            provisions on a different lab entirely                             #}
+{#                                                                              #}
+{# The off-lab target is derived from opennms_remotewrite.write_url rather than   #}
+{# written here. That URL is set by the deployment or experiment overlay and is   #}
+{# the address's one definition; a second copy in this template would disagree    #}
+{# with it the first time the backend moves.                                     #}
+{#                                                                              #}
+{# A third way, the escape hatch: prometheus_victoriametrics_targets. A store on  #}
+{# another lab that nothing here writes to yet has no other route into this      #}
+{# config, because the two derivations above both go through this deployment.    #}
+{# Prefer either of them; reach for this only when neither applies, and expect    #}
+{# to remove it once remote_write is enabled and the address derives itself.     #}
+{#                                                                              #}
+{# Deduplicated because a deployment can be more than one of these: vm-single     #}
+{# puts the store in the lab AND points write_url at it, and Prometheus rejects   #}
+{# a config carrying the same target twice in one job.                           #}
+{% set vm_targets = [] %}
+{% for target in prometheus_victoriametrics_targets | default([]) %}
+{%   set _ = vm_targets.append(target) %}
+{% endfor %}
+{% for host in groups['victoriametrics'] | default([]) %}
+{%   if (host ~ ':8428') not in vm_targets %}
+{%     set _ = vm_targets.append(host ~ ':8428') %}
+{%   endif %}
+{% endfor %}
+{% if opennms_remotewrite is defined and opennms_remotewrite.enabled | default(false) %}
+{%   set rw_authority = opennms_remotewrite.write_url | regex_replace('^https?://([^/]+).*$', '\\1') %}
+{%   if rw_authority not in vm_targets %}
+{%     set _ = vm_targets.append(rw_authority) %}
+{%   endif %}
+{% endif %}
+{% if vm_targets %}
+  # Accepted-throughput measurement point for a remote_write deployment (#316).
+  # vm_rows_inserted_total{type="promremotewrite"} is what the backend actually
+  # wrote, measured outside the plugin under test, which is why a write
+  # comparison reads it rather than the plugin's own samplesWritten.
+  - job_name: "victoriametrics"
+    static_configs:
+      - targets:
+{% for target in vm_targets %}
+          - "{{ target }}"
+{% endfor %}
+        labels:
+          app: "victoriametrics"
+{% endif %}
