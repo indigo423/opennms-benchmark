@@ -102,7 +102,17 @@ __pycache__/
 .ruff_cache/
 
 
+# Every rule below is stated for both campaigns/ and experiments/. Measured
+# records live in campaigns/; a playbook experiment that seals a capture in
+# place still writes the same payloads under experiments/. Both prefixes are
+# kept deliberately: a record relocated while only one prefix was listed turns
+# tens of GB of pcap, perf, JFR and Prometheus series untracked and stageable
+# in one step, and `git add .` then commits the artifact this repository keeps
+# on disk on purpose.
+
 # benchmark-report bundles
+campaigns/*/results/bundle/
+campaigns/*/results/*-report.tar.gz
 experiments/*/results/bundle/
 experiments/*/results/*-report.tar.gz
 
@@ -111,6 +121,7 @@ experiments/*/results/*-report.tar.gz
 # the numbers have no provenance. `git add <dir>` honours .gitignore silently,
 # so without this negation the data lands in a commit and the log that explains
 # it does not, with nothing said either way.
+!campaigns/*/results/*.log
 !experiments/*/results/*.log
 
 # benchmark-capture payloads. The artifact is tens of GB of pcap, perf, JFR,
@@ -118,12 +129,18 @@ experiments/*/results/*-report.tar.gz
 # checksums and the orchestrator log are small enough and useful enough to
 # track. Everything else is reproducible only by re-running the capture, and
 # is kept on disk rather than in git.
+campaigns/*/results/hosts/
+campaigns/*/results/prometheus/series/
+campaigns/*/results/kafka/
 experiments/*/results/hosts/
 experiments/*/results/prometheus/series/
 experiments/*/results/kafka/
 # A superseded capture attempt kept on disk as a fallback; the sealed one is results/.
+campaigns/*/results-attempt*/
 experiments/*/results-attempt*/
 
 # Scratch scripts pool_sweep.py writes before scp-ing them to the host, regenerated every run
+campaigns/*/results/.prep.py
+campaigns/*/results/.set_threads.py
 experiments/*/results/.prep.py
 experiments/*/results/.set_threads.py
