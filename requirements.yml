@@ -30,7 +30,7 @@ collections:
   # ── consumed by the OpenNMS deployment roles ───────────────────────────────
   # Required by indigo423.opennms (>=4.2.0). No direct call site here.
   - name: community.postgresql
-    version: "4.2.0"
+    version: "5.0.0"
 
   # Direct call site: bootstrap/roles/common (timezone). Also required by
   # indigo423.opennms (>=12.6.0), grafana.grafana (>=8.2.0) and
