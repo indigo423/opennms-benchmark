@@ -45,7 +45,7 @@ collections:
   # 13.0.0 also dropped support for ansible-core 2.17, which is the floor in
   # constraints.txt. Moving this pin can move that one.
   - name: community.general
-    version: "13.4.0"
+    version: "13.5.0"
 
   # Required by indigo423.opennms (>=6.1.0). No direct call site here.
   # Stock Galaxy release (6.1.0). Works with the Grafana 12.x pin in
@@ -72,14 +72,14 @@ collections:
   # every requires_ansible range before bumping either; `make
   # validate-collections` does it.
   - name: prometheus.prometheus
-    version: "0.30.1"
+    version: "0.30.2"
 
   # Used by the repo-local deployments/roles/rustfs role to create the S3
   # buckets Mimir needs; S3 PutObject fails against a bucket that does not
   # exist and Mimir does not create its own. Not a dependency of the OpenNMS
   # deployment roles.
   - name: amazon.aws
-    version: "11.4.0"
+    version: "11.5.0"
 
   # ── transitive, declared because the resolver is off ───────────────────────
   # Required by grafana.grafana (>=1.5.4). No direct call site.
