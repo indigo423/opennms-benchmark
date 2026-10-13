@@ -30,7 +30,7 @@ collections:
   # ── consumed by the OpenNMS deployment roles ───────────────────────────────
   # Required by indigo423.opennms (>=4.2.0). No direct call site here.
   - name: community.postgresql
-    version: "4.2.0"
+    version: "5.0.0"
 
   # Direct call site: bootstrap/roles/common (timezone). Also required by
   # indigo423.opennms (>=12.6.0), grafana.grafana (>=8.2.0) and
@@ -79,7 +79,7 @@ collections:
   # exist and Mimir does not create its own. Not a dependency of the OpenNMS
   # deployment roles.
   - name: amazon.aws
-    version: "11.4.0"
+    version: "12.0.0"
 
   # ── transitive, declared because the resolver is off ───────────────────────
   # Required by grafana.grafana (>=1.5.4). No direct call site.
