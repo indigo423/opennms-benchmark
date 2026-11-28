@@ -72,7 +72,7 @@ collections:
   # every requires_ansible range before bumping either; `make
   # validate-collections` does it.
   - name: prometheus.prometheus
-    version: "0.30.2"
+    version: "0.31.0"
 
   # Used by the repo-local deployments/roles/rustfs role to create the S3
   # buckets Mimir needs; S3 PutObject fails against a bucket that does not
